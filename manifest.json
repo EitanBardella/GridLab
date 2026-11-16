@@ -1,0 +1,17 @@
+{
+  "name": "Sudoku",
+  "short_name": "Sudoku",
+  "description": "Sudoku Clásico, Killer, Diagonal y Anti-Caballo offline",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F7F4EB",
+  "theme_color": "#F7F4EB",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23F7F4EB'/%3E%3Crect x='64' y='64' width='384' height='384' fill='none' stroke='%231F2421' stroke-width='16'/%3E%3Cline x1='192' y1='64' x2='192' y2='448' stroke='%231F2421' stroke-width='12'/%3E%3Cline x1='320' y1='64' x2='320' y2='448' stroke='%231F2421' stroke-width='12'/%3E%3Cline x1='64' y1='192' x2='448' y2='192' stroke='%231F2421' stroke-width='12'/%3E%3Cline x1='64' y1='320' x2='448' y2='320' stroke='%231F2421' stroke-width='12'/%3E%3Ctext x='128' y='152' font-family='sans-serif' font-size='64' font-weight='bold' fill='%231F2421' text-anchor='middle'%3E9%3C/text%3E%3Ctext x='256' y='280' font-family='sans-serif' font-size='64' font-weight='bold' fill='%231D4ED8' text-anchor='middle'%3E5%3C/text%3E%3Ctext x='384' y='408' font-family='sans-serif' font-size='64' font-weight='bold' fill='%231F2421' text-anchor='middle'%3E1%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
