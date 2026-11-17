@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#F7F4EB">
 <meta name="color-scheme" content="light dark">
 <title>Sudoku</title>
-<link rel="stylesheet" href="style.css?v=digit-v4">
+<link rel="stylesheet" href="style.css?v=duel-v2">
 </head>
 <body>
 
@@ -51,6 +51,10 @@
       </div>
     </section>
 
+    <button id="btnFriend" class="chip home-btn">
+      Duelo con amigo
+      <small>Mismo tablero, al mismo tiempo</small>
+    </button>
     <button id="btnDaily" class="chip home-btn">
       Desafíos Diarios
       <small id="dailyInfo"></small>
@@ -88,6 +92,19 @@
     <span>Jaula <b id="cageSum">—</b></span>
     <span class="dotsep" aria-hidden="true">·</span>
     <span>Faltan <b id="cageLeft">—</b></span>
+  </div>
+
+  <!-- Barra de duelo: solo visible en un duelo activo. La app rellena los textos y las barras. -->
+  <div id="duelBar" class="duelbar" hidden role="group" aria-label="Progreso del duelo">
+    <button type="button" id="duelLive" class="dlive" hidden title="Tocá para volver a compartir el enlace de invitación"></button>
+    <div class="dcol me">
+      <div class="dtop"><span class="dname">Vos</span><b id="duelMe">0/81</b><span class="dtime" id="duelMeT">00:00</span></div>
+      <div class="dprog"><i id="duelMeBar"></i></div>
+    </div>
+    <div class="dcol rival">
+      <div class="dtop"><span class="dname" id="duelRivalName">Rival</span><b id="duelRival">0/81</b><span class="dtime" id="duelRivalT"></span></div>
+      <div class="dprog"><i id="duelRivalBar"></i></div>
+    </div>
   </div>
 
   <section class="stage"><div id="board" class="board" data-mode="classic" role="grid" aria-label="Tablero de Sudoku"></div></section>
@@ -154,17 +171,70 @@
 
 <div class="modal" id="mWin" hidden>
   <div class="sheet center">
-    <h2>¡Resuelto!</h2>
+    <h2 id="winTitle">¡Resuelto!</h2>
     <p id="winTxt" class="sub"></p>
-    <button class="chip primary wide" id="winNew">Nueva partida</button>
+    <div id="duelResult" class="duel-result" hidden></div>
+    <p id="winNote" class="sub" hidden></p>
+    <button class="chip primary wide" id="winChallenge">Desafiar a un amigo</button>
+    <button class="chip wide" id="winRematch" hidden>Devolver desafío</button>
+    <button class="chip wide" id="winNew">Nueva partida</button>
     <button class="chip wide" data-close>Ver tablero</button>
+  </div>
+</div>
+
+<div class="modal" id="mDuel" hidden>
+  <div class="sheet center">
+    <h2>Duelo</h2>
+    <p id="duelTitle" class="duel-title"></p>
+    <p id="duelMeta" class="sub" hidden></p>
+    <p id="duelWarn" class="sub warn" hidden>Se perderá la partida en curso.</p>
+    <button class="chip primary wide" id="duelAccept">Aceptar Duelo</button>
+    <button class="chip wide" id="duelCancel">Cancelar</button>
+  </div>
+</div>
+
+<div class="modal" id="mFriend" hidden>
+  <div class="sheet center">
+    <h2>Duelo con amigo</h2>
+    <p class="sub">Elegí el tablero: vos y tu amigo juegan el mismo, a la vez, y comparan tiempos al terminar.</p>
+    <p class="sub warn" id="friendWarn" hidden>Se perderá la partida en curso.</p>
+    <p class="friend-label">Modo</p>
+    <div class="modes" id="friendModes" role="radiogroup" aria-label="Modo del duelo">
+      <button type="button" role="radio" class="on" aria-checked="true" data-fmode="classic">Clásico</button>
+      <button type="button" role="radio" aria-checked="false" data-fmode="killer">Killer</button>
+      <button type="button" role="radio" aria-checked="false" data-fmode="diagonal">Diagonal</button>
+      <button type="button" role="radio" aria-checked="false" data-fmode="antiknight">Anti-Caballo</button>
+    </div>
+    <p class="friend-label">Dificultad</p>
+    <div class="diffs" id="friendDiffs" role="radiogroup" aria-label="Dificultad del duelo">
+      <button type="button" role="radio" aria-checked="false" data-fdiff="facil">Fácil</button>
+      <button type="button" role="radio" class="on" aria-checked="true" data-fdiff="medio">Medio</button>
+      <button type="button" role="radio" aria-checked="false" data-fdiff="dificil">Difícil</button>
+      <button type="button" role="radio" aria-checked="false" data-fdiff="experto">Experto</button>
+    </div>
+    <button class="chip primary wide" id="friendGo">Compartir enlace y jugar</button>
+    <button class="chip wide" data-close>Cancelar</button>
+  </div>
+</div>
+
+<div class="modal" id="mAlias" hidden>
+  <div class="sheet center">
+    <h2>Tu alias</h2>
+    <p class="sub">Así te verá tu rival (hasta 12 caracteres).</p>
+    <input id="aliasInput" class="text-input" type="text" maxlength="12" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Alias">
+    <p class="sub warn" id="aliasErr" hidden>Escribí un alias.</p>
+    <button class="chip primary wide" id="aliasOk">Guardar y compartir</button>
+    <button class="chip wide" id="aliasCancel">Cancelar</button>
   </div>
 </div>
 
 <div class="modal" id="mLoad" hidden><div class="sheet center"><p class="sub">Generando tablero…</p></div></div>
 
-<script src="engine.js?v=digit-v4"></script>
-<script src="killer-engine.js?v=digit-v4"></script>
-<script src="app.js?v=digit-v4"></script>
+<script src="engine.js?v=duel-v2"></script>
+<script src="killer-engine.js?v=duel-v2"></script>
+<script src="duel.js?v=duel-v2"></script>
+<script src="app.js?v=duel-v2"></script>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
 </body>
 </html>

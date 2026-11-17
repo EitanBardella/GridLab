@@ -2,6 +2,7 @@
   'use strict';
   const E = window.SudokuEngine;   // clásico, diagonal, anti-caballo
   const K = window.KillerEngine;   // killer
+  const D = window.SudokuDuel || null; // duelos y fantasma (duel.js)
   const $ = s => document.querySelector(s);
   const NAMES = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto' };
   const DIFF_ORDER = ['facil', 'medio', 'dificil', 'experto'];
@@ -11,6 +12,15 @@
   const RING = 'inset 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent)';
   const K_GAME = 'sudoku.game.v1', K_SET = 'sudoku.settings.v1', K_STATS = 'sudoku.stats.v1';
   const validMode = m => (MODES.indexOf(m) >= 0 ? m : 'classic');
+  const HINT_PENALTY = D ? D.HINT_PENALTY : 30; // segundos que suma cada pista al tiempo final
+  const FLASH_MS = 1250;                        // duración del destello fantasma
+
+  // Generación. Killer, los Desafíos Diarios y los enlaces viejos (v1) usan topes FIJOS (sin límite de tiempo): el tablero
+  // depende solo de la semilla y debe salir igual en cualquier teléfono (un duelo Killer se regenera desde la semilla).
+  // En Clásico, Diagonal y Anti-Caballo el duelo ya NO regenera: el enlace lleva el tablero empaquetado (41 bytes), así que
+  // los tableros nuevos se generan con los topes normales del motor (sin el límite de 30 intentos).
+  const GEN_E = { maxAttempts: 30, timeBudgetMs: 1e9 };
+  const GEN_K = { timeBudgetMs: 1e9 };
 
   /* ---------- Persistencia segura: localStorage con respaldo en memoria ---------- */
   const store = {
@@ -25,7 +35,7 @@
     }
   };
   const load = (k, d) => { try { const v = store.get(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
-  // G incluye `mode`/`variant` y, en Killer, el arreglo `cages`.
+  // G incluye `mode`/`variant`, `seed`, `req`, `rec` (grabador del fantasma), `duel` y, en Killer, `cages`.
   const persist = () => { try { store.set(K_GAME, JSON.stringify(G)); } catch (e) { /* ignorar */ } };
   const saveSet = () => store.set(K_SET, JSON.stringify(set));
   const saveStats = () => { try { store.set(K_STATS, JSON.stringify(stats)); } catch (e) { /* ignorar */ } };
@@ -35,7 +45,7 @@
   set.mode = validMode(set.mode);
   let stats = Object.assign({ won: {}, best: {}, daily: {} }, load(K_STATS, {}));
   ['won', 'best', 'daily'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
-  let G = null;          // partida: mode, puzzle, solution, board, notes, diff, hist, secs, won, counted, (daily), (cages)
+  let G = null;          // partida: mode, puzzle, solution, board, notes, diff, req, seed, hist, secs, won, counted, rec, (duel), (daily), (cages)
   let view = 'home';     // 'home' | 'game'
   let sel = -1, pencil = false, hint = null, busy = false;
   let selMode = set.mode; // modo elegido en el panel "Jugar" del inicio
@@ -46,9 +56,15 @@
   const cells = [], keys = [];
   let cageOf = new Int16Array(81).fill(-1); // índice de jaula por celda (solo Killer)
   let sumAt = new Int16Array(81);           // suma de la jaula en su celda topLeft
+  let givensN = 0;                          // pistas iniciales del tablero actual
+  let pendingDuel = null;                   // invitación a duelo pendiente (resultado de decodeDuelPayload)
+  let ghostSeen = 0;                        // último segundo efectivo ya revisado para destellos del fantasma
+  const flash = new Array(81).fill(0);      // por celda: instante (ms) hasta el que dura el destello
+  let lastHintKey = '';                     // evita cobrar dos veces la misma pista
+  let aliasCb = null, toastTimer = 0;
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'digit-v4';
+  const BUILD = 'duel-v2';
   // Enlaza un evento a un id; si el id no existe lo avisa en consola (antes el ?. lo ocultaba).
   const on = (id, ev, fn) => {
     const el = document.getElementById(id);
@@ -57,6 +73,24 @@
     return el;
   };
   const setText = (sel_, txt) => { const el = $(sel_); if (el) el.textContent = txt; };
+  const mk = (tag, cls, txt) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt !== undefined) e.textContent = txt;
+    return e;
+  };
+
+  function toast(msg) {
+    const t = $('#toast'); if (!t) return;
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 2400);
+  }
+
+  /* ---------- Tiempo efectivo (cronómetro + penalización por pistas) ---------- */
+  const eff = () => G.secs + HINT_PENALTY * (G.rec ? G.rec.hints : 0);
+  // El reloj visible muestra el tiempo efectivo solo en duelos; en partidas normales, el cronómetro simple.
+  const showSecs = () => (G.duel ? eff() : G.secs);
 
   /* ---------- Vecindad por modo ---------- */
   const peerCache = {};
@@ -106,11 +140,14 @@
     return p.concat(mates);
   }
 
-  // Prepara los índices derivados de las jaulas (no se guardan en G).
+  // Prepara los índices derivados (no se guardan en G): jaulas de Killer y cantidad de pistas iniciales.
   function prepareGame() {
     cageOf = new Int16Array(81).fill(-1);
     sumAt = new Int16Array(81);
-    if (!G || G.mode !== 'killer') return;
+    givensN = 0;
+    if (!G) return;
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (G.puzzle[r][c]) givensN++;
+    if (G.mode !== 'killer') return;
     G.cages.forEach((cg, idx) => {
       let tl = cg.topLeft ? cg.topLeft[0] * 9 + cg.topLeft[1] : 81;
       cg.cells.forEach(q => {
@@ -173,7 +210,9 @@
 
   function afterChange() {
     hideHint();
-    if (!G.won && isSolvedNow()) { G.won = true; sel = -1; recordWin(); showWin(); }
+    // El grabador del fantasma se sincroniza tras CADA cambio (colocar, borrar, deshacer, pista).
+    if (G.rec) G.rec.sync(G.board, G.solution, G.puzzle, eff());
+    if (!G.won && isSolvedNow()) { G.won = true; sel = -1; finishGame(); }
     render(); persist();
   }
 
@@ -189,6 +228,7 @@
         if (k < 0) { a.push(n); a.sort((x, y) => x - y); } else a.splice(k, 1);
       });
     } else if (G.board[r][c] !== n) {
+      if (G.rec && n !== G.solution[r][c]) G.rec.addError(); // error cometido (cuenta aunque no se marque en pantalla)
       mutate(t => place(r, c, n, t));
     }
   }
@@ -257,6 +297,16 @@
     const h = $('#hint'); if (h) h.hidden = true;
   }
 
+  // Cada pista nueva suma una pista usada (y +30 s al tiempo final). Pedir otra vez la misma pista no se vuelve a cobrar.
+  function chargeHint(h) {
+    const key = G.hist.length + ':' + h.row + ',' + h.col + ',' + h.value;
+    if (key === lastHintKey) return;
+    lastHintKey = key;
+    if (G.rec) G.rec.addHint();
+    if (G.duel) { toast('+' + HINT_PENALTY + ' s de penalización'); advanceGhost(); }
+    persist();
+  }
+
   function showHint() {
     if (!G || G.won) return;
     let h = null;
@@ -273,9 +323,10 @@
       setText('#hintText', 'El tablero está completo y correcto.');
       return;
     }
+    chargeHint(h);
     hint = h; sel = h.row * 9 + h.col;
     if (apply) apply.hidden = false;
-    setText('#hintText', h.reason);
+    setText('#hintText', h.reason + (G.duel ? ' (+' + HINT_PENALTY + ' s)' : ''));
     render();
   }
 
@@ -299,6 +350,57 @@
     leftEl.textContent = String(cg.sum - filled);
   }
 
+  /* ---------- Duelo: progreso dual y fantasma ---------- */
+  // Celdas con número que cuentan para mi progreso X/81 (con errores ocultos, cuenta lo colocado).
+  function myProgress() {
+    let n = 0;
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const v = G.board[r][c];
+        if (v && (!set.showErrors || v === G.solution[r][c])) n++;
+      }
+    }
+    return n;
+  }
+
+  function updateDuelBar() {
+    const bar = $('#duelBar'); if (!bar) return;
+    const active = !!(G && G.duel && D);
+    bar.hidden = !active;
+    if (!active) return;
+    const live = !!G.duel.open;           // invitación abierta: sin marcador de rival
+    bar.classList.toggle('live', live);
+    const lv = $('#duelLive');
+    if (lv) { lv.hidden = !live; if (live) lv.textContent = D.liveLabel(G.mode, G.req); }
+    const t = eff();
+    const mine = myProgress();
+    setText('#duelMe', mine + '/81');
+    setText('#duelMeT', fmt(t));
+    const mb = $('#duelMeBar'); if (mb) mb.style.width = (mine / 81 * 100) + '%';
+    if (live) return;
+    const theirs = D.ghostProgress(G.duel.moves, t, givensN);
+    setText('#duelRivalName', G.duel.alias);
+    setText('#duelRival', theirs + '/81');
+    setText('#duelRivalT', 'Obj. ' + fmt(G.duel.time));
+    const rb = $('#duelRivalBar'); if (rb) rb.style.width = (theirs / 81 * 100) + '%';
+  }
+
+  // Marca para destello las celdas que el rival completó desde la última revisión, si en mi tablero siguen vacías.
+  // Devuelve true si hay algún destello nuevo (la app vuelve a pintar el tablero).
+  function advanceGhost() {
+    if (!G || !G.duel || !D || G.duel.open) return false;
+    const now = eff();
+    const cs = D.ghostCellsBetween(G.duel.moves, ghostSeen, now);
+    ghostSeen = Math.max(ghostSeen, now);
+    let any = false;
+    cs.forEach(i => {
+      const r = Math.floor(i / 9), c = i % 9;
+      if (!G.puzzle[r][c] && !G.board[r][c]) { flash[i] = Date.now() + FLASH_MS; any = true; }
+    });
+    if (any) setTimeout(() => { if (G && view === 'game') render(); }, FLASH_MS + 60);
+    return any;
+  }
+
   /* ---------- Render ---------- */
   function render() {
     if (!G || !cells.length) return;
@@ -316,11 +418,13 @@
     else if (hasSel && mode === 'diagonal') extra = new Set(diagonalsOf(sel));
     const rel = new Set(hint ? hint.related.map(p => p.row * 9 + p.col) : []);
     const count = new Array(10).fill(0);
+    const nowMs = Date.now();
 
     // Etiquetas superiores, modo en tablero y barra de estado
-    setText('#modeLabel', G.daily ? 'Diario' : (MODE_NAMES[mode] || 'Sudoku'));
+    const ml = G.daily ? 'Diario' : (MODE_NAMES[mode] || 'Sudoku');
+    setText('#modeLabel', G.duel ? '⚔ ' + ml : ml);
     setText('#diffLabel', G.daily ? dateLabel(G.daily) : (NAMES[G.diff] || 'Sudoku'));
-    setText('#clock', fmt(G.secs));
+    setText('#clock', fmt(showSecs()));
     if (boardEl) boardEl.dataset.mode = mode;
     const st = $('#status'); if (st) st.hidden = !killer;
     updateCageStatus();
@@ -338,6 +442,7 @@
       if (wrong && wrong.has(i)) cl += ' err';
       const isHint = hint && i === hint.row * 9 + hint.col;
       if (isHint) cl += ' hint'; else if (rel.has(i)) cl += ' rel';
+      if (flash[i] > nowMs && !v) cl += ' ghost'; // destello del rival (sin mostrar el número)
       if (killer && cageOf[i] >= 0) { // contorno punteado donde la celda vecina es de otra jaula
         const g = cageOf[i];
         if (r === 0 || cageOf[i - 9] !== g) cl += ' cage-top';
@@ -386,6 +491,7 @@
     }
     const bu = document.querySelector('[data-act="undo"]');
     if (bu) bu.disabled = !G.hist.length;
+    updateDuelBar();
   }
 
   /* ---------- Vistas: inicio / juego ---------- */
@@ -465,14 +571,15 @@
     const prog = hasProgress();
     const bc = $('#btnContinue'); if (bc) bc.hidden = !prog;
     if (prog) {
-      setText('#continueInfo', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • ' + fmt(G.secs) + (G.daily ? ' • Diario' : ''));
+      setText('#continueInfo', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • ' + fmt(showSecs()) +
+        (G.daily ? ' • Diario' : '') + (G.duel ? (G.duel.open ? ' • ⚔ en vivo' : ' • ⚔ vs ' + G.duel.alias) : ''));
     }
     const w = $('#playWarn'); if (w) w.hidden = !prog;
     const t = todayStr();
     setText('#dailyInfo', stats.daily[t] ? 'Hoy completado ✓ ' + fmt(stats.daily[t]) : 'Hoy disponible • ' + dateLabel(t));
   }
 
-  // Inicio: guarda la partida (modo y jaulas incluidos, vía G) y vuelve a #home-view.
+  // Inicio: guarda la partida (modo, jaulas y fantasma incluidos, vía G) y vuelve a #home-view.
   // El cronómetro se pausa solo porque únicamente corre con view === 'game'.
   function goHome() {
     if (G) persist();
@@ -507,37 +614,104 @@
   function selectMode(m) { selMode = validMode(m); setModeAttrs(selMode); }
 
   /* ---------- Partidas ---------- */
+  // Semilla numérica Uint32. Las semillas de texto (Desafíos Diarios) se convierten con el mismo hash FNV-1a
+  // que usan los motores, así el tablero del día es idéntico y además se puede enviar como duelo.
+  function toSeed(v) {
+    if (v === undefined || v === null) return D ? D.randomSeed() : (Math.floor(Math.random() * 4294967296) >>> 0);
+    if (typeof v === 'string') return D ? D.seedFromString(v) : (parseInt(v.replace(/\D/g, ''), 10) >>> 0);
+    return v >>> 0;
+  }
+
+  // Tablero que llegó empaquetado en el enlace (modos estándar): verifica solución única y la calcula (≈ms).
+  function boardFromPacked(board, mode, diff) {
+    if (E.countSolutions(board, 2, mode) !== 1) throw new Error('packed-board-invalid');
+    const solution = E.solve(board, mode);
+    if (!solution) throw new Error('packed-board-invalid');
+    return { puzzle: E.cloneBoard(board), solution: solution, difficulty: diff };
+  }
+
+  // Enlace de invitación abierta del tablero actual: solo tablero/semilla, sin tiempo ni fantasma. Killer va por semilla.
+  const inviteEncoded = () => D.encodeDuelPayload({
+    mode: G.mode, diff: G.req, seed: G.seed, board: G.mode === 'killer' ? null : G.puzzle, open: true
+  });
+
+  function shareInvite() {
+    if (!D || !G || typeof G.seed !== 'number' || !NAMES[G.req]) return;
+    let url;
+    try { url = D.buildLink(inviteEncoded()); } catch (e) { toast('No se pudo crear el enlace.'); return; }
+    const text = 'Te invito a un duelo de Sudoku (' + MODE_NAMES[G.mode] + ' • ' + NAMES[G.req] +
+      '). Abrí el enlace y arrancamos el mismo tablero a la vez: ¡gana el que termine antes!';
+    D.shareLink({ title: 'Duelo de Sudoku', text: text, url: url }).then(res => {
+      if (res === 'copied') toast('Enlace copiado: pegáselo a tu amigo');
+      else if (res === 'failed') {
+        try { window.prompt('Copiá este enlace:', url); } catch (e) { toast('No se pudo compartir el enlace.'); }
+      }
+    });
+  }
+
+  // opts: { seed, daily, duel, rematchTo, board (tablero empaquetado), legacy (enlace v1), invite (duelo con amigo) }
   function startGame(diff, mode, opts) {
     if (busy) return;
     opts = opts || {};
     mode = validMode(mode);
     busy = true; closeModals(); if (!opts.daily) selectMode(mode);
-    const ml = $('#mLoad'); if (ml) ml.hidden = false;
-    let ok = false;
-    Promise.resolve().then(() => (mode === 'killer'
-      ? K.generateKillerPuzzleAsync(diff, opts.seed ? { seed: opts.seed } : undefined)
-      : E.generatePuzzleAsync(diff, opts.seed ? { variant: mode, seed: opts.seed } : { variant: mode }))
-    ).then(g => {
+    const ml = $('#mLoad'); if (ml && !opts.board) ml.hidden = false; // con tablero empaquetado no hay espera
+    const seed = toSeed(opts.seed);
+    let ok = false, errMsg = '';
+    const fixedGen = mode === 'killer' || !!opts.daily || !!opts.legacy;
+    Promise.resolve().then(() => {
+      if (opts.board) return boardFromPacked(opts.board, mode, diff);
+      if (mode === 'killer') return K.generateKillerPuzzleAsync(diff, Object.assign({ seed: seed }, GEN_K));
+      return E.generatePuzzleAsync(diff, Object.assign({ variant: mode, seed: seed }, fixedGen ? GEN_E : {}));
+    }).then(g => {
       const killer = mode === 'killer', puzzle = killer ? g.board : g.puzzle;
+      // Control de coherencia del duelo: el fantasma nunca resuelve una celda dada. Si pasa, el tablero no coincide.
+      if (opts.duel && opts.duel.moves.some(m => puzzle[Math.floor(m.cell / 9)][m.cell % 9])) {
+        errMsg = 'No se pudo reconstruir el mismo tablero del duelo. ¿Ambos tienen la app actualizada?';
+        throw new Error('duel-mismatch');
+      }
       G = {
         mode: mode, variant: mode, puzzle: puzzle, solution: g.solution, board: E.cloneBoard(puzzle),
-        notes: emptyNotes(), diff: g.difficulty, hist: [], secs: 0, won: false, counted: false
+        notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, counted: false,
+        rec: D ? new D.DuelRecorder() : null
       };
       if (killer) G.cages = g.cages;
       if (opts.daily) G.daily = opts.daily;
+      if (opts.duel) G.duel = opts.duel;
+      if (opts.invite) { // duelo con amigo: invitación abierta (sin tiempo ni fantasma todavía)
+        const dec = D.decodeDuelPayload(inviteEncoded());
+        G.duel = { id: dec.ok ? dec.id : 'live.' + seed.toString(36), open: true, alias: '', time: 0, errors: 0, hints: 0, moves: [] };
+      }
+      if (opts.rematchTo) G.rematchTo = opts.rematchTo;
       prepareGame();
       sel = -1; pencil = false; activeDigit = null; hideHint();
+      ghostSeen = 0; flash.fill(0); lastHintKey = '';
       if (!opts.daily) { set.mode = mode; saveSet(); }
       ok = true;
-    }).catch(() => { /* conserva la partida actual si falla */ }).then(() => {
+    }).catch(() => { if (!errMsg && opts.board) errMsg = 'El tablero del enlace no es válido.'; /* conserva la partida actual */ }).then(() => {
       busy = false;
       const l = $('#mLoad'); if (l) l.hidden = true;
       if (ok) {
         persist(); setPlayOpen(false); showView('game'); render();
+        if (opts.rematchTo) toast('Resolvé este tablero y mandale la revancha a ' + opts.rematchTo);
+        if (opts.invite) shareInvite();
       } else {
         updateHome();
+        if (errMsg) toast(errMsg);
       }
     });
+  }
+
+  // Valida el bloque `duel` guardado en una partida (los datos de localStorage no son de fiar).
+  function cleanDuel(d) {
+    if (!D || !d || typeof d !== 'object' || typeof d.id !== 'string' || !Array.isArray(d.moves)) return null;
+    const moves = d.moves
+      .filter(m => m && Number.isInteger(m.cell) && m.cell >= 0 && m.cell < 81 && Number.isFinite(m.t))
+      .map(m => ({ cell: m.cell, t: m.t }));
+    return {
+      id: d.id.slice(0, 40), open: !!d.open, alias: D.sanitizeAlias(d.alias) || (d.open ? '' : 'Rival'),
+      time: Math.max(0, d.time | 0), errors: Math.max(0, d.errors | 0), hints: Math.max(0, d.hints | 0), moves: moves
+    };
   }
 
   function restore() {
@@ -558,7 +732,22 @@
       s.counted = !!s.counted || s.won;
       if (typeof s.daily !== 'string') delete s.daily;
       if (!NAMES[s.diff]) s.diff = 'facil';
+      // Campos de duelos (las partidas guardadas antes de esta versión no los tienen y siguen funcionando).
+      if (typeof s.seed === 'number' && isFinite(s.seed)) s.seed = s.seed >>> 0; else delete s.seed;
+      if (!NAMES[s.req]) delete s.req;
+      if (typeof s.finalTime !== 'number' || !isFinite(s.finalTime)) delete s.finalTime;
+      if (typeof s.rematchTo === 'string' && D) s.rematchTo = D.sanitizeAlias(s.rematchTo); else delete s.rematchTo;
+      if (s.duel) { s.duel = cleanDuel(s.duel); if (!s.duel) delete s.duel; }
+      if (s.duelResult && (typeof s.duelResult !== 'object' || !s.duelResult.record)) delete s.duelResult;
+      if (D) {
+        const had = !!(s.rec && Array.isArray(s.rec.m));
+        s.rec = new D.DuelRecorder(had ? s.rec : null);
+        if (!had) s.rec.sync(s.board, s.solution, s.puzzle, s.secs); // partida vieja: marcas aproximadas
+      } else {
+        s.rec = null;
+      }
       G = s; prepareGame();
+      ghostSeen = eff(); flash.fill(0); lastHintKey = '';
       return true;
     } catch (e) { return false; }
   }
@@ -574,9 +763,81 @@
     saveStats();
   }
 
+  // Al resolver: estadísticas, tiempo final efectivo (con penalizaciones) y, en un duelo, marcador cara a cara.
+  function finishGame() {
+    recordWin();
+    G.finalTime = eff();
+    if (G.duel && !G.duel.open && D) {
+      const res = D.history.record(G.duel.id, G.duel.alias, G.finalTime, G.duel.time);
+      G.duelResult = { counted: res.counted, record: res.record };
+    }
+    showWin();
+  }
+
+  const canChallenge = () => !!(D && G && G.won && G.rec && typeof G.seed === 'number' && NAMES[G.req] && typeof G.finalTime === 'number');
+
+  // Comparativa lado a lado (Tiempo final, Errores, Pistas) + marcador histórico contra ese rival.
+  function buildDuelResult(box) {
+    box.textContent = '';
+    const d = G.duel, hints = G.rec ? G.rec.hints : 0, errors = G.rec ? G.rec.errors : 0;
+    const rows = [
+      ['Tiempo final', fmt(G.finalTime), fmt(d.time), G.finalTime, d.time],
+      ['Errores', String(errors), String(d.errors), errors, d.errors],
+      ['Pistas', hints + (hints ? ' (+' + hints * HINT_PENALTY + ' s)' : ''), String(d.hints), hints, d.hints]
+    ];
+    const tbl = mk('table', 'dr-tbl'), head = mk('thead'), hr = mk('tr'), body = mk('tbody');
+    hr.appendChild(mk('th')); hr.appendChild(mk('th', '', 'Vos')); hr.appendChild(mk('th', '', d.alias));
+    head.appendChild(hr);
+    rows.forEach(r => {
+      const tr = mk('tr'), th = mk('th', '', r[0]);
+      th.scope = 'row';
+      const a = mk('td', r[3] < r[4] ? 'best' : '', r[1]), b = mk('td', r[4] < r[3] ? 'best' : '', r[2]);
+      tr.appendChild(th); tr.appendChild(a); tr.appendChild(b); body.appendChild(tr);
+    });
+    tbl.appendChild(head); tbl.appendChild(body); box.appendChild(tbl);
+    const rec = G.duelResult && G.duelResult.record;
+    if (rec) {
+      box.appendChild(mk('p', 'dr-score', 'Marcador contra ' + rec.name + ': Vos ' + rec.wins + ' · ' + rec.name + ' ' + rec.losses +
+        (rec.ties ? ' · Empates ' + rec.ties : '')));
+    }
+    if (G.duelResult && !G.duelResult.counted) box.appendChild(mk('p', 'dr-score', 'Este enlace ya estaba registrado: el marcador no cambió.'));
+  }
+
   function showWin() {
-    if (G.daily) setText('#winTxt', 'Completaste el desafío del ' + dateLabel(G.daily) + ' en ' + fmt(G.secs) + '.');
-    else setText('#winTxt', 'Completaste el tablero ' + (MODE_NAMES[G.mode] || '') + ' ' + (NAMES[G.diff] || '') + ' en ' + fmt(G.secs) + '.');
+    const live = !!(G.duel && G.duel.open && D);
+    const duel = !!(G.duel && !G.duel.open && D && typeof G.finalTime === 'number');
+    const box = $('#duelResult'), note = $('#winNote');
+    let title = '¡Resuelto!', txt;
+    if (duel) {
+      const out = D.compareTimes(G.finalTime, G.duel.time);
+      title = out === 'win' ? '¡Ganaste el duelo!' : (out === 'loss' ? 'Perdiste el duelo' : 'Empate');
+      txt = (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • vs ' + G.duel.alias;
+      if (box) { buildDuelResult(box); box.hidden = false; }
+    } else {
+      if (G.daily) txt = 'Completaste el desafío del ' + dateLabel(G.daily) + ' en ' + fmt(G.secs) + '.';
+      else txt = 'Completaste el tablero ' + (MODE_NAMES[G.mode] || '') + ' ' + (NAMES[G.diff] || '') + ' en ' + fmt(G.secs) + '.';
+      if (box) { box.textContent = ''; box.hidden = true; }
+    }
+    if (live && typeof G.finalTime === 'number') txt = D.liveLabel(G.mode, G.req) + ': terminaste en ' + fmt(G.finalTime) + '.';
+    setText('#winTitle', title);
+    setText('#winTxt', txt);
+    const hints = G.rec ? G.rec.hints : 0;
+    if (note) {
+      if (!duel && hints && typeof G.finalTime === 'number') {
+        note.textContent = 'Tu tiempo para desafiar es ' + fmt(G.finalTime) + ' (incluye ' + hints + (hints === 1 ? ' pista' : ' pistas') +
+          ' × ' + HINT_PENALTY + ' s).';
+        note.hidden = false;
+      } else if (live) {
+        note.textContent = 'Enviá tu resultado para que tu amigo compare tiempo, errores y pistas.';
+        note.hidden = false;
+      } else note.hidden = true;
+    }
+    const bc = $('#winChallenge'); if (bc) {
+      bc.hidden = !canChallenge();
+      bc.textContent = live ? 'Enviar mi resultado (con fantasma)'
+        : (G.rematchTo ? 'Mandar revancha a ' + G.rematchTo : 'Desafiar a un amigo');
+    }
+    const br = $('#winRematch'); if (br) br.hidden = !duel;
     const m = $('#mWin'); if (m) m.hidden = false;
   }
 
@@ -598,8 +859,172 @@
     const m = $('#mStats'); if (m) m.hidden = false;
   }
 
+  /* ---------- Duelos: invitación por enlace, desafiar y revancha ---------- */
+  // Lee #duel=... (al cargar y en hashchange). Un enlace válido abre la invitación; uno roto, solo avisa.
+  function checkDuelHash() {
+    if (!D || busy) return;
+    const r = D.readLocationHash();
+    if (!r) return;
+    if (!r.ok) { D.clearHash(); toast('El enlace de duelo no es válido.'); return; }
+    showInvite(r);
+  }
+
+  // ¿El enlace de resultado `d` es del mismo tablero que mi duelo en vivo (invitación abierta)?
+  function matchLive(d) {
+    return !!(G && G.duel && G.duel.open && !d.open && G.mode === d.mode && G.req === d.diff && G.seed === d.seed);
+  }
+
+  function showInvite(r) {
+    const d = r.data;
+    pendingDuel = r;
+    setText('#duelTitle', D.challengeTitle(d)); // textContent: el alias nunca se interpreta como HTML
+    const prev = D.history.playedOutcome(r.id), rec = D.history.get(d.alias);
+    const meta = $('#duelMeta');
+    if (meta) {
+      let t = '';
+      if (d.open) t = 'Los dos juegan el mismo tablero a la vez. Al terminar, cada uno envía su resultado y se comparan.';
+      else if (matchLive(d)) t = G.won ? 'Es el mismo tablero que acabás de jugar: se comparan los resultados.'
+        : 'Es el mismo tablero que estás jugando: el rival se conecta sin perder tu progreso.';
+      else if (prev) t = 'Ya jugaste este duelo (' + ({ win: 'ganaste', loss: 'perdiste', tie: 'empataste' }[prev]) + '): el marcador no cambiará.';
+      else if (rec.wins + rec.losses + rec.ties) t = 'Marcador contra ' + rec.name + ': Vos ' + rec.wins + ' · ' + rec.name + ' ' + rec.losses +
+        (rec.ties ? ' · Empates ' + rec.ties : '');
+      meta.textContent = t; meta.hidden = !t;
+    }
+    const same = hasProgress() && G.duel && G.duel.id === r.id;     // el mismo duelo ya está en curso: se retoma
+    const w = $('#duelWarn'); if (w) w.hidden = !hasProgress() || !!same || matchLive(d);
+    setText('#duelAccept', matchLive(d) ? (G.won ? 'Ver comparativa' : 'Conectar al rival') : (d.open ? 'Unirme al duelo' : 'Aceptar Duelo'));
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mDuel') m.hidden = true; });
+    const m = $('#mDuel'); if (m) m.hidden = false;
+  }
+
+  function acceptDuel() {
+    const r = pendingDuel; if (!r) return;
+    pendingDuel = null;
+    D.clearHash();
+    closeModals();
+    const d = r.data;
+    if (hasProgress() && G.duel && G.duel.id === r.id) { showView('game'); render(); return; }
+    if (matchLive(d)) { attachRival(r); return; }
+    startGame(d.diff, d.mode, {
+      seed: d.seed,
+      board: d.board || undefined,      // modos estándar: tablero empaquetado, arranque instantáneo
+      legacy: d.version === 1,          // enlace viejo: se regenera con los topes fijos de siempre
+      duel: { id: r.id, open: !!d.open, alias: d.alias, time: d.time, errors: d.errors, hints: d.hints, moves: d.moves }
+    });
+  }
+
+  // Llegó el resultado del rival para el MISMO tablero que ya juego en vivo: se le conecta el fantasma.
+  // Si ya terminé, se muestra la comparativa cara a cara (y se anota en el historial) sin volver a jugar.
+  function attachRival(r) {
+    const d = r.data;
+    if (d.moves.some(m => G.puzzle[Math.floor(m.cell / 9)][m.cell % 9])) { toast('El enlace no coincide con este tablero.'); return; }
+    G.duel = { id: r.id, open: false, alias: d.alias, time: d.time, errors: d.errors, hints: d.hints, moves: d.moves };
+    ghostSeen = eff(); flash.fill(0);
+    if (G.won && typeof G.finalTime === 'number') {
+      const res = D.history.record(r.id, d.alias, G.finalTime, d.time);
+      G.duelResult = { counted: res.counted, record: res.record };
+      persist(); showView('game'); render(); showWin();
+    } else {
+      persist(); showView('game'); render();
+      toast(d.alias + ' ya terminó en ' + fmt(d.time) + '. ¡Ganale!');
+    }
+  }
+
+  function cancelDuel() {
+    pendingDuel = null;
+    if (D) D.clearHash();
+    closeModals();
+  }
+
+  function askAlias(cb) {
+    const inp = $('#aliasInput'), er = $('#aliasErr'), m = $('#mAlias');
+    if (!m || !D) return;
+    aliasCb = cb;
+    if (inp) inp.value = D.getAlias();
+    if (er) er.hidden = true;
+    m.hidden = false;
+    if (inp) setTimeout(() => { try { inp.focus(); } catch (e) { /* ignorar */ } }, 50);
+  }
+
+  function hideAlias() { aliasCb = null; const m = $('#mAlias'); if (m) m.hidden = true; }
+
+  function submitAlias() {
+    const inp = $('#aliasInput');
+    const a = D ? D.setAlias(inp ? inp.value : '') : '';
+    if (!a) { const er = $('#aliasErr'); if (er) er.hidden = false; return; }
+    const cb = aliasCb;
+    hideAlias();
+    if (cb) cb(a);
+  }
+
+  // "Desafiar a un amigo": pide el alias la primera vez y comparte el enlace con el fantasma de esta partida.
+  function challengeFriend() {
+    if (!canChallenge()) return;
+    const alias = D.getAlias();
+    if (alias) shareChallenge(alias); else askAlias(shareChallenge);
+  }
+
+  function shareChallenge(alias) {
+    if (!canChallenge()) return;
+    let enc;
+    try {
+      const payload = G.rec.toPayload({ mode: G.mode, diff: G.req, seed: G.seed, time: G.finalTime, alias: alias });
+      if (G.mode !== 'killer') payload.board = G.puzzle; // tablero empaquetado: el rival arranca al instante
+      enc = D.encodeDuelPayload(payload);
+    } catch (e) { toast('No se pudo crear el enlace.'); return; }
+    const url = D.buildLink(enc);
+    const text = alias + ' te desafía en Sudoku (' + MODE_NAMES[G.mode] + ' • ' + NAMES[G.req] + '): mi tiempo fue ' +
+      fmt(G.finalTime) + '. ¿Podés ganarme?';
+    D.shareLink({ title: 'Desafío de Sudoku', text: text, url: url }).then(res => {
+      if (res === 'copied') toast('Enlace copiado');
+      else if (res === 'failed') {
+        try { window.prompt('Copiá este enlace:', url); } catch (e) { toast('No se pudo compartir el enlace.'); }
+      }
+    });
+  }
+
+  // "Devolver desafío": tablero nuevo (semilla nueva) del mismo modo y dificultad, para mandar la revancha al ganar.
+  function rematch() {
+    if (!G || !G.duel || !NAMES[G.req]) return;
+    const rival = G.duel.alias, mode = G.mode, diff = G.req;
+    closeModals();
+    startGame(diff, mode, { rematchTo: rival });
+  }
+
+  /* ---------- Duelo con amigo: elegir tablero, crear invitación y jugar ---------- */
+  let friendMode = 'classic', friendDiff = 'medio';
+
+  function setFriendSel() {
+    document.querySelectorAll('#friendModes [data-fmode]').forEach(b => {
+      const on = b.dataset.fmode === friendMode;
+      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('#friendDiffs [data-fdiff]').forEach(b => {
+      const on = b.dataset.fdiff === friendDiff;
+      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+
+  function openFriend() {
+    friendMode = selMode;
+    setFriendSel();
+    const w = $('#friendWarn'); if (w) w.hidden = !hasProgress();
+    const m = $('#mFriend'); if (m) m.hidden = false;
+  }
+
+  // "Compartir enlace y jugar": genera el tablero, crea el enlace de invitación abierta, lo comparte y entra a jugar.
+  function createFriendDuel() {
+    if (!D) { toast('Los duelos no están disponibles.'); return; }
+    startGame(friendDiff, friendMode, { invite: true });
+  }
+
   /* ---------- Ajustes y modales ---------- */
-  function closeModals() { document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad') m.hidden = true; }); }
+  function closeModals() {
+    const inv = $('#mDuel');
+    if (inv && !inv.hidden && pendingDuel) { pendingDuel = null; if (D) D.clearHash(); } // invitación descartada
+    aliasCb = null;
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad') m.hidden = true; });
+  }
   const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
   const openSettings = () => { const m = $('#mSet'); if (m) m.hidden = false; };
 
@@ -616,6 +1041,11 @@
     on('btnContinue', 'click', continueGame);
     on('btnPlay', 'click', () => { const p = $('#playPanel'); setPlayOpen(!!p && p.hidden); });
     on('btnDaily', 'click', openDaily);
+    on('btnFriend', 'click', openFriend);
+    on('friendGo', 'click', createFriendDuel);
+    document.querySelectorAll('#friendModes [data-fmode]').forEach(b => b.addEventListener('click', () => { friendMode = b.dataset.fmode; setFriendSel(); }));
+    document.querySelectorAll('#friendDiffs [data-fdiff]').forEach(b => b.addEventListener('click', () => { friendDiff = b.dataset.fdiff; setFriendSel(); }));
+    on('duelLive', 'click', () => { if (G && G.duel && G.duel.open && !G.won) shareInvite(); });
     on('dailyPrev', 'click', () => shiftMonth(-1));
     on('dailyNext', 'click', () => shiftMonth(1));
     on('dailyGrid', 'click', e => {
@@ -650,16 +1080,35 @@
     on('hintClose', 'click', () => { hideHint(); render(); });
     on('btnHome', 'click', goHome);
     on('btnSet', 'click', openSettings);
+    // Con la partida resuelta, tocar el reloj vuelve a abrir el resultado (y el botón de desafiar).
+    on('clock', 'click', () => { if (G && G.won && view === 'game') showWin(); });
     on('winNew', 'click', () => { closeModals(); goHome(); setPlayOpen(true); });
+    on('winChallenge', 'click', challengeFriend);
+    on('winRematch', 'click', rematch);
+
+    // Duelos
+    on('duelAccept', 'click', acceptDuel);
+    on('duelCancel', 'click', cancelDuel);
+    on('aliasOk', 'click', submitAlias);
+    on('aliasCancel', 'click', hideAlias);
+    on('aliasInput', 'keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAlias(); } });
+    window.addEventListener('hashchange', checkDuelHash);
 
     // Modales y ajustes
     document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
-    document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m && m.id !== 'mLoad') closeModals(); }));
+    document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
+      if (e.target !== m || m.id === 'mLoad') return;
+      if (m.id === 'mAlias') hideAlias(); else closeModals();
+    }));
     document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => { set.theme = b.dataset.themeSet; saveSet(); applyTheme(); }));
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
 
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && modalOpen()) { closeModals(); return; }
+      if (e.key === 'Escape' && modalOpen()) {
+        const al = $('#mAlias');
+        if (al && !al.hidden) hideAlias(); else closeModals();
+        return;
+      }
       if (!G || busy || modalOpen() || view !== 'game') return;
       if (e.key >= '1' && e.key <= '9') pressDigit(+e.key);
       else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') erase();
@@ -677,9 +1126,12 @@
     });
 
     // Cronómetro: solo corre en la vista de juego, con la pestaña visible y la partida activa.
+    // En un duelo también avanza el fantasma: destellos y progreso del rival según el tiempo efectivo.
     setInterval(() => {
       if (G && view === 'game' && !G.won && !busy && !document.hidden) {
-        G.secs++; setText('#clock', fmt(G.secs));
+        G.secs++;
+        setText('#clock', fmt(showSecs()));
+        if (G.duel) { if (advanceGhost()) render(); else updateDuelBar(); }
         if (G.secs % 10 === 0) persist();
       }
     }, 1000);
@@ -692,9 +1144,13 @@
   /* ---------- Inicio de la app ---------- */
   function init() {
     boardEl = $('#board'); keypad = $('#keypad');
-    ['home-view', 'game-view', 'btnPlay', 'playPanel'].forEach(id => {
+    ['home-view', 'game-view', 'btnPlay', 'playPanel', 'duelBar', 'mDuel'].forEach(id => {
       if (!document.getElementById(id)) console.error('[Sudoku] Falta #' + id + ': ¿index.html y app.js son de la misma versión?');
     });
+    if (!D) {
+      console.error('[Sudoku] Falta duel.js: los duelos y desafíos están desactivados.');
+      const bf = $('#btnFriend'); if (bf) bf.hidden = true;
+    }
     console.info('[Sudoku] app.js ' + BUILD);
     buildDom();
     bindEvents();
@@ -703,6 +1159,7 @@
     restore();            // si hay partida guardada, queda en G (sin mostrarla)
     showView('home');     // siempre se abre en la pantalla de inicio
     if (G) render();      // deja el tablero listo por si se pulsa "Continuar partida"
+    checkDuelHash();      // si se abrió un enlace #duel=..., muestra la invitación
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

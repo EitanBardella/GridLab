@@ -3,14 +3,14 @@
   --thin:#CFC8B2; --thick:#1F2421; --peer:#EEE8D3; --same:#F4DC93; --sel:#C5D4FF;
   --err:#C62828; --errbg:#F6D5CF; --accent:#B45309; --shadow:rgba(31,36,33,.25);
   --diag:#E2EAD3; --cage:#7A7059; --cage-ink:#5A5240;
-  --ok:#2E7D32; --okbg:#DCEBD6;
+  --ok:#2E7D32; --okbg:#DCEBD6; --rival:#9333EA;
 }
 [data-theme="night"] {
   --bg:#121212; --panel:#1E1E1E; --ink:#E6E3DC; --user:#8DB1FF; --muted:#9A9A94;
   --thin:#34363A; --thick:#8E8E8A; --peer:#1D212B; --same:#3B3520; --sel:#27427D;
   --err:#FF7B72; --errbg:#4A2020; --accent:#F2B04C; --shadow:rgba(0,0,0,.6);
   --diag:#1A2A21; --cage:#B3AC96; --cage-ink:#C9C2AC;
-  --ok:#7BC98A; --okbg:#1F3A27;
+  --ok:#7BC98A; --okbg:#1F3A27; --rival:#C58BFF;
 }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 [hidden] { display:none !important; }
@@ -144,7 +144,9 @@ button:disabled { cursor:default; }
   padding-bottom:calc(env(safe-area-inset-bottom) + max(28px, 3.5vh)); }
 .app.game > .top, .app.game > .hint { flex:none; }
 .app.game > .top { padding:0 2px; }
-.play { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:6px; }
+/* Ajuste 2: el padding-top baja un poco el bloque centrado y deja aire limpio entre el header y el tablero
+   (ahí aparece la barra de duelo cuando hay un duelo activo). */
+.play { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:6px; padding-top:clamp(4px, 1.6vh, 16px); }
 .play > * { flex:none; }
 .play > .stage { flex:0 1 var(--side); min-height:0; }
 
@@ -153,7 +155,11 @@ button:disabled { cursor:default; }
 .tools .lbl { white-space:nowrap; }
 .tools button.dfirst { background:var(--user); border-color:var(--user); color:#fff; }
 [data-theme="night"] .tools button.dfirst { color:#0B1020; }
-.keypad button { min-height:56px; }
+/* Ajuste 1: el dígito queda en la zona superior del botón y el contador de restantes (.rem) en una franja
+   propia de 13px abajo, así nunca se tocan (tampoco con la clase .active del modo Nº→Celda). */
+.keypad button { min-height:56px; display:flex; align-items:center; justify-content:center; line-height:1; padding:0 0 13px; }
+.keypad .rem { bottom:3px; line-height:1; }
+.keypad button.active { line-height:1; padding-bottom:13px; }
 .keypad button.active { background:var(--user); border-color:var(--user); color:#fff; }
 .keypad button.active .rem { color:inherit; opacity:.85; }
 [data-theme="night"] .keypad button.active { color:#0B1020; }
@@ -247,3 +253,62 @@ button:disabled { cursor:default; }
 
 @media (max-height:640px) { .app.game { padding-bottom:calc(env(safe-area-inset-bottom) + 14px); } .tools button { min-height:46px; } .keypad button { min-height:48px; } .status { min-height:24px; } .home-title { font-size:2.2rem; } .home-btn { min-height:50px; } }
 @media (prefers-reduced-motion:reduce) { .switch, .switch::after { transition:none; } }
+
+/* ---------- Duelos: barra dual, destello fantasma, resultados ---------- */
+.duelbar { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:5px 10px 6px; border:1px solid var(--thin);
+  border-radius:12px; background:var(--panel); font-variant-numeric:tabular-nums; }
+.dcol { min-width:0; }
+.dtop { display:flex; align-items:baseline; gap:6px; min-width:0; font-size:.78rem; }
+.dname { min-width:0; max-width:6.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+.dcol.me .dname { color:var(--user); }
+.dcol.rival .dname { color:var(--rival); }
+.dtop b { font-size:.95rem; color:var(--ink); white-space:nowrap; }
+.dtime { margin-left:auto; font-size:.74rem; color:var(--muted); white-space:nowrap; }
+.dprog { height:5px; margin-top:4px; border-radius:3px; background:var(--thin); overflow:hidden; }
+.dprog i { display:block; width:0; height:100%; border-radius:3px; background:var(--user); transition:width .3s; }
+.dcol.rival .dprog i { background:var(--rival); }
+
+/* Destello del rival: sin número, solo pulso de borde y tinte. Las animaciones pisan los estilos en línea. */
+.cell.ghost { animation:ghostPulse 1.2s ease-out 1; }
+@keyframes ghostPulse {
+  0%   { box-shadow:inset 0 0 0 3px var(--rival); background-color:color-mix(in srgb, var(--rival) 32%, transparent); }
+  55%  { box-shadow:inset 0 0 0 3px var(--rival); background-color:color-mix(in srgb, var(--rival) 18%, transparent); }
+  100% { box-shadow:inset 0 0 0 0 transparent; background-color:transparent; }
+}
+
+.duel-title { margin:6px 0 10px; font-size:1.05rem; font-weight:700; line-height:1.35; }
+.duel-result { margin:4px 0 10px; }
+.dr-tbl { width:100%; border-collapse:collapse; font-size:.9rem; font-variant-numeric:tabular-nums; }
+.dr-tbl th, .dr-tbl td { padding:8px 4px; border-bottom:1px solid var(--thin); text-align:center; }
+.dr-tbl thead th { max-width:6em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.78rem; color:var(--muted); }
+.dr-tbl tbody th { text-align:left; font-size:.8rem; font-weight:600; color:var(--muted); }
+.dr-tbl td.best { color:var(--ok); font-weight:800; }
+.dr-score { margin:8px 0 0; font-size:.86rem; color:var(--muted); }
+
+.text-input { width:100%; min-height:48px; padding:0 14px; border:1px solid var(--thin); border-radius:12px; background:var(--panel);
+  color:var(--ink); font:inherit; font-size:1.05rem; text-align:center; }
+.text-input:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+
+.toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 90px); transform:translateX(-50%); z-index:20;
+  max-width:min(90vw, 420px); padding:10px 16px; border-radius:999px; background:var(--ink); color:var(--bg);
+  font-size:.9rem; font-weight:600; text-align:center; box-shadow:0 4px 16px var(--shadow); pointer-events:none; }
+
+@media (max-height:640px) { .duelbar { padding:3px 10px 4px; } .dprog { margin-top:2px; } }
+@media (prefers-reduced-motion:reduce) {
+  .cell.ghost { animation:none; box-shadow:inset 0 0 0 3px var(--rival); }
+  .dprog i { transition:none; }
+}
+
+/* ---------- Duelo con amigo / duelo en vivo (invitación abierta) ---------- */
+.dlive { grid-column:1 / -1; display:flex; align-items:center; justify-content:center; min-height:30px; padding:2px 10px;
+  border:0; border-radius:8px; background:color-mix(in srgb, var(--rival) 14%, transparent); color:var(--ink);
+  font-size:.82rem; font-weight:700; letter-spacing:.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dlive:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.duelbar.live { grid-template-columns:1fr; gap:6px; }
+.duelbar.live .dcol.rival { display:none; }
+
+.friend-label { margin:12px 0 6px; font-size:.78rem; font-weight:600; text-align:left; color:var(--muted); }
+#friendDiffs button { min-height:48px; }
+.diffs button.on { background:var(--user); border-color:var(--user); color:#fff; }
+[data-theme="night"] .diffs button.on { color:#0B1020; }
+@media (max-height:640px) { .dlive { min-height:26px; } }

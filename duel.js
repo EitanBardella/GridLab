@@ -12,7 +12,18 @@
  *   3) Historial cara a cara por alias de rival + registro de enlaces ya jugados.
  *   4) Utilidades para la interfaz: progreso del fantasma, destellos, compartir enlace.
  *
- * Formato binario del payload (big-endian), versión 1:
+ * Formato binario del payload (big-endian), versión 2 (la que se escribe):
+ *   offset  bytes  campo
+ *   0       1      v        2
+ *   1       1      m        modo: 0 clásico, 1 killer, 2 diagonal, 3 anti-caballo
+ *   2       1      d        dificultad: 1 fácil, 2 medio, 3 difícil, 4 experto
+ *   3       1      flags    bit0 = tablero empaquetado (41 bytes, nunca en Killer), bit1 = hay resultado
+ *   4       4      s        semilla Uint32
+ *   8       41?    tablero  81 celdas 0–9, 2 por byte: (celdaA << 4) | celdaB (la 81 va en el nibble alto)
+ *   ...     ...    resultado (solo si bit1): igual que la versión 1 desde el offset 7 (t, e, p, nameLen, alias, pares)
+ *   Sin bit1 el enlace es una INVITACIÓN ABIERTA: solo tablero/semilla, sin tiempo ni fantasma.
+ *
+ * Formato binario del payload (big-endian), versión 1 (solo lectura, enlaces viejos):
  *   offset  bytes  campo
  *   0       1      v        versión del protocolo (1)
  *   1       1      m        modo: 0 clásico, 1 killer, 2 diagonal, 3 anti-caballo
@@ -29,9 +40,9 @@
  *   Pausas largas: un par [255, 255] ("salto") no es una celda: solo avanza el reloj 255 s.
  *   Así se pueden representar partidas con más de 255 s entre dos celdas sin cambiar el formato.
  *
- * IMPORTANTE (determinismo): el tablero de un duelo se regenera en el teléfono del rival a
- * partir de (modo, dificultad, semilla). Para que ambos obtengan EXACTAMENTE el mismo tablero,
- * la app debe generar siempre con la misma configuración (ver notas en app.js).
+ * DETERMINISMO: en Clásico, Diagonal y Anti-Caballo el tablero viaja empaquetado, así que no hace
+ * falta regenerarlo (carga instantánea, idéntico garantizado). Solo Killer (y los enlaces v1) se
+ * regeneran desde (modo, dificultad, semilla) con la configuración fija de app.js.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -46,7 +57,12 @@
    * Constantes
    * ========================================================================= */
 
-  var VERSION = 1;
+  var VERSION = 2;                // versión que se ESCRIBE
+  var LEGACY_VERSION = 1;         // todavía se puede LEER (tablero regenerado desde la semilla)
+  var BOARD_BYTES = 41;           // 81 celdas × 4 bits
+  var HEADER_V2 = 8;              // v m d flags seed(4)
+  var FLAG_BOARD = 1;             // el tablero inicial viaja empaquetado
+  var FLAG_RESULT = 2;            // hay sección de resultado (tiempo, alias, fantasma); si no, invitación abierta
   var MODES = ['classic', 'killer', 'diagonal', 'antiknight'];            // código = índice
   var DIFFS = ['facil', 'medio', 'dificil', 'experto'];                    // código = índice + 1
   var MODE_LABELS = { classic: 'Clásico', killer: 'Killer', diagonal: 'Diagonal', antiknight: 'Anti-Caballo' };
@@ -57,7 +73,7 @@
   var MAX_TIME = 65535;           // Uint16
   var ESCAPE = 255;               // par [255, 255] = "avanzar 255 s sin celda"
   var HEADER_BYTES = 12;          // v m d s(4) t(2) e p nameLen
-  var MAX_B64_LENGTH = 900;       // tope defensivo antes de decodificar
+  var MAX_B64_LENGTH = 1100;       // tope defensivo antes de decodificar
 
   var KEY_ALIAS = 'sudoku_player_alias';
   var KEY_HISTORY = 'sudoku_duel_history';
@@ -241,57 +257,198 @@
     return pairs;
   }
 
+  /* ----- Tablero empaquetado: 2 celdas por byte (41 bytes para las 81 celdas) ----- */
+
   /**
-   * Empaqueta un desafío en un texto Base64URL (sin `#duel=`).
-   * @param {{mode:string|number, diff:string|number, seed:number, time:number, errors?:number,
-   *          hints?:number, alias?:string, moves?:{cell:number,t:number}[]}} data
-   *        `moves`: celdas resueltas con su segundo absoluto desde el inicio de la partida.
+   * Empaqueta un tablero (9x9 o plano de 81, valores 0-9) en 41 bytes: `(celdaA << 4) | celdaB`.
+   * La celda 80 va en el nibble alto del último byte (el bajo queda en 0).
+   */
+  function packBoard(puzzle) {
+    var flat = [], r, c, i;
+    if (Array.isArray(puzzle) && puzzle.length === 81) {
+      flat = puzzle;
+    } else if (Array.isArray(puzzle) && puzzle.length === 9) {
+      for (r = 0; r < 9; r++) {
+        if (!Array.isArray(puzzle[r]) || puzzle[r].length !== 9) { throw new TypeError('Tablero inv\u00E1lido.'); }
+        for (c = 0; c < 9; c++) { flat.push(puzzle[r][c]); }
+      }
+    } else {
+      throw new TypeError('Tablero inv\u00E1lido.');
+    }
+    var out = new Uint8Array(BOARD_BYTES);
+    for (i = 0; i < 81; i++) {
+      var v = flat[i];
+      if (v !== (v | 0) || v < 0 || v > 9) { throw new RangeError('Valor de celda inv\u00E1lido: ' + v); }
+      if (i % 2 === 0) { out[i >> 1] = v << 4; } else { out[i >> 1] |= v; }
+    }
+    return out;
+  }
+
+  /** Lee 41 bytes desde `offset`. @returns {number[][]|null} tablero 9x9, o null si hay valores > 9 o relleno sucio. */
+  function unpackBoard(bytes, offset) {
+    if (!bytes || bytes.length < offset + BOARD_BYTES) { return null; }
+    var board = [], i, r, c, row;
+    var flat = new Array(81);
+    for (i = 0; i < 81; i++) {
+      var b = bytes[offset + (i >> 1)];
+      var v = (i % 2 === 0) ? (b >> 4) : (b & 15);
+      if (v > 9) { return null; }
+      flat[i] = v;
+    }
+    if ((bytes[offset + BOARD_BYTES - 1] & 15) !== 0) { return null; }
+    for (r = 0; r < 9; r++) {
+      row = [];
+      for (c = 0; c < 9; c++) { row.push(flat[r * 9 + c]); }
+      board.push(row);
+    }
+    return board;
+  }
+
+  /**
+   * Empaqueta un desaf\u00EDo en un texto Base64URL (sin `#duel=`). Siempre escribe la versi\u00F3n 2.
+   *
+   * Dos tipos de enlace:
+   *   - Invitaci\u00F3n abierta (`open: true`): solo tablero/semilla, sin tiempo ni fantasma del creador.
+   *   - Resultado (por defecto): tiempo, errores, pistas, alias y fantasma.
+   * En los modos est\u00E1ndar, si se pasa `board` (9x9 o plano) el tablero viaja empaquetado (41 bytes) y el
+   * rival arranca sin regenerar nada. Killer nunca lo empaqueta: su geometr\u00EDa de jaulas sale de la semilla.
+   *
+   * @param {{mode:string|number, diff:string|number, seed:number, open?:boolean, board?:number[][]|number[],
+   *          time?:number, errors?:number, hints?:number, alias?:string, moves?:{cell:number,t:number}[]}} data
    * @returns {string}
-   * @throws {RangeError|TypeError} si faltan datos esenciales o son inválidos.
+   * @throws {RangeError|TypeError} si faltan datos esenciales o son inv\u00E1lidos.
    */
   function encodeDuelPayload(data) {
-    if (!data || typeof data !== 'object') { throw new TypeError('Faltan los datos del desafío.'); }
+    if (!data || typeof data !== 'object') { throw new TypeError('Faltan los datos del desaf\u00EDo.'); }
     if (!textEnc) { throw new Error('Este navegador no soporta TextEncoder.'); }
     var m = modeCode(data.mode), d = diffCode(data.diff);
     var seed = Number(data.seed);
-    if (!isFinite(seed)) { throw new TypeError('La semilla debe ser un número.'); }
+    if (!isFinite(seed)) { throw new TypeError('La semilla debe ser un n\u00FAmero.'); }
     seed = Math.floor(seed) >>> 0;
-    var time = clampInt(data.time, 0, MAX_TIME);
-    var errors = clampInt(data.errors, 0, 255);
-    var hints = clampInt(data.hints, 0, 255);
-    var nameBytes = textEnc.encode(sanitizeAlias(data.alias) || 'Jugador');
 
-    var moves = normalizeMoves(data.moves);
-    var pairs = buildPairs(moves, false);
-    if (pairs.length > 255) { pairs = buildPairs(moves, true); }   // partida enorme: sin saltos
+    var open = !!data.open;
+    var boardBytes = (data.board && m !== 1) ? packBoard(data.board) : null;
+    var flags = (boardBytes ? FLAG_BOARD : 0) | (open ? 0 : FLAG_RESULT);
 
-    var out = new Uint8Array(HEADER_BYTES + nameBytes.length + 1 + pairs.length * 2);
+    var nameBytes = null, pairs = [], time = 0, errors = 0, hints = 0;
+    if (!open) {
+      time = clampInt(data.time, 0, MAX_TIME);
+      errors = clampInt(data.errors, 0, 255);
+      hints = clampInt(data.hints, 0, 255);
+      nameBytes = textEnc.encode(sanitizeAlias(data.alias) || 'Jugador');
+      var moves = normalizeMoves(data.moves);
+      pairs = buildPairs(moves, false);
+      if (pairs.length > 255) { pairs = buildPairs(moves, true); }   // partida enorme: sin saltos
+    }
+
+    var size = HEADER_V2 + (boardBytes ? BOARD_BYTES : 0) +
+      (open ? 0 : 5 + nameBytes.length + 1 + pairs.length * 2);
+    var out = new Uint8Array(size);
     var dv = new DataView(out.buffer);
     var p = 0, i;
     dv.setUint8(p++, VERSION);
     dv.setUint8(p++, m);
     dv.setUint8(p++, d);
+    dv.setUint8(p++, flags);
     dv.setUint32(p, seed, false); p += 4;
-    dv.setUint16(p, time, false); p += 2;
-    dv.setUint8(p++, errors);
-    dv.setUint8(p++, hints);
-    dv.setUint8(p++, nameBytes.length);
-    for (i = 0; i < nameBytes.length; i++) { out[p++] = nameBytes[i]; }
-    dv.setUint8(p++, pairs.length);
-    for (i = 0; i < pairs.length; i++) { out[p++] = pairs[i][0]; out[p++] = pairs[i][1]; }
+    if (boardBytes) { out.set(boardBytes, p); p += BOARD_BYTES; }
+    if (!open) {
+      dv.setUint16(p, time, false); p += 2;
+      dv.setUint8(p++, errors);
+      dv.setUint8(p++, hints);
+      dv.setUint8(p++, nameBytes.length);
+      for (i = 0; i < nameBytes.length; i++) { out[p++] = nameBytes[i]; }
+      dv.setUint8(p++, pairs.length);
+      for (i = 0; i < pairs.length; i++) { out[p++] = pairs[i][0]; out[p++] = pairs[i][1]; }
+    }
     return bytesToB64u(out);
   }
 
   function fail(error) { return { ok: false, error: error }; }
 
+  // Secci\u00F3n de resultado (igual en v1 y v2): time(2) errores pistas nameLen alias moveCount pares. Empieza en `p0`.
+  function readResult(bytes, p0) {
+    if (bytes.length < p0 + 6) { return fail('truncated'); }
+    var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    var time = dv.getUint16(p0, false), errors = bytes[p0 + 2], hints = bytes[p0 + 3], nameLen = bytes[p0 + 4];
+    if (nameLen > MAX_ALIAS_BYTES) { return fail('alias'); }
+    var q = p0 + 5;
+    if (bytes.length < q + nameLen + 1) { return fail('truncated'); }
+    var alias;
+    try { alias = textDec.decode(bytes.subarray(q, q + nameLen)); } catch (e) { return fail('alias'); }
+    alias = sanitizeAlias(alias) || 'Rival';
+
+    var count = bytes[q + nameLen];
+    if (bytes.length !== q + nameLen + 1 + count * 2) { return fail('length'); }   // truncado, con basura o manipulado
+
+    var moves = [], seen = {}, cur = 0, p = q + nameLen + 1;
+    for (var k = 0; k < count; k++, p += 2) {
+      var cell = bytes[p], delta = bytes[p + 1];
+      cur += delta;
+      if (cur > MAX_TIME) { return fail('moves'); }
+      if (cell === ESCAPE) { continue; }                          // salto de reloj, no es celda
+      if (cell > 80 || seen[cell]) { return fail('moves'); }
+      seen[cell] = true;
+      moves.push({ cell: cell, t: cur });
+    }
+    return { ok: true, time: time, errors: errors, hints: hints, alias: alias, moves: moves };
+  }
+
+  function decodeV1(bytes) {
+    if (bytes.length < HEADER_BYTES + 1) { return fail('truncated'); }
+    var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    var m = bytes[1], d = bytes[2];
+    if (m >= MODES.length) { return fail('mode'); }
+    if (d < 1 || d > DIFFS.length) { return fail('difficulty'); }
+    var res = readResult(bytes, 7);
+    if (!res.ok) { return res; }
+    return { ok: true, data: {
+      version: 1, mode: MODES[m], modeCode: m, diff: DIFFS[d - 1], diffCode: d, seed: dv.getUint32(3, false),
+      time: res.time, errors: res.errors, hints: res.hints, alias: res.alias, moves: res.moves, board: null, open: false
+    } };
+  }
+
+  function decodeV2(bytes) {
+    if (bytes.length < HEADER_V2) { return fail('truncated'); }
+    var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    var m = bytes[1], d = bytes[2], flags = bytes[3];
+    if (m >= MODES.length) { return fail('mode'); }
+    if (d < 1 || d > DIFFS.length) { return fail('difficulty'); }
+    if (flags & ~(FLAG_BOARD | FLAG_RESULT)) { return fail('flags'); }
+    var hasBoard = (flags & FLAG_BOARD) !== 0, hasResult = (flags & FLAG_RESULT) !== 0;
+    if (hasBoard && m === 1) { return fail('board'); }            // Killer nunca empaqueta el tablero
+    var p = HEADER_V2, board = null;
+    if (hasBoard) {
+      if (bytes.length < p + BOARD_BYTES) { return fail('truncated'); }
+      board = unpackBoard(bytes, p);
+      if (!board) { return fail('board'); }
+      p += BOARD_BYTES;
+    }
+    var res;
+    if (hasResult) {
+      res = readResult(bytes, p);
+      if (!res.ok) { return res; }
+    } else {
+      if (bytes.length !== p) { return fail('length'); }
+      res = { time: 0, errors: 0, hints: 0, alias: '', moves: [] };
+    }
+    return { ok: true, data: {
+      version: 2, mode: MODES[m], modeCode: m, diff: DIFFS[d - 1], diffCode: d, seed: dv.getUint32(4, false),
+      time: res.time, errors: res.errors, hints: res.hints, alias: res.alias, moves: res.moves,
+      board: board, open: !hasResult
+    } };
+  }
+
   /**
-   * Lee y valida un desafío. Acepta `#duel=XXXX`, `duel=XXXX` o solo `XXXX`.
+   * Lee y valida un desaf\u00EDo. Acepta `#duel=XXXX`, `duel=XXXX` o solo `XXXX`.
    * Nunca lanza: ante un enlace roto o manipulado devuelve { ok:false, error }.
-   * Errores posibles: empty, too-long, format, truncated, version, mode, difficulty,
+   * Errores posibles: empty, too-long, format, truncated, version, mode, difficulty, flags, board,
    *                   alias, length, moves, unsupported.
+   * Lee la versi\u00F3n 2 (actual) y la 1 (enlaces viejos con tablero regenerado desde la semilla).
    * @returns {{ok:true, id:string, data:{version:number, mode:string, modeCode:number, diff:string,
    *            diffCode:number, seed:number, time:number, errors:number, hints:number, alias:string,
-   *            moves:{cell:number,t:number}[]}} | {ok:false, error:string}}
+   *            moves:{cell:number,t:number}[], board:number[][]|null, open:boolean}} | {ok:false, error:string}}
+   *          `open` = invitaci\u00F3n abierta (sin tiempo ni fantasma). `board` = tablero inicial 9x9 si viaj\u00F3 empaquetado.
    */
   function decodeDuelPayload(input) {
     try {
@@ -304,48 +461,15 @@
       if (!textDec) { return fail('unsupported'); }
 
       var bytes = b64uToBytes(b64);
-      if (!bytes) { return fail('format'); }
-      if (bytes.length < HEADER_BYTES + 1) { return fail('truncated'); }
+      if (!bytes || !bytes.length) { return fail('format'); }
 
-      var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-      if (dv.getUint8(0) !== VERSION) { return fail('version'); }
-      var m = dv.getUint8(1), d = dv.getUint8(2);
-      if (m >= MODES.length) { return fail('mode'); }
-      if (d < 1 || d > DIFFS.length) { return fail('difficulty'); }
-      var seed = dv.getUint32(3, false);
-      var time = dv.getUint16(7, false);
-      var errors = dv.getUint8(9), hints = dv.getUint8(10);
-      var nameLen = dv.getUint8(11);
-      if (nameLen > MAX_ALIAS_BYTES) { return fail('alias'); }
-      if (bytes.length < HEADER_BYTES + nameLen + 1) { return fail('truncated'); }
+      var parsed;
+      if (bytes[0] === LEGACY_VERSION) { parsed = decodeV1(bytes); }
+      else if (bytes[0] === VERSION) { parsed = decodeV2(bytes); }
+      else { return fail('version'); }
+      if (!parsed.ok) { return parsed; }
 
-      var alias;
-      try { alias = textDec.decode(bytes.subarray(HEADER_BYTES, HEADER_BYTES + nameLen)); } catch (e) { return fail('alias'); }
-      alias = sanitizeAlias(alias) || 'Rival';
-
-      var count = dv.getUint8(HEADER_BYTES + nameLen);
-      var expected = HEADER_BYTES + nameLen + 1 + count * 2;
-      if (bytes.length !== expected) { return fail('length'); }   // truncado, con basura o manipulado
-
-      var moves = [], seen = {}, cur = 0, p = HEADER_BYTES + nameLen + 1;
-      for (var k = 0; k < count; k++, p += 2) {
-        var cell = bytes[p], delta = bytes[p + 1];
-        cur += delta;
-        if (cur > MAX_TIME) { return fail('moves'); }
-        if (cell === ESCAPE) { continue; }                          // salto de reloj, no es celda
-        if (cell > 80 || seen[cell]) { return fail('moves'); }
-        seen[cell] = true;
-        moves.push({ cell: cell, t: cur });
-      }
-
-      return {
-        ok: true,
-        id: fnv1a(b64).toString(36) + '.' + b64.length.toString(36),
-        data: {
-          version: VERSION, mode: MODES[m], modeCode: m, diff: DIFFS[d - 1], diffCode: d,
-          seed: seed, time: time, errors: errors, hints: hints, alias: alias, moves: moves
-        }
-      };
+      return { ok: true, id: fnv1a(b64).toString(36) + '.' + b64.length.toString(36), data: parsed.data };
     } catch (e) {
       return fail('format');
     }
@@ -614,8 +738,14 @@
 
   /** "⚔️ Alias te desafía — Modo • Dificultad • Tiempo objetivo: MM:SS" (usar con textContent). */
   function challengeTitle(data) {
+    if (data.open) { return '\u2694\uFE0F Te invitan a un duelo \u2014 ' + MODE_LABELS[data.mode] + ' \u2022 ' + DIFF_LABELS[data.diff]; }
     return '\u2694\uFE0F ' + data.alias + ' te desaf\u00EDa \u2014 ' + MODE_LABELS[data.mode] + ' \u2022 ' +
       DIFF_LABELS[data.diff] + ' \u2022 Tiempo objetivo: ' + formatTime(data.time);
+  }
+
+  /** "Duelo en vivo • Modo • Dificultad" (barra superior de una invitación abierta; usar con textContent). */
+  function liveLabel(mode, diff) {
+    return 'Duelo en vivo \u2022 ' + (MODE_LABELS[mode] || mode) + ' \u2022 ' + (DIFF_LABELS[diff] || diff);
   }
 
   /** Copia texto al portapapeles (con respaldo para contextos sin la API moderna). @returns {Promise<boolean>} */
@@ -702,6 +832,9 @@
     // Interfaz
     formatTime: formatTime,
     challengeTitle: challengeTitle,
+    liveLabel: liveLabel,
+    packBoard: packBoard,
+    unpackBoard: unpackBoard,
     copyText: copyText,
     shareLink: shareLink
   };
