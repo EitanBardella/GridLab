@@ -3,6 +3,7 @@
   const E = window.SudokuEngine;   // clásico, diagonal, anti-caballo
   const K = window.KillerEngine;   // killer
   const D = window.SudokuDuel || null; // duelos y fantasma (duel.js)
+  const C = window.SudokuCoop || null; // modo cooperativo (coop.js + peerjs.min.js)
   const $ = s => document.querySelector(s);
   const NAMES = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto' };
   const DIFF_ORDER = ['facil', 'medio', 'dificil', 'experto'];
@@ -14,11 +15,14 @@
   const validMode = m => (MODES.indexOf(m) >= 0 ? m : 'classic');
   const HINT_PENALTY = D ? D.HINT_PENALTY : 30; // segundos que suma cada pista al tiempo final
   const FLASH_MS = 1250;                        // duración del destello fantasma
+  const COOP_ALIAS = { sub: 'Así te verá tu amigo (hasta 12 caracteres).', ok: 'Guardar y continuar' };
+  const COOP_HIST_MAX = 2000;                   // tope del historial de deshacer en una sala
 
   // Generación. Killer, los Desafíos Diarios y los enlaces viejos (v1) usan topes FIJOS (sin límite de tiempo): el tablero
   // depende solo de la semilla y debe salir igual en cualquier teléfono (un duelo Killer se regenera desde la semilla).
   // En Clásico, Diagonal y Anti-Caballo el duelo ya NO regenera: el enlace lleva el tablero empaquetado (41 bytes), así que
   // los tableros nuevos se generan con los topes normales del motor (sin el límite de 30 intentos).
+  // En Co-op el Host envía el estado completo, así que tampoco hace falta regenerar nada.
   const GEN_E = { maxAttempts: 30, timeBudgetMs: 1e9 };
   const GEN_K = { timeBudgetMs: 1e9 };
 
@@ -36,6 +40,7 @@
   };
   const load = (k, d) => { try { const v = store.get(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
   // G incluye `mode`/`variant`, `seed`, `req`, `rec` (grabador del fantasma), `duel` y, en Killer, `cages`.
+  // En una sala Co-op también `coop`, `owners` y `hints` (al restaurar, la partida sigue como partida normal).
   const persist = () => { try { store.set(K_GAME, JSON.stringify(G)); } catch (e) { /* ignorar */ } };
   const saveSet = () => store.set(K_SET, JSON.stringify(set));
   const saveStats = () => { try { store.set(K_STATS, JSON.stringify(stats)); } catch (e) { /* ignorar */ } };
@@ -45,7 +50,7 @@
   set.mode = validMode(set.mode);
   let stats = Object.assign({ won: {}, best: {}, daily: {} }, load(K_STATS, {}));
   ['won', 'best', 'daily'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
-  let G = null;          // partida: mode, puzzle, solution, board, notes, diff, req, seed, hist, secs, won, counted, rec, (duel), (daily), (cages)
+  let G = null;          // partida: mode, puzzle, solution, board, notes, diff, req, seed, hist, secs, won, counted, rec, (duel), (daily), (cages), (coop, owners, hints)
   let view = 'home';     // 'home' | 'game'
   let sel = -1, pencil = false, hint = null, busy = false;
   let selMode = set.mode; // modo elegido en el panel "Jugar" del inicio
@@ -58,13 +63,15 @@
   let sumAt = new Int16Array(81);           // suma de la jaula en su celda topLeft
   let givensN = 0;                          // pistas iniciales del tablero actual
   let pendingDuel = null;                   // invitación a duelo pendiente (resultado de decodeDuelPayload)
+  let pendingCoop = null;                   // código de sala Co-op pendiente de confirmar
   let ghostSeen = 0;                        // último segundo efectivo ya revisado para destellos del fantasma
   const flash = new Array(81).fill(0);      // por celda: instante (ms) hasta el que dura el destello
   let lastHintKey = '';                     // evita cobrar dos veces la misma pista
   let aliasCb = null, toastTimer = 0;
+  let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'duel-v2';
+  const BUILD = 'coop-v1';
   // Enlaza un evento a un id; si el id no existe lo avisa en consola (antes el ?. lo ocultaba).
   const on = (id, ev, fn) => {
     const el = document.getElementById(id);
@@ -87,10 +94,24 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, 2400);
   }
 
+  // Modal de carga reutilizable (generar tablero / conectar a una sala).
+  function showLoad(txt, cancelable) {
+    setText('#loadTxt', txt);
+    const b = $('#loadCancel'); if (b) b.hidden = !cancelable;
+    const m = $('#mLoad'); if (m) m.hidden = false;
+  }
+  function hideLoad() {
+    const m = $('#mLoad'); if (m) m.hidden = true;
+    const b = $('#loadCancel'); if (b) b.hidden = true;
+  }
+
   /* ---------- Tiempo efectivo (cronómetro + penalización por pistas) ---------- */
   const eff = () => G.secs + HINT_PENALTY * (G.rec ? G.rec.hints : 0);
   // El reloj visible muestra el tiempo efectivo solo en duelos; en partidas normales, el cronómetro simple.
   const showSecs = () => (G.duel ? eff() : G.secs);
+
+  // ¿La partida actual es una sala Co-op con la conexión viva? (si la sala se cierra, la partida sigue como normal)
+  const inCoop = () => !!(G && G.coop && co && co.session);
 
   /* ---------- Vecindad por modo ---------- */
   const peerCache = {};
@@ -220,6 +241,11 @@
     if (!G || sel < 0 || G.won) return;
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c]) return;
+    if (inCoop()) {
+      if (pencil) { if (!G.board[r][c]) coopDo('note', sel, n); }
+      else if (G.board[r][c] !== n) coopDo('set', sel, n);
+      return;
+    }
     if (pencil) {
       if (G.board[r][c]) return;
       mutate(t => {
@@ -237,6 +263,7 @@
     if (!G || sel < 0 || G.won) return;
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c] || (!G.board[r][c] && !G.notes[r][c].length)) return;
+    if (inCoop()) { coopDo('erase', sel, 0); return; }
     mutate(t => { t(r, c); G.board[r][c] = 0; G.notes[r][c] = []; });
   }
 
@@ -286,7 +313,20 @@
   }
 
   function undo() {
-    if (!G || !G.hist.length) return;
+    if (!G) return;
+    if (inCoop()) {
+      if (G.won) return;
+      if (co.role === 'host') {
+        const res = coopApply(1, { kind: 'undo' }, false);
+        coopAfter(res, 1, 0);
+      } else if (co.session.isConnected()) {
+        co.session.send({ type: 'op', kind: 'undo', id: ++co.opId });
+      } else {
+        toast('Sin conexión con tu amigo. Reconectando…');
+      }
+      return;
+    }
+    if (!G.hist.length) return;
     G.hist.pop().forEach(([r, c, v, n]) => { G.board[r][c] = v; G.notes[r][c] = n; });
     G.won = false; afterChange();
   }
@@ -298,10 +338,23 @@
   }
 
   // Cada pista nueva suma una pista usada (y +30 s al tiempo final). Pedir otra vez la misma pista no se vuelve a cobrar.
+  // En una sala Co-op las pistas se cuentan en equipo (sin penalización de tiempo): el Host las suma y las difunde.
   function chargeHint(h) {
-    const key = G.hist.length + ':' + h.row + ',' + h.col + ',' + h.value;
+    let filled = 0;
+    if (inCoop()) { for (let i = 0; i < 81; i++) if (G.board[Math.floor(i / 9)][i % 9]) filled++; }
+    const key = (inCoop() ? 'c' + filled : G.hist.length) + ':' + h.row + ',' + h.col + ',' + h.value;
     if (key === lastHintKey) return;
     lastHintKey = key;
+    if (inCoop()) {
+      if (co.role === 'host') {
+        G.hints = (G.hints | 0) + 1;
+        if (co.session.isConnected()) co.session.send({ type: 'clock', secs: G.secs, hints: G.hints });
+      } else {
+        co.session.send({ type: 'hint' });
+      }
+      persist();
+      return;
+    }
     if (G.rec) G.rec.addHint();
     if (G.duel) { toast('+' + HINT_PENALTY + ' s de penalización'); advanceGhost(); }
     persist();
@@ -333,6 +386,11 @@
   function applyHint() {
     if (!hint) return;
     const h = hint;
+    if (inCoop()) {
+      hideHint();
+      coopDo('set', h.row * 9 + h.col, h.value);
+      return;
+    }
     mutate(t => place(h.row, h.col, h.value, t));
   }
 
@@ -401,12 +459,40 @@
     return any;
   }
 
+  /* ---------- Co-op: barra de sala y foco del compañero ---------- */
+  function updateCoopBar() {
+    const bar = $('#coopBar'); if (!bar) return;
+    const active = inCoop();
+    bar.hidden = !active;
+    if (!active) return;
+    const info = co.session.info();
+    bar.dataset.state = info.state;
+    setText('#coopStatus', C.statusText(info));
+    const md = $('#coopMeDot'), fd = $('#coopFriendDot');
+    if (md) md.className = 'pdot p' + co.me;
+    if (fd) fd.className = 'pdot p' + (co.me === 1 ? 2 : 1);
+    setText('#coopMeName', 'Vos');
+    setText('#coopFriendName', info.peerAlias || co.friendAlias || 'Amigo');
+    setText('#coopCount', myProgress() + '/81');
+    const sh = $('#coopShare'); if (sh) sh.hidden = co.role !== 'host' || info.state === 'connected';
+  }
+
+  // Avisa al compañero de qué celda tengo activa (-1 si estoy fuera del tablero o ya se resolvió).
+  function syncFocus() {
+    if (!inCoop()) return;
+    const f = (view === 'game' && !G.won) ? sel : -1;
+    if (f === co.sentFocus) return;
+    if (co.session.send({ type: 'focus', index: f })) co.sentFocus = f;
+  }
+
   /* ---------- Render ---------- */
   function render() {
     if (!G || !cells.length) return;
     syncActiveDigit();
     const df = isDigitFirst();
     const mode = G.mode, killer = mode === 'killer';
+    const coop = inCoop();
+    const ff = coop ? co.friendFocus : -1, fnum = coop ? (co.me === 1 ? 2 : 1) : 0;
     const wrong = set.showErrors ? new Set(wrongCells().map(w => w.row * 9 + w.col)) : null;
     const hasSel = sel >= 0;
     const sr = Math.floor(sel / 9), sc = sel % 9;
@@ -422,10 +508,14 @@
 
     // Etiquetas superiores, modo en tablero y barra de estado
     const ml = G.daily ? 'Diario' : (MODE_NAMES[mode] || 'Sudoku');
-    setText('#modeLabel', G.duel ? '⚔ ' + ml : ml);
+    setText('#modeLabel', (G.duel ? '⚔ ' : (coop ? '👥 ' : '')) + ml);
     setText('#diffLabel', G.daily ? dateLabel(G.daily) : (NAMES[G.diff] || 'Sudoku'));
     setText('#clock', fmt(showSecs()));
-    if (boardEl) boardEl.dataset.mode = mode;
+    if (boardEl) {
+      boardEl.dataset.mode = mode;
+      boardEl.classList.toggle('coop', coop);
+      boardEl.classList.toggle('coop-off', coop && co.role === 'guest' && !co.session.isConnected());
+    }
     const st = $('#status'); if (st) st.hidden = !killer;
     updateCageStatus();
 
@@ -443,6 +533,10 @@
       const isHint = hint && i === hint.row * 9 + hint.col;
       if (isHint) cl += ' hint'; else if (rel.has(i)) cl += ' rel';
       if (flash[i] > nowMs && !v) cl += ' ghost'; // destello del rival (sin mostrar el número)
+      if (coop) {
+        if (v && !G.puzzle[r][c] && G.owners && G.owners[i]) cl += ' own' + G.owners[i]; // dígito con el color de su autor
+        if (i === ff) cl += (i === sel ? ' pf12' : ' pf' + fnum);                        // celda activa del compañero
+      }
       if (killer && cageOf[i] >= 0) { // contorno punteado donde la celda vecina es de otra jaula
         const g = cageOf[i];
         if (r === 0 || cageOf[i - 9] !== g) cl += ' cage-top';
@@ -490,8 +584,13 @@
       const lb = bm.querySelector('.lbl'); if (lb) lb.textContent = df ? 'Nº→Celda' : 'Celda→Nº';
     }
     const bu = document.querySelector('[data-act="undo"]');
-    if (bu) bu.disabled = !G.hist.length;
+    if (bu) {
+      if (coop) bu.disabled = co.role === 'host' ? !co.hist.some(e => e.by === 1) : !co.session.isConnected();
+      else bu.disabled = !G.hist.length;
+    }
     updateDuelBar();
+    updateCoopBar();
+    syncFocus();
   }
 
   /* ---------- Vistas: inicio / juego ---------- */
@@ -503,6 +602,7 @@
     if (h) h.hidden = v !== 'home';
     if (g) g.hidden = v !== 'game';
     if (v === 'home') updateHome();
+    syncFocus();
   }
 
   // Despliega o pliega el selector de modo + dificultad del inicio.
@@ -572,7 +672,8 @@
     const bc = $('#btnContinue'); if (bc) bc.hidden = !prog;
     if (prog) {
       setText('#continueInfo', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • ' + fmt(showSecs()) +
-        (G.daily ? ' • Diario' : '') + (G.duel ? (G.duel.open ? ' • ⚔ en vivo' : ' • ⚔ vs ' + G.duel.alias) : ''));
+        (G.daily ? ' • Diario' : '') + (G.duel ? (G.duel.open ? ' • ⚔ en vivo' : ' • ⚔ vs ' + G.duel.alias) : '') +
+        (inCoop() ? ' • 👥 co-op' : ''));
     }
     const w = $('#playWarn'); if (w) w.hidden = !prog;
     const t = todayStr();
@@ -580,7 +681,7 @@
   }
 
   // Inicio: guarda la partida (modo, jaulas y fantasma incluidos, vía G) y vuelve a #home-view.
-  // El cronómetro se pausa solo porque únicamente corre con view === 'game'.
+  // El cronómetro se pausa solo porque únicamente corre con view === 'game' (en una sala Co-op sigue el reloj del Host).
   function goHome() {
     if (G) persist();
     hideHint(); closeModals(); setPlayOpen(false);
@@ -630,6 +731,12 @@
     return { puzzle: E.cloneBoard(board), solution: solution, difficulty: diff };
   }
 
+  // Genera un tablero nuevo del modo pedido. `fixed` = topes fijos (Killer y estándar deterministas por semilla).
+  function genPuzzle(diff, mode, seed, fixed) {
+    if (mode === 'killer') return K.generateKillerPuzzleAsync(diff, Object.assign({ seed: seed }, GEN_K));
+    return E.generatePuzzleAsync(diff, Object.assign({ variant: mode, seed: seed }, fixed ? GEN_E : {}));
+  }
+
   // Enlace de invitación abierta del tablero actual: solo tablero/semilla, sin tiempo ni fantasma. Killer va por semilla.
   const inviteEncoded = () => D.encodeDuelPayload({
     mode: G.mode, diff: G.req, seed: G.seed, board: G.mode === 'killer' ? null : G.puzzle, open: true
@@ -655,14 +762,13 @@
     opts = opts || {};
     mode = validMode(mode);
     busy = true; closeModals(); if (!opts.daily) selectMode(mode);
-    const ml = $('#mLoad'); if (ml && !opts.board) ml.hidden = false; // con tablero empaquetado no hay espera
+    if (!opts.board) showLoad('Generando tablero…', false); // con tablero empaquetado no hay espera
     const seed = toSeed(opts.seed);
     let ok = false, errMsg = '';
     const fixedGen = mode === 'killer' || !!opts.daily || !!opts.legacy;
     Promise.resolve().then(() => {
       if (opts.board) return boardFromPacked(opts.board, mode, diff);
-      if (mode === 'killer') return K.generateKillerPuzzleAsync(diff, Object.assign({ seed: seed }, GEN_K));
-      return E.generatePuzzleAsync(diff, Object.assign({ variant: mode, seed: seed }, fixedGen ? GEN_E : {}));
+      return genPuzzle(diff, mode, seed, fixedGen);
     }).then(g => {
       const killer = mode === 'killer', puzzle = killer ? g.board : g.puzzle;
       // Control de coherencia del duelo: el fantasma nunca resuelve una celda dada. Si pasa, el tablero no coincide.
@@ -670,6 +776,7 @@
         errMsg = 'No se pudo reconstruir el mismo tablero del duelo. ¿Ambos tienen la app actualizada?';
         throw new Error('duel-mismatch');
       }
+      if (co) leaveCoop(); // empezar otra partida cierra la sala Co-op
       G = {
         mode: mode, variant: mode, puzzle: puzzle, solution: g.solution, board: E.cloneBoard(puzzle),
         notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, counted: false,
@@ -690,7 +797,7 @@
       ok = true;
     }).catch(() => { if (!errMsg && opts.board) errMsg = 'El tablero del enlace no es válido.'; /* conserva la partida actual */ }).then(() => {
       busy = false;
-      const l = $('#mLoad'); if (l) l.hidden = true;
+      hideLoad();
       if (ok) {
         persist(); setPlayOpen(false); showView('game'); render();
         if (opts.rematchTo) toast('Resolvé este tablero y mandale la revancha a ' + opts.rematchTo);
@@ -728,6 +835,8 @@
       } else {
         delete s.cages;
       }
+      // La conexión de una sala Co-op no sobrevive a un reinicio: la partida sigue como partida normal.
+      delete s.coop; delete s.owners; delete s.hints;
       s.mode = mode; s.variant = mode; s.secs = s.secs | 0; s.won = !!s.won;
       s.counted = !!s.counted || s.won;
       if (typeof s.daily !== 'string') delete s.daily;
@@ -804,6 +913,9 @@
   }
 
   function showWin() {
+    if (inCoop()) { showCoopWin(); return; }
+    const cr = $('#coopResult'); if (cr) { cr.textContent = ''; cr.hidden = true; }
+    const ba = $('#winCoopAgain'); if (ba) ba.hidden = true;
     const live = !!(G.duel && G.duel.open && D);
     const duel = !!(G.duel && !G.duel.open && D && typeof G.finalTime === 'number');
     const box = $('#duelResult'), note = $('#winNote');
@@ -936,11 +1048,14 @@
     closeModals();
   }
 
-  function askAlias(cb) {
-    const inp = $('#aliasInput'), er = $('#aliasErr'), m = $('#mAlias');
-    if (!m || !D) return;
+  function askAlias(cb, o) {
+    const inp = $('#aliasInput'), er = $('#aliasErr'), m = $('#mAlias'), A = D || C;
+    if (!m || !A) return;
+    o = o || {};
     aliasCb = cb;
-    if (inp) inp.value = D.getAlias();
+    setText('#aliasSub', o.sub || 'Así te verá tu rival (hasta 12 caracteres).');
+    setText('#aliasOk', o.ok || 'Guardar y compartir');
+    if (inp) inp.value = A.getAlias();
     if (er) er.hidden = true;
     m.hidden = false;
     if (inp) setTimeout(() => { try { inp.focus(); } catch (e) { /* ignorar */ } }, 50);
@@ -949,8 +1064,8 @@
   function hideAlias() { aliasCb = null; const m = $('#mAlias'); if (m) m.hidden = true; }
 
   function submitAlias() {
-    const inp = $('#aliasInput');
-    const a = D ? D.setAlias(inp ? inp.value : '') : '';
+    const inp = $('#aliasInput'), A = D || C;
+    const a = A ? A.setAlias(inp ? inp.value : '') : '';
     if (!a) { const er = $('#aliasErr'); if (er) er.hidden = false; return; }
     const cb = aliasCb;
     hideAlias();
@@ -1018,10 +1133,488 @@
     startGame(friendDiff, friendMode, { invite: true });
   }
 
+  /* ===========================================================================
+   * Co-op: resolver juntos (2 jugadores, mismo tablero, P2P con PeerJS)
+   * ---------------------------------------------------------------------------
+   *  - El Host es la fuente de verdad: valida cada jugada (la suya y la del Invitado), la aplica y difunde el resultado.
+   *  - El Invitado pinta su jugada al instante (optimista) y se corrige con lo que diga el Host.
+   *  - `G.owners[81]`: 0 = pista inicial / vacía, 1 = Host, 2 = Invitado (color de cada dígito).
+   *  - El reloj es el del Host (corre solo con el Invitado conectado) y se difunde cada segundo: la pausa también se sincroniza.
+   * ========================================================================= */
+  let coopMode = 'classic', coopDiff = 'medio';
+
+  // Estado de ejecución de la sala (no se guarda en G).
+  function newCoop(role, alias) {
+    return {
+      role: role, me: role === 'host' ? 1 : 2, myAlias: alias, session: null, code: '',
+      friendAlias: '', friendFocus: -1, sentFocus: -2,
+      opId: 0, seq: 0, hist: [], joining: role === 'guest', hasState: false
+    };
+  }
+
+  const coopOk = () => !!(C && C.available());
+
+  function setCoopSel() {
+    document.querySelectorAll('#coopModes [data-cmode]').forEach(b => {
+      const on = b.dataset.cmode === coopMode;
+      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('#coopDiffs [data-cdiff]').forEach(b => {
+      const on = b.dataset.cdiff === coopDiff;
+      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+
+  function openCoop() {
+    if (!coopOk()) { toast('Falta peerjs.min.js: el modo Co-op no está disponible.'); return; }
+    coopMode = selMode;
+    setCoopSel();
+    const w = $('#coopWarn'); if (w) w.hidden = !hasProgress();
+    const m = $('#mCoop'); if (m) m.hidden = false;
+  }
+
+  // Cierra la sala (avisa al compañero) y deja la partida como partida normal.
+  function leaveCoop() {
+    const rt = co;
+    co = null;
+    if (G) G.coop = false;
+    if (rt && rt.session) { try { rt.session.close(); } catch (e) { /* ignorar */ } }
+  }
+
+  // La sala terminó (error, el anfitrión se fue, etc.): la partida sigue sola con lo que ya tiene.
+  function endCoop(info) {
+    co = null;
+    if (G) G.coop = false;
+    persist(); render(); updateHome();
+    toast(info.reason === 'host-left' ? 'El anfitrión cerró la sala. Seguís solo.' : C.statusText(info) + ' Seguís solo.');
+  }
+
+  // Configura G como partida cooperativa nueva a partir de un tablero recién generado (Host).
+  function setCoopGame(g, mode, diff, seed) {
+    const killer = mode === 'killer', puzzle = killer ? g.board : g.puzzle;
+    G = {
+      mode: mode, variant: mode, puzzle: puzzle, solution: g.solution, board: E.cloneBoard(puzzle),
+      notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, counted: true,
+      rec: null, coop: true, owners: C.emptyOwners(), hints: 0
+    };
+    if (killer) G.cages = g.cages;
+    prepareGame();
+    sel = -1; pencil = false; activeDigit = null; hideHint();
+    ghostSeen = 0; flash.fill(0); lastHintKey = '';
+  }
+
+  /* ----- Host: crear la sala ----- */
+  function startCoopHost(mode, diff) {
+    if (!coopOk()) { toast('Falta peerjs.min.js: el modo Co-op no está disponible.'); return; }
+    const alias = C.getAlias();
+    if (!alias) { askAlias(() => startCoopHost(mode, diff), COOP_ALIAS); return; }
+    if (busy) return;
+    mode = validMode(mode);
+    busy = true; closeModals();
+    showLoad('Generando tablero…', false);
+    const seed = toSeed();
+    let ok = false;
+    genPuzzle(diff, mode, seed, false).then(g => {
+      if (co) leaveCoop();
+      setCoopGame(g, mode, diff, seed);
+      co = newCoop('host', alias);
+      ok = true;
+    }).catch(() => { /* conserva la partida actual */ }).then(() => {
+      busy = false;
+      hideLoad();
+      if (!ok) { toast('No se pudo crear la sala.'); updateHome(); return; }
+      startHostSession();
+      persist(); setPlayOpen(false); showView('game'); render();
+    });
+  }
+
+  function startHostSession() {
+    const rt = co;
+    const s = C.createHost({ alias: rt.myAlias });
+    rt.session = s; rt.code = s.code;
+    s.on('status', info => onCoopStatus(rt, info));
+    s.on('ready', () => { if (co === rt) { updateCoopBar(); shareCoopLink(); } });
+    s.on('message', m => onHostMessage(rt, m));
+    s.start();
+  }
+
+  // Comparte (o copia) el enlace de la sala.
+  function shareCoopLink() {
+    if (!inCoop() || co.role !== 'host') return;
+    co.session.share({
+      text: co.myAlias + ' te invita a resolver un Sudoku juntos (' + MODE_NAMES[G.mode] + ' • ' + NAMES[G.req] +
+        '). Abrí el enlace y entrás a la sala.'
+    }).then(res => {
+      if (res === 'copied') toast('Enlace copiado: pegáselo a tu amigo');
+      else if (res === 'failed') {
+        try { window.prompt('Copiá este enlace:', co ? co.session.link() : ''); } catch (e) { toast('No se pudo compartir el enlace.'); }
+      }
+    });
+  }
+
+  // Estado completo hacia el Invitado (alta, reconexión o tablero nuevo).
+  function sendState(fresh) {
+    if (!inCoop() || co.role !== 'host') return false;
+    return co.session.send(C.buildState({
+      alias: co.myAlias, mode: G.mode, diff: G.diff, req: G.req, seed: G.seed,
+      puzzle: G.puzzle, solution: G.solution, cages: G.cages, board: G.board, notes: G.notes, owners: G.owners,
+      secs: G.secs, hints: G.hints | 0, won: G.won, fresh: !!fresh
+    }));
+  }
+
+  /* ----- Estado de la conexión (ambos roles) ----- */
+  function onCoopStatus(rt, info) {
+    if (co !== rt) return;
+    if (rt.joining) { // el Invitado todavía no recibió el tablero
+      if (info.state === 'error' || info.state === 'closed') {
+        co = null;
+        hideLoad();
+        toast(C.statusText(info));
+        updateHome();
+      } else {
+        setText('#loadTxt', info.state === 'reconnecting' ? 'Reconectando…' : 'Conectando con la sala…');
+      }
+      return;
+    }
+    if (info.state === 'error' || info.state === 'closed') {
+      if (info.reason !== 'local') endCoop(info);
+      return;
+    }
+    if (info.state !== 'connected') rt.friendFocus = -1;
+    rt.sentFocus = -2;       // al reconectar se vuelve a informar la celda activa
+    render();
+  }
+
+  /* ----- Arbitraje: el Host aplica las jugadas ----- */
+  // Aplica una jugada al tablero compartido. `who` = 1 Host, 2 Invitado. `track` = guardar en el historial (solo el Host).
+  // Devuelve { touched: índices modificados, rej: la jugada se rechazó y `touched` lleva el estado vigente de esa celda }.
+  function coopApply(who, op, track) {
+    if (op.kind === 'undo') return G.won ? { touched: [], rej: false } : coopUndo(who);
+    const touched = new Map(); // índice -> [valor, notas, dueño] antes del cambio
+    const snap = j => {
+      if (!touched.has(j)) { const rr = Math.floor(j / 9), cc = j % 9; touched.set(j, [G.board[rr][cc], G.notes[rr][cc].slice(), G.owners[j]]); }
+    };
+    const i = op.index, r = Math.floor(i / 9), c = i % 9;
+    const blocked = { touched: [i], rej: true };
+    if (G.won || G.puzzle[r][c]) return blocked;
+
+    if (op.kind === 'set') {
+      if (G.board[r][c] !== op.expect) return blocked;          // alguien cambió la celda antes: prevalece lo ya validado
+      if (G.board[r][c] === op.value) return { touched: [], rej: false };
+      const v = op.value;
+      snap(i);
+      G.board[r][c] = v; G.notes[r][c] = []; G.owners[i] = who;
+      notePeers(i).forEach(j => { // auto-limpieza de notas en las celdas relacionadas
+        const rr = Math.floor(j / 9), cc = j % 9, k = G.notes[rr][cc].indexOf(v);
+        if (k >= 0) { snap(j); G.notes[rr][cc].splice(k, 1); }
+      });
+    } else if (op.kind === 'note') {
+      if (G.board[r][c]) return blocked;
+      snap(i);
+      const a = G.notes[r][c], k = a.indexOf(op.value);
+      if (k < 0) { a.push(op.value); a.sort((x, y) => x - y); } else a.splice(k, 1);
+    } else if (op.kind === 'erase') {
+      if (G.board[r][c] !== op.expect) return blocked;
+      if (!G.board[r][c] && !G.notes[r][c].length) return { touched: [], rej: false };
+      snap(i);
+      G.board[r][c] = 0; G.notes[r][c] = []; G.owners[i] = 0;
+    } else {
+      return { touched: [], rej: false };
+    }
+
+    const idx = Array.from(touched.keys());
+    if (track && co) {
+      co.hist.push({
+        by: who,
+        cells: idx.map(k => {
+          const s = touched.get(k), rr = Math.floor(k / 9), cc = k % 9;
+          return [k, s[0], s[1], s[2], G.board[rr][cc], G.notes[rr][cc].slice(), G.owners[k]];
+        })
+      });
+      if (co.hist.length > COOP_HIST_MAX) co.hist.shift();
+    }
+    return { touched: idx, rej: false };
+  }
+
+  // Deshace la última jugada de `who`. Las celdas que alguien cambió después de esa jugada no se tocan.
+  function coopUndo(who) {
+    for (let h = co.hist.length - 1; h >= 0; h--) {
+      if (co.hist[h].by !== who) continue;
+      const e = co.hist.splice(h, 1)[0], touched = [];
+      e.cells.forEach(cl => {
+        const k = cl[0], r = Math.floor(k / 9), c = k % 9;
+        if (G.puzzle[r][c]) return;
+        const same = G.board[r][c] === cl[4] && G.owners[k] === cl[6] && G.notes[r][c].join() === cl[5].join();
+        if (!same) return;
+        G.board[r][c] = cl[1]; G.notes[r][c] = cl[2].slice(); G.owners[k] = cl[1] ? cl[3] : 0;
+        touched.push(k);
+      });
+      return { touched: touched, rej: false };
+    }
+    return { touched: [], rej: false };
+  }
+
+  // Difunde al Invitado las celdas que cambiaron (o el estado vigente si rechazó su jugada).
+  function coopBroadcast(res, who, ack) {
+    if (!res.touched.length && !res.rej) return;
+    const changes = res.touched.map(i => C.makeChange(i, G.board, G.notes, G.owners));
+    co.session.send({
+      type: 'cells', seq: ++co.seq, by: who, ack: ack || 0, rej: !!res.rej,
+      changes: changes, hints: G.hints | 0, secs: G.secs
+    });
+  }
+
+  // Cierre común de una jugada en el Host: difundir, detectar la victoria, repintar y guardar.
+  function coopAfter(res, who, ack) {
+    coopBroadcast(res, who, ack);
+    if (who === co.me) hideHint();
+    else if (hint && res.touched.indexOf(hint.row * 9 + hint.col) >= 0) hideHint();
+    if (!G.won && res.touched.length && !res.rej && isSolvedNow()) {
+      G.won = true; sel = -1;
+      const counts = C.countByOwner(G.owners, G.board, G.puzzle, G.solution);
+      co.session.send({ type: 'won', secs: G.secs, hints: G.hints | 0, counts: counts });
+      render(); persist();
+      showCoopWin(counts);
+      return;
+    }
+    render(); persist();
+  }
+
+  // Jugada del jugador local (set / note / erase) sobre la celda `i`.
+  function coopDo(kind, i, value) {
+    const r = Math.floor(i / 9), c = i % 9;
+    const op = { type: 'op', kind: kind, index: i, value: value || 0, expect: G.board[r][c], hint: false };
+    if (co.role === 'host') {
+      coopAfter(coopApply(1, op, true), 1, 0);
+      return;
+    }
+    if (!co.session.isConnected()) { toast('Sin conexión con tu amigo. Reconectando…'); return; }
+    op.id = ++co.opId;
+    coopApply(2, op, false);   // pinta al instante; el Host confirma o corrige con `cells`
+    co.session.send(op);
+    hideHint(); render(); persist();
+  }
+
+  // Mensajes que llegan al Host desde el Invitado.
+  function onHostMessage(rt, m) {
+    if (co !== rt || !G || !G.coop) return;
+    switch (m.type) {
+      case 'hello':
+        rt.friendAlias = m.alias; rt.friendFocus = -1; rt.sentFocus = -2;
+        sendState(false);
+        syncFocus();
+        toast(m.alias + (m.resume ? ' volvió a la sala' : ' se unió a la sala'));
+        render();
+        break;
+      case 'focus':
+        rt.friendFocus = m.index; render();
+        break;
+      case 'op':
+        coopAfter(coopApply(2, m, m.kind !== 'undo'), 2, m.id);
+        break;
+      case 'hint':
+        G.hints = (G.hints | 0) + 1;
+        rt.session.send({ type: 'clock', secs: G.secs, hints: G.hints });
+        persist();
+        break;
+      case 'again':
+        if (G.won) coopNewGame();
+        break;
+      case 'bye':
+        rt.friendFocus = -1;
+        toast((rt.friendAlias || 'Tu amigo') + ' salió de la sala');
+        render();
+        break;
+      default:
+        break;
+    }
+  }
+
+  /* ----- Invitado: conectarse a una sala ----- */
+  function joinCoop(code) {
+    if (!coopOk()) { toast('Falta peerjs.min.js: el modo Co-op no está disponible.'); return; }
+    if (busy) { toast('Esperá un momento…'); return; }
+    const alias = C.getAlias();
+    if (!alias) { askAlias(() => joinCoop(code), COOP_ALIAS); return; }
+    if (co) leaveCoop();
+    const rt = newCoop('guest', alias);
+    rt.code = code;
+    let s;
+    try { s = C.join(code, { alias: alias }); } catch (e) { toast('El código de sala no es válido.'); return; }
+    rt.session = s;
+    co = rt;
+    closeModals();
+    showLoad('Conectando con la sala…', true);
+    s.on('status', info => onCoopStatus(rt, info));
+    s.on('message', m => onGuestMessage(rt, m));
+    s.start();
+  }
+
+  function cancelJoin() {
+    if (co && co.joining) {
+      const s = co.session;
+      co = null;
+      try { s.close(); } catch (e) { /* ignorar */ }
+    }
+    hideLoad();
+    updateHome();
+  }
+
+  // Estado completo recibido del Host: reemplaza la partida local.
+  function applyCoopState(rt, m) {
+    const first = !rt.hasState;
+    G = {
+      mode: m.mode, variant: m.mode, puzzle: m.puzzle, solution: m.solution, board: E.cloneBoard(m.board),
+      notes: m.notes, diff: m.diff, req: m.req, seed: m.seed, hist: [], secs: m.secs, won: m.won, counted: true,
+      rec: null, coop: true, owners: m.owners, hints: m.hints
+    };
+    if (m.mode === 'killer') G.cages = m.cages;
+    prepareGame();
+    rt.hasState = true; rt.joining = false; rt.friendAlias = m.alias;
+    rt.friendFocus = -1; rt.sentFocus = -2;
+    if (first || m.fresh) { sel = -1; pencil = false; activeDigit = null; hideHint(); lastHintKey = ''; }
+    ghostSeen = 0; flash.fill(0);
+    hideLoad();
+    if (first || m.fresh) closeModals();
+    persist();
+    showView('game');
+    render();
+    if (m.won && first) showCoopWin();
+  }
+
+  // Mensajes que llegan al Invitado desde el Host.
+  function onGuestMessage(rt, m) {
+    if (co !== rt) return;
+    if (m.type === 'state') { applyCoopState(rt, m); return; }
+    if (!rt.hasState || !G || !G.coop) return;
+    switch (m.type) {
+      case 'cells': {
+        const touched = C.applyChanges(G.board, G.notes, G.owners, G.puzzle, m.changes);
+        if (m.hints !== undefined) G.hints = m.hints;
+        if (m.secs !== undefined) G.secs = m.secs;
+        if (hint && touched.indexOf(hint.row * 9 + hint.col) >= 0) hideHint();
+        if (m.rej) toast('Tu amigo se adelantó en esa celda');
+        render(); persist();
+        break;
+      }
+      case 'clock':
+        G.secs = m.secs; G.hints = m.hints;
+        setText('#clock', fmt(G.secs));
+        if (G.secs % 10 === 0) persist();
+        break;
+      case 'focus':
+        rt.friendFocus = m.index; render();
+        break;
+      case 'won':
+        G.won = true; sel = -1; G.secs = m.secs; G.hints = m.hints;
+        render(); persist();
+        showCoopWin(m.counts);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /* ----- Victoria compartida y "Jugar otro juntos" ----- */
+  function showCoopWin(counts) {
+    if (!inCoop()) { return; }
+    counts = counts || C.countByOwner(G.owners, G.board, G.puzzle, G.solution);
+    const box = $('#coopResult'), note = $('#winNote'), dr = $('#duelResult');
+    setText('#winTitle', '¡Lo resolvieron juntos!');
+    setText('#winTxt', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • Tiempo en equipo: ' + fmt(G.secs));
+    if (dr) { dr.textContent = ''; dr.hidden = true; }
+    if (box) {
+      box.textContent = '';
+      const total = (counts[0] + counts[1]) || 1;
+      [1, 2].forEach(p => {
+        const row = mk('div', 'cr-row'), nm = mk('div', 'cr-name');
+        nm.appendChild(mk('i', 'pdot p' + p));
+        nm.appendChild(mk('span', '', p === co.me ? 'Vos' : (co.friendAlias || 'Amigo')));
+        row.appendChild(nm);
+        row.appendChild(mk('b', '', counts[p - 1] + (counts[p - 1] === 1 ? ' celda' : ' celdas')));
+        box.appendChild(row);
+      });
+      const bar = mk('div', 'cr-bar');
+      [1, 2].forEach(p => {
+        const seg = mk('i', 'p' + p);
+        seg.style.width = (counts[p - 1] / total * 100) + '%';
+        bar.appendChild(seg);
+      });
+      box.appendChild(bar);
+      const hs = G.hints | 0;
+      if (hs) box.appendChild(mk('p', 'cr-note', 'Pistas usadas: ' + hs));
+      box.hidden = false;
+    }
+    if (note) {
+      note.textContent = co.role === 'host' ? '' : 'Podés pedir otro tablero: lo genera el anfitrión.';
+      note.hidden = co.role === 'host';
+    }
+    const bc = $('#winChallenge'); if (bc) bc.hidden = true;
+    const br = $('#winRematch'); if (br) br.hidden = true;
+    const ba = $('#winCoopAgain'); if (ba) ba.hidden = false;
+    const m = $('#mWin'); if (m) m.hidden = false;
+  }
+
+  // "Jugar otro juntos": el Host genera un tablero nuevo del mismo modo y dificultad en la misma sala.
+  function coopAgain() {
+    if (!inCoop()) return;
+    if (co.role === 'host') { coopNewGame(); return; }
+    if (!co.session.isConnected()) { toast('Sin conexión con tu amigo. Reconectando…'); return; }
+    co.session.send({ type: 'again' });
+    toast('Pidiendo un tablero nuevo al anfitrión…');
+  }
+
+  function coopNewGame() {
+    if (busy || !inCoop() || co.role !== 'host') return;
+    const rt = co, mode = G.mode, diff = G.req, seed = toSeed();
+    busy = true; closeModals();
+    showLoad('Generando tablero…', false);
+    let ok = false;
+    genPuzzle(diff, mode, seed, false).then(g => {
+      if (co !== rt) return;
+      setCoopGame(g, mode, diff, seed);
+      rt.hist = []; rt.friendFocus = -1; rt.sentFocus = -2;
+      ok = true;
+    }).catch(() => { /* ignorar */ }).then(() => {
+      busy = false;
+      hideLoad();
+      if (!ok) { toast('No se pudo generar otro tablero.'); return; }
+      sendState(true);
+      persist(); showView('game'); render();
+      toast('¡Nuevo tablero!');
+    });
+  }
+
+  // Lee #coop=XXXX (al cargar y en hashchange): sin partida en curso se conecta solo; con partida, pide confirmar.
+  function checkCoopHash() {
+    if (!C || busy) return;
+    const r = C.readLocationHash();
+    if (!r) return;
+    C.clearHash();
+    if (!r.ok) { toast('El enlace de sala no es válido.'); return; }
+    if (!coopOk()) { toast('Falta peerjs.min.js: el modo Co-op no está disponible.'); return; }
+    if (co && co.code === r.code) {
+      if (co.role === 'host') toast('Esa es tu propia sala: mandale el enlace a tu amigo.');
+      else if (G && G.coop) { showView('game'); render(); }
+      return;
+    }
+    if (hasProgress()) {
+      pendingCoop = r.code;
+      setText('#coopJoinCode', r.code);
+      const w = $('#coopJoinWarn'); if (w) w.hidden = false;
+      document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mCoopJoin') m.hidden = true; });
+      const m = $('#mCoopJoin'); if (m) m.hidden = false;
+    } else {
+      joinCoop(r.code);
+    }
+  }
+
   /* ---------- Ajustes y modales ---------- */
   function closeModals() {
     const inv = $('#mDuel');
     if (inv && !inv.hidden && pendingDuel) { pendingDuel = null; if (D) D.clearHash(); } // invitación descartada
+    const cj = $('#mCoopJoin');
+    if (cj && !cj.hidden) pendingCoop = null;                                              // invitación Co-op descartada
     aliasCb = null;
     document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad') m.hidden = true; });
   }
@@ -1057,6 +1650,17 @@
     document.querySelectorAll('.modes [data-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.mode)));
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff, selMode)));
 
+    // Co-op
+    on('btnCoop', 'click', openCoop);
+    on('coopGo', 'click', () => startCoopHost(coopMode, coopDiff));
+    document.querySelectorAll('#coopModes [data-cmode]').forEach(b => b.addEventListener('click', () => { coopMode = b.dataset.cmode; setCoopSel(); }));
+    document.querySelectorAll('#coopDiffs [data-cdiff]').forEach(b => b.addEventListener('click', () => { coopDiff = b.dataset.cdiff; setCoopSel(); }));
+    on('coopShare', 'click', shareCoopLink);
+    on('winCoopAgain', 'click', coopAgain);
+    on('coopJoinGo', 'click', () => { const code = pendingCoop; closeModals(); if (code) joinCoop(code); });
+    on('coopJoinCancel', 'click', closeModals);
+    on('loadCancel', 'click', cancelJoin);
+
     // Juego
     on('board', 'click', e => {
       const t = e.target.closest('.cell');
@@ -1082,7 +1686,7 @@
     on('btnSet', 'click', openSettings);
     // Con la partida resuelta, tocar el reloj vuelve a abrir el resultado (y el botón de desafiar).
     on('clock', 'click', () => { if (G && G.won && view === 'game') showWin(); });
-    on('winNew', 'click', () => { closeModals(); goHome(); setPlayOpen(true); });
+    on('winNew', 'click', () => { if (inCoop()) leaveCoop(); closeModals(); goHome(); setPlayOpen(true); });
     on('winChallenge', 'click', challengeFriend);
     on('winRematch', 'click', rematch);
 
@@ -1092,7 +1696,7 @@
     on('aliasOk', 'click', submitAlias);
     on('aliasCancel', 'click', hideAlias);
     on('aliasInput', 'keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAlias(); } });
-    window.addEventListener('hashchange', checkDuelHash);
+    window.addEventListener('hashchange', () => { checkDuelHash(); checkCoopHash(); });
 
     // Modales y ajustes
     document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
@@ -1127,13 +1731,24 @@
 
     // Cronómetro: solo corre en la vista de juego, con la pestaña visible y la partida activa.
     // En un duelo también avanza el fantasma: destellos y progreso del rival según el tiempo efectivo.
+    // En una sala Co-op manda el reloj del Host: corre mientras el Invitado esté conectado (aunque el Host esté en el inicio),
+    // lo difunde cada segundo y el Invitado solo lo muestra (si el Host se pausa, el reloj del Invitado también).
     setInterval(() => {
-      if (G && view === 'game' && !G.won && !busy && !document.hidden) {
-        G.secs++;
-        setText('#clock', fmt(showSecs()));
-        if (G.duel) { if (advanceGhost()) render(); else updateDuelBar(); }
-        if (G.secs % 10 === 0) persist();
+      if (!G || busy || G.won || document.hidden) return;
+      if (inCoop()) {
+        if (co.role === 'host' && co.session.isConnected()) {
+          G.secs++;
+          co.session.send({ type: 'clock', secs: G.secs, hints: G.hints | 0 });
+          setText('#clock', fmt(G.secs));
+          if (G.secs % 10 === 0) persist();
+        }
+        return;
       }
+      if (view !== 'game') return;
+      G.secs++;
+      setText('#clock', fmt(showSecs()));
+      if (G.duel) { if (advanceGhost()) render(); else updateDuelBar(); }
+      if (G.secs % 10 === 0) persist();
     }, 1000);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) { if (G) persist(); } else if (view === 'home') updateHome();
@@ -1144,12 +1759,16 @@
   /* ---------- Inicio de la app ---------- */
   function init() {
     boardEl = $('#board'); keypad = $('#keypad');
-    ['home-view', 'game-view', 'btnPlay', 'playPanel', 'duelBar', 'mDuel'].forEach(id => {
+    ['home-view', 'game-view', 'btnPlay', 'playPanel', 'duelBar', 'mDuel', 'coopBar', 'mCoop'].forEach(id => {
       if (!document.getElementById(id)) console.error('[Sudoku] Falta #' + id + ': ¿index.html y app.js son de la misma versión?');
     });
     if (!D) {
       console.error('[Sudoku] Falta duel.js: los duelos y desafíos están desactivados.');
       const bf = $('#btnFriend'); if (bf) bf.hidden = true;
+    }
+    if (!C || !C.available()) {
+      console.error('[Sudoku] Falta coop.js o peerjs.min.js: el modo Co-op está desactivado.');
+      const bc = $('#btnCoop'); if (bc) bc.hidden = true;
     }
     console.info('[Sudoku] app.js ' + BUILD);
     buildDom();
@@ -1160,6 +1779,7 @@
     showView('home');     // siempre se abre en la pantalla de inicio
     if (G) render();      // deja el tablero listo por si se pulsa "Continuar partida"
     checkDuelHash();      // si se abrió un enlace #duel=..., muestra la invitación
+    checkCoopHash();      // si se abrió un enlace #coop=..., se une a la sala
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

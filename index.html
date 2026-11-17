@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#F7F4EB">
 <meta name="color-scheme" content="light dark">
 <title>Sudoku</title>
-<link rel="stylesheet" href="style.css?v=duel-v2">
+<link rel="stylesheet" href="style.css?v=coop-v1">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
 </head>
@@ -53,6 +53,10 @@
       </div>
     </section>
 
+    <button id="btnCoop" class="chip home-btn">
+      Resolver juntos (Co-op)
+      <small>Mismo tablero, en equipo</small>
+    </button>
     <button id="btnFriend" class="chip home-btn">
       Duelo con amigo
       <small>Mismo tablero, al mismo tiempo</small>
@@ -107,6 +111,17 @@
       <div class="dtop"><span class="dname" id="duelRivalName">Rival</span><b id="duelRival">0/81</b><span class="dtime" id="duelRivalT"></span></div>
       <div class="dprog"><i id="duelRivalBar"></i></div>
     </div>
+  </div>
+
+  <!-- Barra Co-op: solo visible en una sala cooperativa. data-state = estado de la conexión (lo pone app.js). -->
+  <div id="coopBar" class="coopbar" hidden data-state="waiting" role="group" aria-label="Sala cooperativa">
+    <div class="cstat" role="status" aria-live="polite"><i class="cdot" aria-hidden="true"></i><span id="coopStatus">Esperando a tu amigo...</span></div>
+    <button type="button" id="coopShare" class="chip" title="Volver a compartir el enlace de la sala">Compartir</button>
+    <div class="cplayers">
+      <span class="cp me"><i class="pdot p1" id="coopMeDot" aria-hidden="true"></i><span id="coopMeName">Vos</span></span>
+      <span class="cp"><i class="pdot p2" id="coopFriendDot" aria-hidden="true"></i><span id="coopFriendName">Amigo</span></span>
+    </div>
+    <b class="ccount" id="coopCount" title="Celdas completadas entre los dos">0/81</b>
   </div>
 
   <section class="stage"><div id="board" class="board" data-mode="classic" role="grid" aria-label="Tablero de Sudoku"></div></section>
@@ -176,7 +191,9 @@
     <h2 id="winTitle">¡Resuelto!</h2>
     <p id="winTxt" class="sub"></p>
     <div id="duelResult" class="duel-result" hidden></div>
+    <div id="coopResult" class="coop-result" hidden></div>
     <p id="winNote" class="sub" hidden></p>
+    <button class="chip primary wide" id="winCoopAgain" hidden>Jugar otro juntos</button>
     <button class="chip primary wide" id="winChallenge">Desafiar a un amigo</button>
     <button class="chip wide" id="winRematch" hidden>Devolver desafío</button>
     <button class="chip wide" id="winNew">Nueva partida</button>
@@ -219,10 +236,46 @@
   </div>
 </div>
 
+<!-- Co-op: elegir tablero y crear la sala (Host) -->
+<div class="modal" id="mCoop" hidden>
+  <div class="sheet center">
+    <h2>Resolver juntos</h2>
+    <p class="sub">Vos y tu amigo resuelven el mismo tablero, a la vez y en equipo. Cada uno ve lo que escribe el otro al instante.</p>
+    <p class="sub warn" id="coopWarn" hidden>Se perderá la partida en curso.</p>
+    <p class="friend-label">Modo</p>
+    <div class="modes" id="coopModes" role="radiogroup" aria-label="Modo de la sala">
+      <button type="button" role="radio" class="on" aria-checked="true" data-cmode="classic">Clásico</button>
+      <button type="button" role="radio" aria-checked="false" data-cmode="killer">Killer</button>
+      <button type="button" role="radio" aria-checked="false" data-cmode="diagonal">Diagonal</button>
+      <button type="button" role="radio" aria-checked="false" data-cmode="antiknight">Anti-Caballo</button>
+    </div>
+    <p class="friend-label">Dificultad</p>
+    <div class="diffs" id="coopDiffs" role="radiogroup" aria-label="Dificultad de la sala">
+      <button type="button" role="radio" aria-checked="false" data-cdiff="facil">Fácil</button>
+      <button type="button" role="radio" class="on" aria-checked="true" data-cdiff="medio">Medio</button>
+      <button type="button" role="radio" aria-checked="false" data-cdiff="dificil">Difícil</button>
+      <button type="button" role="radio" aria-checked="false" data-cdiff="experto">Experto</button>
+    </div>
+    <button class="chip primary wide" id="coopGo">Crear sala y compartir enlace</button>
+    <button class="chip wide" data-close>Cancelar</button>
+  </div>
+</div>
+
+<!-- Co-op: confirmación del Invitado (solo si tiene una partida en curso) -->
+<div class="modal" id="mCoopJoin" hidden>
+  <div class="sheet center">
+    <h2>Resolver juntos</h2>
+    <p class="duel-title">Te invitaron a resolver un Sudoku en equipo (sala <b id="coopJoinCode"></b>).</p>
+    <p class="sub warn" id="coopJoinWarn" hidden>Se perderá la partida en curso.</p>
+    <button class="chip primary wide" id="coopJoinGo">Unirme a la sala</button>
+    <button class="chip wide" id="coopJoinCancel">Cancelar</button>
+  </div>
+</div>
+
 <div class="modal" id="mAlias" hidden>
   <div class="sheet center">
     <h2>Tu alias</h2>
-    <p class="sub">Así te verá tu rival (hasta 12 caracteres).</p>
+    <p class="sub" id="aliasSub">Así te verá tu rival (hasta 12 caracteres).</p>
     <input id="aliasInput" class="text-input" type="text" maxlength="12" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Alias">
     <p class="sub warn" id="aliasErr" hidden>Escribí un alias.</p>
     <button class="chip primary wide" id="aliasOk">Guardar y compartir</button>
@@ -230,12 +283,19 @@
   </div>
 </div>
 
-<div class="modal" id="mLoad" hidden><div class="sheet center"><p class="sub">Generando tablero…</p></div></div>
+<div class="modal" id="mLoad" hidden>
+  <div class="sheet center">
+    <p class="sub" id="loadTxt">Generando tablero…</p>
+    <button class="chip wide" id="loadCancel" hidden>Cancelar</button>
+  </div>
+</div>
 
-<script src="engine.js?v=duel-v2"></script>
-<script src="killer-engine.js?v=duel-v2"></script>
-<script src="duel.js?v=duel-v2"></script>
-<script src="app.js?v=duel-v2"></script>
+<script src="engine.js?v=coop-v1"></script>
+<script src="killer-engine.js?v=coop-v1"></script>
+<script src="duel.js?v=coop-v1"></script>
+<script src="peerjs.min.js?v=coop-v1"></script>
+<script src="coop.js?v=coop-v1"></script>
+<script src="app.js?v=coop-v1"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

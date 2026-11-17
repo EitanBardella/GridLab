@@ -1,4 +1,6 @@
-const CACHE_NAME = 'sudoku-v4';
+const CACHE_NAME = 'sudoku-v5';
+
+// Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [
   './',
   './index.html',
@@ -6,13 +8,25 @@ const ASSETS = [
   './engine.js',
   './killer-engine.js',
   './duel.js',
+  './coop.js',
   './app.js',
   './manifest.json'
 ];
 
+// Solo el modo Co-op depende de PeerJS: si falta el archivo, el resto de la app se instala igual.
+const OPTIONAL_ASSETS = [
+  './peerjs.min.js'
+];
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' }))))
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' }))).then(() =>
+        Promise.all(
+          OPTIONAL_ASSETS.map((u) => cache.add(new Request(u, { cache: 'reload' })).catch(() => null))
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -29,9 +43,12 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  // Solo se atienden GET del mismo origen; PeerJS (señalización) y cualquier otro tráfico pasan directo.
+  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) { return; }
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cached) => {
-      return cached || fetch(event.request);
+    caches.match(req, { ignoreSearch: true }).then((cached) => {
+      return cached || fetch(req);
     })
   );
 });
