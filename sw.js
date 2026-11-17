@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sudoku-v5';
+const CACHE_NAME = 'sudoku-v6';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [

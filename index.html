@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#F7F4EB">
 <meta name="color-scheme" content="light dark">
 <title>Sudoku</title>
-<link rel="stylesheet" href="style.css?v=coop-v1">
+<link rel="stylesheet" href="style.css?v=lives-v1">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
 </head>
@@ -43,16 +43,20 @@
 
       <div class="diffs">
         <button data-diff="facil">Fácil
-          <small class="s-std">Solo Naked Singles</small><small class="s-killer">12–15 pistas</small></button>
+          <small class="s-std">Solo Naked Singles • ∞ vidas</small><small class="s-killer">12–15 pistas • ∞ vidas</small></button>
         <button data-diff="medio">Medio
-          <small class="s-std">Con Hidden Singles</small><small class="s-killer">4–6 pistas</small></button>
+          <small class="s-std">Con Hidden Singles • 3 vidas</small><small class="s-killer">4–6 pistas • 3 vidas</small></button>
         <button data-diff="dificil">Difícil
-          <small class="s-std">Pares y Pointing</small><small class="s-killer">Sin pistas, jaulas medias</small></button>
+          <small class="s-std">Pares y Pointing • 2 vidas</small><small class="s-killer">Sin pistas, jaulas medias • 2 vidas</small></button>
         <button data-diff="experto">Experto
-          <small class="s-std">Técnicas avanzadas</small><small class="s-killer">Sin pistas, jaulas largas</small></button>
+          <small class="s-std">Técnicas avanzadas • 1 vida</small><small class="s-killer">Sin pistas, jaulas largas • 1 vida</small></button>
       </div>
     </section>
 
+    <button id="btnSurv" class="chip home-btn">
+      Supervivencia (No-Hit)
+      <small>Sin pistas y sin margen: un error y se acaba la racha</small>
+    </button>
     <button id="btnCoop" class="chip home-btn">
       Resolver juntos (Co-op)
       <small>Mismo tablero, en equipo</small>
@@ -76,7 +80,11 @@
     <button id="btnHome" class="chip" aria-label="Volver al inicio">Inicio</button>
     <div class="title">
       <b id="gameLabel"><span id="modeLabel">Clásico</span><span class="sep" aria-hidden="true">•</span><span id="diffLabel">Fácil</span></b>
-      <span id="clock">00:00</span>
+      <div class="subline">
+        <span id="clock">00:00</span>
+        <span class="sepdot" id="livesSep" aria-hidden="true">·</span>
+        <span id="lives" class="lives" role="img" aria-label="Vidas"></span>
+      </div>
     </div>
     <button id="btnSet" class="chip" aria-label="Ajustes">⚙</button>
   </header>
@@ -91,6 +99,15 @@
 
   <!-- Zona de juego: estado + tablero + herramientas + teclado, agrupados sin huecos entre sí. -->
   <div class="play">
+
+  <!-- Sub-barra de Supervivencia: solo visible en una racha No-Hit. -->
+  <div id="survBar" class="status surv" hidden role="status" aria-live="polite">
+    <span>🔥 Racha: <b id="survStreak">0</b></span>
+    <span class="dotsep" aria-hidden="true">·</span>
+    <span>Tablero <b id="survN">1</b></span>
+    <span class="dotsep" aria-hidden="true">·</span>
+    <span>Récord <b id="survRec">—</b></span>
+  </div>
 
   <!-- Barra de estado: solo visible en modo Killer. La app rellena #cageSum y #cageLeft. -->
   <div id="status" class="status" hidden role="status" aria-live="polite">
@@ -130,7 +147,7 @@
     <button data-act="undo"><span class="ic">↶</span>Deshacer</button>
     <button data-act="erase"><span class="ic">⌫</span>Borrar</button>
     <button data-act="pencil" id="btnPencil" aria-pressed="false"><span class="ic">✎</span>Notas<em id="pencilTag">OFF</em></button>
-    <button data-act="hint"><span class="ic">✦</span>Pista</button>
+    <button data-act="hint" id="btnHint"><span class="ic">✦</span>Pista<em id="hintTag" class="badge">3</em></button>
     <button data-act="inputmode" id="btnInputMode" aria-pressed="false" aria-label="Modo de entrada: celda primero"><span class="ic">⇄</span><span class="lbl">Celda→Nº</span></button>
   </nav>
 
@@ -148,6 +165,9 @@
     </div>
     <label class="row"><span>Marcar errores al instante</span>
       <input type="checkbox" id="optErr" class="switch">
+    </label>
+    <label class="row"><span>Modo práctica (vidas ilimitadas)</span>
+      <input type="checkbox" id="optPractice" class="switch">
     </label>
     <button class="chip wide" data-close>Listo</button>
   </div>
@@ -201,6 +221,60 @@
   </div>
 </div>
 
+<!-- Derrota por vidas (partida en solitario, duelo o Co-op) -->
+<div class="modal" id="mLose" hidden>
+  <div class="sheet center">
+    <h2 id="loseTitle">Derrota</h2>
+    <p id="loseTxt" class="sub"></p>
+    <p id="loseNote" class="sub" hidden></p>
+    <button class="chip primary wide" id="loseRetry">Reintentar el mismo tablero</button>
+    <button class="chip wide" id="loseHome">Volver al inicio</button>
+    <button class="chip wide" data-close>Ver tablero</button>
+  </div>
+</div>
+
+<!-- Supervivencia (No-Hit): elegir rotación -->
+<div class="modal" id="mSurv" hidden>
+  <div class="sheet center">
+    <h2>Supervivencia (No-Hit)</h2>
+    <p class="sub">Sin pistas y sin margen de error: un solo fallo termina la racha. Tableros 1–2 Fácil, 3–4 Medio, 5–6 Difícil y del 7 en adelante Experto.</p>
+    <p class="sub warn" id="survWarn" hidden>Se perderá la partida en curso.</p>
+    <div class="surv-grid">
+      <button type="button" data-surv="classic">Clásico<small data-rec="classic"></small></button>
+      <button type="button" data-surv="diagonal">Diagonal<small data-rec="diagonal"></small></button>
+      <button type="button" data-surv="antiknight">Anti-Caballo<small data-rec="antiknight"></small></button>
+      <button type="button" data-surv="killer">Killer<small data-rec="killer"></small></button>
+      <button type="button" data-surv="mixed">Mixto<small data-rec="mixed"></small></button>
+      <button type="button" data-surv="mixedk">Mixto + Killer<small data-rec="mixedk"></small></button>
+    </div>
+    <p class="sub surv-hint">Mixto rota al azar entre Clásico, Diagonal y Anti-Caballo; Mixto + Killer suma también Killer.</p>
+    <button class="chip wide" data-close>Cancelar</button>
+  </div>
+</div>
+
+<!-- Supervivencia: transición rápida al siguiente tablero -->
+<div class="modal" id="mSurvNext" hidden>
+  <div class="sheet center">
+    <h2 id="snTitle">¡Tablero superado!</h2>
+    <p id="snTxt" class="sub"></p>
+    <p id="snNext" class="duel-title"></p>
+    <div class="sn-bar" aria-hidden="true"><i></i></div>
+  </div>
+</div>
+
+<!-- Supervivencia: fin de la racha -->
+<div class="modal" id="mSurvEnd" hidden>
+  <div class="sheet center">
+    <h2 id="seTitle">Fin de la racha</h2>
+    <p id="seTxt" class="duel-title"></p>
+    <p id="seMode" class="sub"></p>
+    <p id="seRec" class="sub se-rec"></p>
+    <button class="chip primary wide" id="seAgain">Nueva racha</button>
+    <button class="chip wide" id="seHome">Volver al inicio</button>
+    <button class="chip wide" data-close>Ver tablero</button>
+  </div>
+</div>
+
 <div class="modal" id="mDuel" hidden>
   <div class="sheet center">
     <h2>Duelo</h2>
@@ -215,7 +289,7 @@
 <div class="modal" id="mFriend" hidden>
   <div class="sheet center">
     <h2>Duelo con amigo</h2>
-    <p class="sub">Elegí el tablero: vos y tu amigo juegan el mismo, a la vez, y comparan tiempos al terminar.</p>
+    <p class="sub">Elegí el tablero: vos y tu amigo juegan el mismo, a la vez, y comparan tiempos al terminar. 3 vidas y 2 pistas (+30 s cada una).</p>
     <p class="sub warn" id="friendWarn" hidden>Se perderá la partida en curso.</p>
     <p class="friend-label">Modo</p>
     <div class="modes" id="friendModes" role="radiogroup" aria-label="Modo del duelo">
@@ -240,7 +314,7 @@
 <div class="modal" id="mCoop" hidden>
   <div class="sheet center">
     <h2>Resolver juntos</h2>
-    <p class="sub">Vos y tu amigo resuelven el mismo tablero, a la vez y en equipo. Cada uno ve lo que escribe el otro al instante.</p>
+    <p class="sub">Vos y tu amigo resuelven el mismo tablero, a la vez y en equipo. Cada uno ve lo que escribe el otro al instante. Comparten 3 vidas y 3 pistas.</p>
     <p class="sub warn" id="coopWarn" hidden>Se perderá la partida en curso.</p>
     <p class="friend-label">Modo</p>
     <div class="modes" id="coopModes" role="radiogroup" aria-label="Modo de la sala">
@@ -290,12 +364,12 @@
   </div>
 </div>
 
-<script src="engine.js?v=coop-v1"></script>
-<script src="killer-engine.js?v=coop-v1"></script>
-<script src="duel.js?v=coop-v1"></script>
-<script src="peerjs.min.js?v=coop-v1"></script>
-<script src="coop.js?v=coop-v1"></script>
-<script src="app.js?v=coop-v1"></script>
+<script src="engine.js?v=lives-v1"></script>
+<script src="killer-engine.js?v=lives-v1"></script>
+<script src="duel.js?v=lives-v1"></script>
+<script src="peerjs.min.js?v=lives-v1"></script>
+<script src="coop.js?v=lives-v1"></script>
+<script src="app.js?v=lives-v1"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

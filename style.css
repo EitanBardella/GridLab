@@ -42,6 +42,20 @@ button:disabled { cursor:default; }
 [data-theme="night"] .chip.primary { color:#0B1020; }
 .chip.wide { width:100%; margin-top:8px; }
 
+/* Segunda línea del título: reloj + vidas */
+.title .subline { display:flex; align-items:center; justify-content:center; gap:.45em; max-width:100%; white-space:nowrap; }
+.title .sepdot { color:var(--muted); }
+.title .lives { color:var(--ink); font-size:.82rem; letter-spacing:.06em; line-height:1; }
+.title .lives.inf { font-size:1rem; font-weight:800; letter-spacing:0; color:var(--accent); }
+.title .lives.hit { animation:lifeHit .55s ease-out 1; }
+@keyframes lifeHit {
+  0%   { transform:scale(1); }
+  20%  { transform:scale(1.35) translateX(-2px); }
+  40%  { transform:scale(1.2) translateX(3px); }
+  60%  { transform:scale(1.2) translateX(-2px); }
+  100% { transform:scale(1); }
+}
+
 /* ---------- Pantalla de inicio ---------- */
 .app.home { overflow-y:auto; overscroll-behavior:contain; }
 .home-inner { width:100%; margin:auto 0; display:flex; flex-direction:column; gap:10px; padding:8px 0; }
@@ -52,6 +66,7 @@ button:disabled { cursor:default; }
 .home-btn small { font-size:.74rem; font-weight:400; color:var(--muted); }
 .chip.primary small { color:inherit; opacity:.85; }
 .home-btn[aria-expanded="true"] { border-color:var(--user); box-shadow:inset 0 0 0 1px var(--user); }
+#btnSurv { border-color:color-mix(in srgb, var(--accent) 55%, var(--thin)); }
 
 .panel { padding:12px; border:1px solid var(--thin); border-radius:14px; background:var(--bg); }
 .panel .sub { margin:0 0 8px; font-size:.82rem; text-align:center; color:var(--accent); }
@@ -71,6 +86,9 @@ button:disabled { cursor:default; }
 .status b { color:var(--ink); font-weight:700; }
 .status .sigma { color:var(--cage-ink); font-weight:700; }
 .status .dotsep { opacity:.6; }
+/* Sub-barra de Supervivencia */
+.status.surv { border-color:color-mix(in srgb, var(--accent) 60%, var(--thin)); color:var(--ink); font-weight:600; }
+.status.surv b { color:var(--accent); }
 
 /* ---------- Tablero ---------- */
 .stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; container-type:size; }
@@ -128,6 +146,12 @@ button:disabled { cursor:default; }
 .tools button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
 [data-theme="night"] .tools button.on { color:#1A1200; }
 .tools button.on em { color:inherit; }
+
+/* Contador de pistas restantes: insignia en la esquina del botón Pista */
+.tools em.badge { top:2px; right:3px; min-width:17px; height:17px; padding:0 4px; border-radius:9px;
+  background:var(--accent); color:#fff; font-size:.66rem; line-height:17px; text-align:center; font-variant-numeric:tabular-nums; }
+[data-theme="night"] .tools em.badge { color:#1A1200; }
+.tools em.badge.zero { background:var(--muted); color:var(--bg); }
 
 .keypad { display:grid; grid-template-columns:repeat(9,1fr); gap:4px; }
 .keypad button { position:relative; min-height:58px; padding:0; border:1px solid var(--thin); border-radius:10px;
@@ -222,6 +246,7 @@ button:disabled { cursor:default; }
 .stats-tbl thead th { font-size:.72rem; font-weight:600; color:var(--muted); }
 .stats-tbl tbody th { text-align:left; font-weight:600; white-space:nowrap; }
 .stats-tbl thead th:first-child { text-align:left; }
+.stats-tbl.surv-tbl { margin-top:14px; }
 .stats-sum { margin:12px 0 0; font-size:.88rem; color:var(--muted); }
 .stats-sum b { color:var(--ink); }
 
@@ -368,3 +393,21 @@ button:disabled { cursor:default; }
 
 @media (max-height:640px) { .coopbar { padding:3px 10px 4px; gap:2px 10px; } .coopbar .chip { min-height:28px; } }
 @media (prefers-reduced-motion:reduce) { .coopbar .cdot { animation:none !important; } }
+
+/* ---------- Supervivencia (No-Hit) ---------- */
+.surv-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 6px; }
+.surv-grid button { min-height:66px; padding:6px 4px; border:1px solid var(--thin); border-radius:12px; background:var(--panel);
+  font-weight:700; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+.surv-grid button small { font-size:.7rem; font-weight:400; color:var(--muted); }
+.surv-grid button[data-surv="mixed"], .surv-grid button[data-surv="mixedk"] { border-color:color-mix(in srgb, var(--accent) 55%, var(--thin)); }
+.surv-hint { margin:6px 0 4px; font-size:.78rem; }
+
+.sn-bar { height:6px; margin:10px 4px 6px; border-radius:3px; background:var(--thin); overflow:hidden; }
+.sn-bar i { display:block; height:100%; width:0; border-radius:3px; background:var(--accent); animation:snFill 1.5s linear forwards; }
+@keyframes snFill { to { width:100%; } }
+.se-rec { font-weight:600; color:var(--ink); }
+.lose-time { font-variant-numeric:tabular-nums; }
+@media (prefers-reduced-motion:reduce) {
+  .title .lives.hit { animation:none; }
+  .sn-bar i { animation-duration:.01s; }
+}

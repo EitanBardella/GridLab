@@ -18,6 +18,29 @@
   const COOP_ALIAS = { sub: 'Así te verá tu amigo (hasta 12 caracteres).', ok: 'Guardar y continuar' };
   const COOP_HIST_MAX = 2000;                   // tope del historial de deshacer en una sala
 
+  /* ---------- Vidas y pistas ---------- */
+  // Vidas en solitario según la dificultad (0 = infinitas). Duelos y Co-op: 3 fijas. Supervivencia: 0 de margen (1 error = fin).
+  const LIVES_BY_DIFF = { facil: 0, medio: 3, dificil: 2, experto: 1 };
+  const FRIEND_LIVES = 3;
+  const HINTS_SOLO = 3, HINTS_DUEL = 2, HINTS_COOP = 3;
+  const HEART_ON = '\u2764\uFE0F', HEART_OFF = '\uD83D\uDDA4';
+
+  /* ---------- Supervivencia (No-Hit) ---------- */
+  const SURV_MODES = {
+    classic:    { label: 'Clásico',        pool: ['classic'] },
+    diagonal:   { label: 'Diagonal',       pool: ['diagonal'] },
+    antiknight: { label: 'Anti-Caballo',   pool: ['antiknight'] },
+    killer:     { label: 'Killer',         pool: ['killer'] },
+    mixed:      { label: 'Mixto',          pool: ['classic', 'diagonal', 'antiknight'] },
+    mixedk:     { label: 'Mixto + Killer', pool: ['classic', 'diagonal', 'antiknight', 'killer'] }
+  };
+  // Tableros #1–2 Fácil, #3–4 Medio, #5–6 Difícil, #7 en adelante Experto.
+  const survDiff = n => (n <= 2 ? 'facil' : (n <= 4 ? 'medio' : (n <= 6 ? 'dificil' : 'experto')));
+  const survPickMode = rot => { const p = SURV_MODES[rot].pool; return p[Math.floor(Math.random() * p.length)]; };
+  // ¿a es mejor que b? Más tableros; a igualdad, menos tiempo. b nulo = no hay récord.
+  const survBetter = (a, b) => !b || a.n > b.n || (a.n === b.n && a.t < b.t);
+  const SURV_TRANSITION_MS = 1500;
+
   // Generación. Killer, los Desafíos Diarios y los enlaces viejos (v1) usan topes FIJOS (sin límite de tiempo): el tablero
   // depende solo de la semilla y debe salir igual en cualquier teléfono (un duelo Killer se regenera desde la semilla).
   // En Clásico, Diagonal y Anti-Caballo el duelo ya NO regenera: el enlace lleva el tablero empaquetado (41 bytes), así que
@@ -40,17 +63,23 @@
   };
   const load = (k, d) => { try { const v = store.get(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
   // G incluye `mode`/`variant`, `seed`, `req`, `rec` (grabador del fantasma), `duel` y, en Killer, `cages`.
+  // También `maxLives`, `lives`, `lost`, `hintsMax`, `hintsUsed` y, en una racha, `surv`.
   // En una sala Co-op también `coop`, `owners` y `hints` (al restaurar, la partida sigue como partida normal).
   const persist = () => { try { store.set(K_GAME, JSON.stringify(G)); } catch (e) { /* ignorar */ } };
   const saveSet = () => store.set(K_SET, JSON.stringify(set));
   const saveStats = () => { try { store.set(K_STATS, JSON.stringify(stats)); } catch (e) { /* ignorar */ } };
 
   /* ---------- Estado ---------- */
-  let set = Object.assign({ theme: 'paper', showErrors: true, mode: 'classic' }, load(K_SET, {}));
+  let set = Object.assign({ theme: 'paper', showErrors: true, mode: 'classic', practice: false }, load(K_SET, {}));
   set.mode = validMode(set.mode);
-  let stats = Object.assign({ won: {}, best: {}, daily: {} }, load(K_STATS, {}));
-  ['won', 'best', 'daily'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
-  let G = null;          // partida: mode, puzzle, solution, board, notes, diff, req, seed, hist, secs, won, counted, rec, (duel), (daily), (cages), (coop, owners, hints)
+  set.practice = !!set.practice;
+  let stats = Object.assign({ won: {}, best: {}, daily: {}, surv: {} }, load(K_STATS, {}));
+  ['won', 'best', 'daily', 'surv'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
+  Object.keys(stats.surv).forEach(k => { // récords de Supervivencia: { n: tableros, t: segundos }
+    const v = stats.surv[k];
+    if (!SURV_MODES[k] || !v || !Number.isInteger(v.n) || v.n < 1 || !Number.isFinite(v.t) || v.t < 0) delete stats.surv[k];
+  });
+  let G = null;          // partida: mode, puzzle, solution, board, notes, diff, req, seed, hist, secs, won, lost, lives, counted, rec, (duel), (daily), (surv), (cages), (coop, owners, hints)
   let view = 'home';     // 'home' | 'game'
   let sel = -1, pencil = false, hint = null, busy = false;
   let selMode = set.mode; // modo elegido en el panel "Jugar" del inicio
@@ -71,7 +100,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'coop-v1';
+  const BUILD = 'lives-v1';
   // Enlaza un evento a un id; si el id no existe lo avisa en consola (antes el ?. lo ocultaba).
   const on = (id, ev, fn) => {
     const el = document.getElementById(id);
@@ -107,11 +136,55 @@
 
   /* ---------- Tiempo efectivo (cronómetro + penalización por pistas) ---------- */
   const eff = () => G.secs + HINT_PENALTY * (G.rec ? G.rec.hints : 0);
-  // El reloj visible muestra el tiempo efectivo solo en duelos; en partidas normales, el cronómetro simple.
-  const showSecs = () => (G.duel ? eff() : G.secs);
+  // El reloj visible muestra: en una racha, el tiempo acumulado de toda la racha; en duelos, el tiempo efectivo;
+  // en partidas normales, el cronómetro simple.
+  const showSecs = () => (G.surv ? (G.surv.prev | 0) + G.secs : (G.duel ? eff() : G.secs));
 
   // ¿La partida actual es una sala Co-op con la conexión viva? (si la sala se cierra, la partida sigue como normal)
   const inCoop = () => !!(G && G.coop && co && co.session);
+
+  // ¿La partida terminó (ganada o perdida)? Con la partida terminada no se acepta más entrada.
+  const isOver = () => !!(G && (G.won || G.lost));
+
+  /* ---------- Vidas ---------- */
+  // Vidas infinitas: Fácil (maxLives 0) o "Modo práctica" activado. El modo práctica solo afecta a las partidas solitarias
+  // normales y diarias: duelos, Co-op y Supervivencia siguen con sus vidas.
+  const lifeInf = () => !G.maxLives || (set.practice && !G.duel && !G.coop && !G.surv);
+
+  // Reglas iniciales de vidas y pistas según el tipo de partida.
+  function rulesFor(diff, o) {
+    if (o.surv) return { maxLives: 1, maxHints: 0 };
+    if (o.duel || o.invite) return { maxLives: FRIEND_LIVES, maxHints: HINTS_DUEL };
+    return { maxLives: LIVES_BY_DIFF[diff] | 0, maxHints: HINTS_SOLO };
+  }
+
+  function livesText() {
+    if (lifeInf()) return '\u221E';
+    let s = '';
+    for (let i = 0; i < G.maxLives; i++) s += i < G.lives ? HEART_ON : HEART_OFF;
+    return s;
+  }
+
+  function updateLives() {
+    const el = $('#lives'), sp = $('#livesSep'); if (!el) return;
+    const show = !!G && !G.surv;   // en una racha no hay margen: la sub-barra muestra la racha
+    el.hidden = !show; if (sp) sp.hidden = !show;
+    if (!show) return;
+    const inf = lifeInf();
+    el.classList.toggle('inf', inf);
+    el.textContent = livesText();
+    el.setAttribute('aria-label', inf ? 'Vidas ilimitadas' : 'Vidas: ' + G.lives + ' de ' + G.maxLives);
+  }
+
+  function pulseLives() {
+    const el = $('#lives'); if (!el) return;
+    el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
+    setTimeout(() => { el.classList.remove('hit'); }, 600);
+  }
+
+  /* ---------- Pistas restantes ---------- */
+  // En Co-op las pistas son compartidas (G.hints, las suma el Host); en el resto, G.hintsUsed.
+  const hintsLeft = () => Math.max(0, (G.hintsMax | 0) - Math.max(G.hintsUsed | 0, G.hints | 0));
 
   /* ---------- Vecindad por modo ---------- */
   const peerCache = {};
@@ -234,11 +307,15 @@
     // El grabador del fantasma se sincroniza tras CADA cambio (colocar, borrar, deshacer, pista).
     if (G.rec) G.rec.sync(G.board, G.solution, G.puzzle, eff());
     if (!G.won && isSolvedNow()) { G.won = true; sel = -1; finishGame(); }
+    // Derrota por vidas: se frena el cronómetro (el intervalo ignora las partidas perdidas) y se muestra el modal.
+    let defeat = false;
+    if (!G.won && !G.lost && !lifeInf() && G.lives <= 0) { G.lost = true; sel = -1; defeat = true; }
     render(); persist();
+    if (defeat) showLose();
   }
 
   function input(n) {
-    if (!G || sel < 0 || G.won) return;
+    if (!G || sel < 0 || isOver()) return;
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c]) return;
     if (inCoop()) {
@@ -254,13 +331,20 @@
         if (k < 0) { a.push(n); a.sort((x, y) => x - y); } else a.splice(k, 1);
       });
     } else if (G.board[r][c] !== n) {
-      if (G.rec && n !== G.solution[r][c]) G.rec.addError(); // error cometido (cuenta aunque no se marque en pantalla)
+      // Solo un dígito definitivo erróneo resta vida (nunca notas ni borrar). Volver a tocar el mismo dígito ya puesto no entra aquí.
+      const bad = n !== G.solution[r][c];
+      if (G.rec && bad) G.rec.addError(); // error cometido (cuenta aunque no se marque en pantalla)
+      if (bad && !lifeInf()) {
+        G.lives = Math.max(0, G.lives - 1);
+        pulseLives();
+        if (G.lives > 0) toast('\u22121 vida \u00B7 te ' + (G.lives === 1 ? 'queda 1' : 'quedan ' + G.lives));
+      }
       mutate(t => place(r, c, n, t));
     }
   }
 
   function erase() {
-    if (!G || sel < 0 || G.won) return;
+    if (!G || sel < 0 || isOver()) return;
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c] || (!G.board[r][c] && !G.notes[r][c].length)) return;
     if (inCoop()) { coopDo('erase', sel, 0); return; }
@@ -295,7 +379,7 @@
 
   // Tecla numérica: en 'digit-first' elige (o suelta) el dígito activo; en 'cell-first' escribe en la celda elegida.
   function pressDigit(n) {
-    if (!G || G.won) return;
+    if (!G || isOver()) return;
     if (isDigitFirst()) {
       activeDigit = activeDigit === n ? null : n;
       sel = -1; hideHint(); render();
@@ -313,7 +397,7 @@
   }
 
   function undo() {
-    if (!G) return;
+    if (!G || G.lost) return;
     if (inCoop()) {
       if (G.won) return;
       if (co.role === 'host') {
@@ -328,7 +412,7 @@
     }
     if (!G.hist.length) return;
     G.hist.pop().forEach(([r, c, v, n]) => { G.board[r][c] = v; G.notes[r][c] = n; });
-    G.won = false; afterChange();
+    G.won = false; afterChange(); // las vidas perdidas no se recuperan al deshacer
   }
 
   /* ---------- Pistas ---------- */
@@ -337,34 +421,39 @@
     const h = $('#hint'); if (h) h.hidden = true;
   }
 
-  // Cada pista nueva suma una pista usada (y +30 s al tiempo final). Pedir otra vez la misma pista no se vuelve a cobrar.
+  // Cada pista nueva suma una pista usada (y +30 s al tiempo final en duelos). Pedir otra vez la misma pista no se vuelve a cobrar.
   // En una sala Co-op las pistas se cuentan en equipo (sin penalización de tiempo): el Host las suma y las difunde.
+  // Devuelve false si ya no quedan pistas (y la pista no es la que ya estaba en pantalla).
   function chargeHint(h) {
     let filled = 0;
     if (inCoop()) { for (let i = 0; i < 81; i++) if (G.board[Math.floor(i / 9)][i % 9]) filled++; }
     const key = (inCoop() ? 'c' + filled : G.hist.length) + ':' + h.row + ',' + h.col + ',' + h.value;
-    if (key === lastHintKey) return;
+    if (key === lastHintKey) return true;
+    if (hintsLeft() <= 0) return false;
     lastHintKey = key;
     if (inCoop()) {
+      G.hints = (G.hints | 0) + 1; // el Invitado lo suma en optimista: el Host corrige con `clock`
       if (co.role === 'host') {
-        G.hints = (G.hints | 0) + 1;
         if (co.session.isConnected()) co.session.send({ type: 'clock', secs: G.secs, hints: G.hints });
       } else {
         co.session.send({ type: 'hint' });
       }
       persist();
-      return;
+      return true;
     }
+    G.hintsUsed = (G.hintsUsed | 0) + 1;
     if (G.rec) G.rec.addHint();
     if (G.duel) { toast('+' + HINT_PENALTY + ' s de penalización'); advanceGhost(); }
     persist();
+    return true;
   }
 
   function showHint() {
-    if (!G || G.won) return;
+    if (!G || isOver()) return;
     let h = null;
     try { h = computeHint(); } catch (e) { h = undefined; }
     const box = $('#hint'), apply = $('#hintApply');
+    if (h && !chargeHint(h)) { toast('Ya no te quedan pistas'); render(); return; }
     if (box) box.hidden = false;
     if (h === undefined) {
       hint = null; if (apply) apply.hidden = true;
@@ -376,7 +465,6 @@
       setText('#hintText', 'El tablero está completo y correcto.');
       return;
     }
-    chargeHint(h);
     hint = h; sel = h.row * 9 + h.col;
     if (apply) apply.hidden = false;
     setText('#hintText', h.reason + (G.duel ? ' (+' + HINT_PENALTY + ' s)' : ''));
@@ -384,14 +472,14 @@
   }
 
   function applyHint() {
-    if (!hint) return;
+    if (!hint || isOver()) return;
     const h = hint;
     if (inCoop()) {
       hideHint();
       coopDo('set', h.row * 9 + h.col, h.value);
       return;
     }
-    mutate(t => place(h.row, h.col, h.value, t));
+    mutate(t => place(h.row, h.col, h.value, t)); // el valor de la pista es el correcto: nunca resta vida
   }
 
   /* ---------- Estado de la jaula seleccionada (Killer) ---------- */
@@ -406,6 +494,18 @@
     cg.cells.forEach(q => { filled += G.board[q[0]][q[1]] || 0; });
     sumEl.textContent = String(cg.sum);
     leftEl.textContent = String(cg.sum - filled);
+  }
+
+  /* ---------- Supervivencia: sub-barra ---------- */
+  function updateSurvBar() {
+    const el = $('#survBar'); if (!el) return;
+    const on_ = !!(G && G.surv);
+    el.hidden = !on_;
+    if (!on_) return;
+    const S = G.surv, rec = stats.surv[S.rot];
+    setText('#survStreak', String(S.n - 1 + (G.won ? 1 : 0)));
+    setText('#survN', String(S.n));
+    setText('#survRec', rec ? String(rec.n) : '—');
   }
 
   /* ---------- Duelo: progreso dual y fantasma ---------- */
@@ -480,7 +580,7 @@
   // Avisa al compañero de qué celda tengo activa (-1 si estoy fuera del tablero o ya se resolvió).
   function syncFocus() {
     if (!inCoop()) return;
-    const f = (view === 'game' && !G.won) ? sel : -1;
+    const f = (view === 'game' && !isOver()) ? sel : -1;
     if (f === co.sentFocus) return;
     if (co.session.send({ type: 'focus', index: f })) co.sentFocus = f;
   }
@@ -507,10 +607,12 @@
     const nowMs = Date.now();
 
     // Etiquetas superiores, modo en tablero y barra de estado
-    const ml = G.daily ? 'Diario' : (MODE_NAMES[mode] || 'Sudoku');
+    const ml = G.surv ? '\uD83D\uDD25 ' + (MODE_NAMES[mode] || 'Sudoku') : (G.daily ? 'Diario' : (MODE_NAMES[mode] || 'Sudoku'));
     setText('#modeLabel', (G.duel ? '⚔ ' : (coop ? '👥 ' : '')) + ml);
-    setText('#diffLabel', G.daily ? dateLabel(G.daily) : (NAMES[G.diff] || 'Sudoku'));
-    setText('#clock', fmt(showSecs()));
+    setText('#diffLabel', G.surv ? '#' + G.surv.n + ' ' + (NAMES[G.diff] || '') : (G.daily ? dateLabel(G.daily) : (NAMES[G.diff] || 'Sudoku')));
+    setText('#clock', fmt(coop ? G.secs : showSecs()));
+    updateLives();
+    updateSurvBar();
     if (boardEl) {
       boardEl.dataset.mode = mode;
       boardEl.classList.toggle('coop', coop);
@@ -583,10 +685,19 @@
       bm.setAttribute('aria-label', 'Modo de entrada: ' + (df ? 'número primero' : 'celda primero'));
       const lb = bm.querySelector('.lbl'); if (lb) lb.textContent = df ? 'Nº→Celda' : 'Celda→Nº';
     }
+    // Botón Pista: insignia con las pistas restantes; se bloquea al llegar a 0 (o con la partida terminada).
+    const bh = $('#btnHint');
+    if (bh) {
+      const left = hintsLeft();
+      bh.disabled = left <= 0 || isOver();
+      bh.setAttribute('aria-label', 'Pista, quedan ' + left);
+      const tag = $('#hintTag');
+      if (tag) { tag.textContent = String(left); tag.classList.toggle('zero', left <= 0); }
+    }
     const bu = document.querySelector('[data-act="undo"]');
     if (bu) {
-      if (coop) bu.disabled = co.role === 'host' ? !co.hist.some(e => e.by === 1) : !co.session.isConnected();
-      else bu.disabled = !G.hist.length;
+      if (coop) bu.disabled = G.lost || (co.role === 'host' ? !co.hist.some(e => e.by === 1) : !co.session.isConnected());
+      else bu.disabled = !G.hist.length || G.lost;
     }
     updateDuelBar();
     updateCoopBar();
@@ -594,7 +705,7 @@
   }
 
   /* ---------- Vistas: inicio / juego ---------- */
-  const hasProgress = () => !!G && !G.won;
+  const hasProgress = () => !!G && !G.won && !G.lost;
 
   function showView(v) {
     view = v;
@@ -672,6 +783,7 @@
     const bc = $('#btnContinue'); if (bc) bc.hidden = !prog;
     if (prog) {
       setText('#continueInfo', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • ' + fmt(showSecs()) +
+        (G.surv ? ' • 🔥 Racha: ' + (G.surv.n - 1) : '') +
         (G.daily ? ' • Diario' : '') + (G.duel ? (G.duel.open ? ' • ⚔ en vivo' : ' • ⚔ vs ' + G.duel.alias) : '') +
         (inCoop() ? ' • 👥 co-op' : ''));
     }
@@ -707,9 +819,9 @@
     m = validMode(m);
     const panel = $('#playPanel'); if (panel) panel.dataset.mode = m;
     document.querySelectorAll('.modes [data-mode]').forEach(b => {
-      const on = b.dataset.mode === m;
-      b.classList.toggle('on', on);
-      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      const on_ = b.dataset.mode === m;
+      b.classList.toggle('on', on_);
+      b.setAttribute('aria-checked', on_ ? 'true' : 'false');
     });
   }
   function selectMode(m) { selMode = validMode(m); setModeAttrs(selMode); }
@@ -756,20 +868,25 @@
     });
   }
 
-  // opts: { seed, daily, duel, rematchTo, board (tablero empaquetado), legacy (enlace v1), invite (duelo con amigo) }
+  // opts: { seed, daily, duel, rematchTo, board (tablero empaquetado), legacy (enlace v1), invite (duelo con amigo),
+  //         surv ({ rot, n, prev, rec0 }: tablero de una racha), transition (pasa de tablero en una racha sin cerrar el modal) }
   function startGame(diff, mode, opts) {
     if (busy) return;
     opts = opts || {};
     mode = validMode(mode);
-    busy = true; closeModals(); if (!opts.daily) selectMode(mode);
-    if (!opts.board) showLoad('Generando tablero…', false); // con tablero empaquetado no hay espera
+    busy = true;
+    if (!opts.transition) closeModals();
+    if (!opts.daily && !opts.surv) selectMode(mode);
+    if (!opts.board && !opts.transition) showLoad('Generando tablero…', false); // con tablero empaquetado no hay espera
     const seed = toSeed(opts.seed);
     let ok = false, errMsg = '';
     const fixedGen = mode === 'killer' || !!opts.daily || !!opts.legacy;
+    // En la transición de una racha se espera un mínimo para que se vea el "tablero superado".
+    const wait = opts.transition ? new Promise(res => setTimeout(res, SURV_TRANSITION_MS)) : null;
     Promise.resolve().then(() => {
       if (opts.board) return boardFromPacked(opts.board, mode, diff);
       return genPuzzle(diff, mode, seed, fixedGen);
-    }).then(g => {
+    }).then(g => (wait ? wait.then(() => g) : g)).then(g => {
       const killer = mode === 'killer', puzzle = killer ? g.board : g.puzzle;
       // Control de coherencia del duelo: el fantasma nunca resuelve una celda dada. Si pasa, el tablero no coincide.
       if (opts.duel && opts.duel.moves.some(m => puzzle[Math.floor(m.cell / 9)][m.cell % 9])) {
@@ -777,14 +894,17 @@
         throw new Error('duel-mismatch');
       }
       if (co) leaveCoop(); // empezar otra partida cierra la sala Co-op
+      const rules = rulesFor(diff, opts);
       G = {
         mode: mode, variant: mode, puzzle: puzzle, solution: g.solution, board: E.cloneBoard(puzzle),
-        notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, counted: false,
-        rec: D ? new D.DuelRecorder() : null
+        notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, lost: false, counted: false,
+        rec: D ? new D.DuelRecorder() : null,
+        maxLives: rules.maxLives, lives: rules.maxLives, hintsMax: rules.maxHints, hintsUsed: 0
       };
       if (killer) G.cages = g.cages;
       if (opts.daily) G.daily = opts.daily;
       if (opts.duel) G.duel = opts.duel;
+      if (opts.surv) { G.surv = opts.surv; G.counted = true; G.rec = null; } // la racha no suma a las estadísticas normales ni se desafía
       if (opts.invite) { // duelo con amigo: invitación abierta (sin tiempo ni fantasma todavía)
         const dec = D.decodeDuelPayload(inviteEncoded());
         G.duel = { id: dec.ok ? dec.id : 'live.' + seed.toString(36), open: true, alias: '', time: 0, errors: 0, hints: 0, moves: [] };
@@ -793,17 +913,18 @@
       prepareGame();
       sel = -1; pencil = false; activeDigit = null; hideHint();
       ghostSeen = 0; flash.fill(0); lastHintKey = '';
-      if (!opts.daily) { set.mode = mode; saveSet(); }
+      if (!opts.daily && !opts.surv) { set.mode = mode; saveSet(); }
       ok = true;
     }).catch(() => { if (!errMsg && opts.board) errMsg = 'El tablero del enlace no es válido.'; /* conserva la partida actual */ }).then(() => {
       busy = false;
       hideLoad();
+      if (opts.transition) closeModals();
       if (ok) {
         persist(); setPlayOpen(false); showView('game'); render();
         if (opts.rematchTo) toast('Resolvé este tablero y mandale la revancha a ' + opts.rematchTo);
         if (opts.invite) shareInvite();
       } else {
-        updateHome();
+        if (opts.transition) toast('No se pudo generar el siguiente tablero.'); else updateHome();
         if (errMsg) toast(errMsg);
       }
     });
@@ -821,6 +942,14 @@
     };
   }
 
+  // Valida el bloque `surv` guardado en una partida.
+  function cleanSurv(s) {
+    if (!s || typeof s !== 'object' || !SURV_MODES[s.rot] || !Number.isInteger(s.n) || s.n < 1 || s.n > 9999) return null;
+    const r0 = s.rec0;
+    const rec0 = (r0 && Number.isInteger(r0.n) && r0.n >= 1 && Number.isFinite(r0.t) && r0.t >= 0) ? { n: r0.n, t: r0.t | 0 } : null;
+    return { rot: s.rot, n: s.n, prev: Math.max(0, s.prev | 0), rec0: rec0 };
+  }
+
   function restore() {
     const s = load(K_GAME, null);
     try {
@@ -836,8 +965,9 @@
         delete s.cages;
       }
       // La conexión de una sala Co-op no sobrevive a un reinicio: la partida sigue como partida normal.
+      const coopHints = s.hints | 0;
       delete s.coop; delete s.owners; delete s.hints;
-      s.mode = mode; s.variant = mode; s.secs = s.secs | 0; s.won = !!s.won;
+      s.mode = mode; s.variant = mode; s.secs = s.secs | 0; s.won = !!s.won; s.lost = !!s.lost;
       s.counted = !!s.counted || s.won;
       if (typeof s.daily !== 'string') delete s.daily;
       if (!NAMES[s.diff]) s.diff = 'facil';
@@ -848,6 +978,7 @@
       if (typeof s.rematchTo === 'string' && D) s.rematchTo = D.sanitizeAlias(s.rematchTo); else delete s.rematchTo;
       if (s.duel) { s.duel = cleanDuel(s.duel); if (!s.duel) delete s.duel; }
       if (s.duelResult && (typeof s.duelResult !== 'object' || !s.duelResult.record)) delete s.duelResult;
+      if (s.surv) { s.surv = cleanSurv(s.surv); if (!s.surv) delete s.surv; }
       if (D) {
         const had = !!(s.rec && Array.isArray(s.rec.m));
         s.rec = new D.DuelRecorder(had ? s.rec : null);
@@ -855,6 +986,17 @@
       } else {
         s.rec = null;
       }
+      if (s.surv) { s.rec = null; s.counted = true; }
+      // Vidas y pistas (las partidas guardadas antes de esta versión no las tienen: se asignan según su tipo).
+      const friend = !!s.duel;
+      if (!Number.isInteger(s.maxLives) || s.maxLives < 0 || s.maxLives > 9) {
+        s.maxLives = s.surv ? 1 : (friend ? FRIEND_LIVES : (LIVES_BY_DIFF[s.diff] | 0));
+      }
+      if (!Number.isInteger(s.lives) || s.lives < 0 || s.lives > s.maxLives) s.lives = s.maxLives;
+      if (!Number.isInteger(s.hintsMax) || s.hintsMax < 0 || s.hintsMax > 9) {
+        s.hintsMax = s.surv ? 0 : (friend ? HINTS_DUEL : HINTS_SOLO);
+      }
+      s.hintsUsed = Math.max(0, s.hintsUsed | 0, coopHints, s.rec ? s.rec.hints : 0);
       G = s; prepareGame();
       ghostSeen = eff(); flash.fill(0); lastHintKey = '';
       return true;
@@ -874,6 +1016,7 @@
 
   // Al resolver: estadísticas, tiempo final efectivo (con penalizaciones) y, en un duelo, marcador cara a cara.
   function finishGame() {
+    if (G.surv) { survWin(); return; }
     recordWin();
     G.finalTime = eff();
     if (G.duel && !G.duel.open && D) {
@@ -953,6 +1096,108 @@
     const m = $('#mWin'); if (m) m.hidden = false;
   }
 
+  /* ---------- Derrota por vidas ---------- */
+  // Muestra el modal de derrota (o el de fin de racha en Supervivencia).
+  function showLose() {
+    if (!G) return;
+    if (G.surv) { showSurvEnd(); return; }
+    const team = inCoop();
+    setText('#loseTitle', team ? 'Se acabaron las vidas' : 'Derrota');
+    setText('#loseTxt', (team ? 'Entre los dos agotaron las ' + G.maxLives + ' vidas.' : 'Te quedaste sin vidas.') + ' ' +
+      (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • ' + fmt(team ? G.secs : showSecs()));
+    const note = $('#loseNote');
+    if (note) {
+      if (team && co.role === 'guest') { note.textContent = 'El reintento lo inicia el anfitrión: se lo pedimos.'; note.hidden = false; }
+      else { note.textContent = ''; note.hidden = true; }
+    }
+    setText('#loseRetry', team && co.role === 'guest' ? 'Pedir reintento al anfitrión' : 'Reintentar el mismo tablero');
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mLose') m.hidden = true; });
+    const m = $('#mLose'); if (m) m.hidden = false;
+  }
+
+  // Reintentar el mismo tablero en solitario / duelo: tablero, notas, tiempo, vidas y pistas vuelven al inicio.
+  function retryBoard() {
+    if (!G || !G.lost) return;
+    G.board = E.cloneBoard(G.puzzle); G.notes = emptyNotes(); G.hist = [];
+    G.secs = 0; G.won = false; G.lost = false; G.counted = false;
+    G.lives = G.maxLives; G.hintsUsed = 0;
+    delete G.finalTime; delete G.duelResult;
+    if (D) G.rec = new D.DuelRecorder();
+    sel = -1; pencil = false; activeDigit = null; hideHint();
+    ghostSeen = 0; flash.fill(0); lastHintKey = '';
+    closeModals(); persist(); render();
+  }
+
+  function onLoseRetry() {
+    if (!G) return;
+    if (inCoop()) {
+      if (co.role === 'host') { coopRetry(); return; }
+      if (!co.session.isConnected()) { toast('Sin conexión con tu amigo. Reconectando…'); return; }
+      co.session.send({ type: 'again' });
+      toast('Pidiendo el reintento al anfitrión…');
+      return;
+    }
+    retryBoard();
+  }
+
+  /* ---------- Supervivencia (No-Hit) ---------- */
+  const recText = r => r.n + (r.n === 1 ? ' tablero' : ' tableros') + ' · ' + fmt(r.t);
+
+  function openSurv() {
+    Object.keys(SURV_MODES).forEach(k => {
+      const el = document.querySelector('[data-rec="' + k + '"]');
+      if (el) el.textContent = stats.surv[k] ? 'Récord: ' + recText(stats.surv[k]) : 'Sin récord';
+    });
+    const w = $('#survWarn'); if (w) w.hidden = !hasProgress();
+    const m = $('#mSurv'); if (m) m.hidden = false;
+  }
+
+  function startSurvival(rot) {
+    if (!SURV_MODES[rot]) return;
+    const r0 = stats.surv[rot];
+    startGame(survDiff(1), survPickMode(rot), {
+      surv: { rot: rot, n: 1, prev: 0, rec0: r0 ? { n: r0.n, t: r0.t } : null }
+    });
+  }
+
+  // Tablero de la racha resuelto: se guarda el récord y se pasa (con transición) al siguiente.
+  function survWin() {
+    const S = G.surv;
+    const done = S.n, total = (S.prev | 0) + G.secs;
+    if (survBetter({ n: done, t: total }, stats.surv[S.rot])) { stats.surv[S.rot] = { n: done, t: total }; saveStats(); }
+    const nextN = done + 1, nextMode = survPickMode(S.rot), nextDiff = survDiff(nextN);
+    setText('#snTitle', '¡Tablero ' + done + ' superado!');
+    setText('#snTxt', '🔥 Racha: ' + done + ' · Tiempo acumulado: ' + fmt(total));
+    setText('#snNext', 'Siguiente: ' + MODE_NAMES[nextMode] + ' • ' + NAMES[nextDiff]);
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mSurvNext') m.hidden = true; });
+    const m = $('#mSurvNext'); if (m) m.hidden = false;
+    // El timeout deja que afterChange termine de pintar y guardar el tablero resuelto antes de generar el siguiente.
+    setTimeout(() => {
+      startGame(nextDiff, nextMode, {
+        transition: true,
+        surv: { rot: S.rot, n: nextN, prev: total, rec0: S.rec0 }
+      });
+    }, 0);
+  }
+
+  // Fin de la racha: comparación contra el récord histórico.
+  function showSurvEnd() {
+    const S = G.surv, done = S.n - 1, t = S.prev | 0;
+    const rec = stats.surv[S.rot] || null;
+    const isNew = done > 0 && survBetter({ n: done, t: t }, S.rec0);
+    setText('#seTitle', isNew ? '¡Nuevo récord!' : 'Fin de la racha');
+    setText('#seTxt', done
+      ? '🔥 Superaste ' + done + (done === 1 ? ' tablero' : ' tableros') + ' en ' + fmt(t) + '.'
+      : 'No lograste superar ningún tablero.');
+    setText('#seMode', SURV_MODES[S.rot].label + ' • Caíste en el tablero ' + S.n + ' (' + (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ')');
+    let line;
+    if (isNew) line = S.rec0 ? 'Récord anterior: ' + recText(S.rec0) : 'Es tu primer récord en esta rotación.';
+    else line = rec ? 'Récord histórico: ' + recText(rec) : 'Todavía no hay récord en esta rotación.';
+    setText('#seRec', line);
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mSurvEnd') m.hidden = true; });
+    const m = $('#mSurvEnd'); if (m) m.hidden = false;
+  }
+
   function showStats() {
     const body = $('#statsBody'); if (!body) return;
     let total = 0, rows = '';
@@ -963,10 +1208,17 @@
         DIFF_ORDER.map(d => { const t = stats.best[m + '.' + d]; return '<td>' + (t ? fmt(t) : '—') + '</td>'; }).join('') +
         '</tr>';
     });
+    let srows = '';
+    Object.keys(SURV_MODES).forEach(k => {
+      const r = stats.surv[k];
+      srows += '<tr><th scope="row">' + SURV_MODES[k].label + '</th><td>' + (r ? r.n : '—') + '</td><td>' + (r ? fmt(r.t) : '—') + '</td></tr>';
+    });
     const dailyDone = Object.keys(stats.daily).length;
     body.innerHTML =
       '<table class="stats-tbl"><thead><tr><th>Modo</th><th>Gan.</th><th>Fác.</th><th>Med.</th><th>Dif.</th><th>Exp.</th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table>' +
+      '<table class="stats-tbl surv-tbl"><thead><tr><th>🔥 Supervivencia</th><th>Racha</th><th>Tiempo</th></tr></thead>' +
+      '<tbody>' + srows + '</tbody></table>' +
       '<p class="stats-sum">Partidas ganadas: <b>' + total + '</b> · Desafíos diarios: <b>' + dailyDone + '</b></p>';
     const m = $('#mStats'); if (m) m.hidden = false;
   }
@@ -1111,12 +1363,12 @@
 
   function setFriendSel() {
     document.querySelectorAll('#friendModes [data-fmode]').forEach(b => {
-      const on = b.dataset.fmode === friendMode;
-      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+      const on_ = b.dataset.fmode === friendMode;
+      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
     });
     document.querySelectorAll('#friendDiffs [data-fdiff]').forEach(b => {
-      const on = b.dataset.fdiff === friendDiff;
-      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+      const on_ = b.dataset.fdiff === friendDiff;
+      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
     });
   }
 
@@ -1140,6 +1392,8 @@
    *  - El Invitado pinta su jugada al instante (optimista) y se corrige con lo que diga el Host.
    *  - `G.owners[81]`: 0 = pista inicial / vacía, 1 = Host, 2 = Invitado (color de cada dígito).
    *  - El reloj es el del Host (corre solo con el Invitado conectado) y se difunde cada segundo: la pausa también se sincroniza.
+   *  - Las 3 vidas y las 3 pistas son compartidas: las descuenta el Host y se sincronizan con `cells`/`clock`/`state`;
+   *    al quedarse sin vidas el Host difunde `lost`.
    * ========================================================================= */
   let coopMode = 'classic', coopDiff = 'medio';
 
@@ -1156,12 +1410,12 @@
 
   function setCoopSel() {
     document.querySelectorAll('#coopModes [data-cmode]').forEach(b => {
-      const on = b.dataset.cmode === coopMode;
-      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+      const on_ = b.dataset.cmode === coopMode;
+      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
     });
     document.querySelectorAll('#coopDiffs [data-cdiff]').forEach(b => {
-      const on = b.dataset.cdiff === coopDiff;
-      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+      const on_ = b.dataset.cdiff === coopDiff;
+      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
     });
   }
 
@@ -1184,7 +1438,7 @@
   // La sala terminó (error, el anfitrión se fue, etc.): la partida sigue sola con lo que ya tiene.
   function endCoop(info) {
     co = null;
-    if (G) G.coop = false;
+    if (G) { G.coop = false; G.hintsUsed = Math.max(G.hintsUsed | 0, G.hints | 0); }
     persist(); render(); updateHome();
     toast(info.reason === 'host-left' ? 'El anfitrión cerró la sala. Seguís solo.' : C.statusText(info) + ' Seguís solo.');
   }
@@ -1194,8 +1448,9 @@
     const killer = mode === 'killer', puzzle = killer ? g.board : g.puzzle;
     G = {
       mode: mode, variant: mode, puzzle: puzzle, solution: g.solution, board: E.cloneBoard(puzzle),
-      notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, counted: true,
-      rec: null, coop: true, owners: C.emptyOwners(), hints: 0
+      notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, lost: false, counted: true,
+      rec: null, coop: true, owners: C.emptyOwners(), hints: 0,
+      maxLives: FRIEND_LIVES, lives: FRIEND_LIVES, hintsMax: HINTS_COOP, hintsUsed: 0
     };
     if (killer) G.cages = g.cages;
     prepareGame();
@@ -1258,7 +1513,7 @@
     return co.session.send(C.buildState({
       alias: co.myAlias, mode: G.mode, diff: G.diff, req: G.req, seed: G.seed,
       puzzle: G.puzzle, solution: G.solution, cages: G.cages, board: G.board, notes: G.notes, owners: G.owners,
-      secs: G.secs, hints: G.hints | 0, won: G.won, fresh: !!fresh
+      secs: G.secs, hints: G.hints | 0, lives: G.lives, won: G.won, fresh: !!fresh
     }));
   }
 
@@ -1287,23 +1542,27 @@
 
   /* ----- Arbitraje: el Host aplica las jugadas ----- */
   // Aplica una jugada al tablero compartido. `who` = 1 Host, 2 Invitado. `track` = guardar en el historial (solo el Host).
-  // Devuelve { touched: índices modificados, rej: la jugada se rechazó y `touched` lleva el estado vigente de esa celda }.
+  // Devuelve { touched: índices modificados, rej: la jugada se rechazó y `touched` lleva el estado vigente de esa celda,
+  //            lost: la jugada era un dígito erróneo y el Host descontó una vida compartida }.
   function coopApply(who, op, track) {
-    if (op.kind === 'undo') return G.won ? { touched: [], rej: false } : coopUndo(who);
+    if (op.kind === 'undo') return (G.won || G.lost) ? { touched: [], rej: false } : coopUndo(who);
     const touched = new Map(); // índice -> [valor, notas, dueño] antes del cambio
     const snap = j => {
       if (!touched.has(j)) { const rr = Math.floor(j / 9), cc = j % 9; touched.set(j, [G.board[rr][cc], G.notes[rr][cc].slice(), G.owners[j]]); }
     };
     const i = op.index, r = Math.floor(i / 9), c = i % 9;
     const blocked = { touched: [i], rej: true };
-    if (G.won || G.puzzle[r][c]) return blocked;
+    if (G.won || G.lost || G.puzzle[r][c]) return blocked;
+    let lifeLost = false;
 
     if (op.kind === 'set') {
       if (G.board[r][c] !== op.expect) return blocked;          // alguien cambió la celda antes: prevalece lo ya validado
-      if (G.board[r][c] === op.value) return { touched: [], rej: false };
+      if (G.board[r][c] === op.value) return { touched: [], rej: false }; // volver a tocar el mismo dígito no cuesta vida
       const v = op.value;
       snap(i);
       G.board[r][c] = v; G.notes[r][c] = []; G.owners[i] = who;
+      // Solo el Host descuenta vidas (el Invitado se corrige con `cells.lives`).
+      if (co && co.role === 'host' && v !== G.solution[r][c]) { G.lives = Math.max(0, G.lives - 1); lifeLost = true; }
       notePeers(i).forEach(j => { // auto-limpieza de notas en las celdas relacionadas
         const rr = Math.floor(j / 9), cc = j % 9, k = G.notes[rr][cc].indexOf(v);
         if (k >= 0) { snap(j); G.notes[rr][cc].splice(k, 1); }
@@ -1333,10 +1592,11 @@
       });
       if (co.hist.length > COOP_HIST_MAX) co.hist.shift();
     }
-    return { touched: idx, rej: false };
+    return { touched: idx, rej: false, lost: lifeLost };
   }
 
   // Deshace la última jugada de `who`. Las celdas que alguien cambió después de esa jugada no se tocan.
+  // (Las vidas perdidas no se recuperan al deshacer.)
   function coopUndo(who) {
     for (let h = co.hist.length - 1; h >= 0; h--) {
       if (co.hist[h].by !== who) continue;
@@ -1354,27 +1614,41 @@
     return { touched: [], rej: false };
   }
 
-  // Difunde al Invitado las celdas que cambiaron (o el estado vigente si rechazó su jugada).
+  // Difunde al Invitado las celdas que cambiaron (o el estado vigente si rechazó su jugada), junto con vidas y pistas.
   function coopBroadcast(res, who, ack) {
     if (!res.touched.length && !res.rej) return;
     const changes = res.touched.map(i => C.makeChange(i, G.board, G.notes, G.owners));
     co.session.send({
       type: 'cells', seq: ++co.seq, by: who, ack: ack || 0, rej: !!res.rej,
-      changes: changes, hints: G.hints | 0, secs: G.secs
+      changes: changes, hints: G.hints | 0, secs: G.secs, lives: G.lives
     });
   }
 
-  // Cierre común de una jugada en el Host: difundir, detectar la victoria, repintar y guardar.
+  // Cierre común de una jugada en el Host: difundir, detectar la victoria o la derrota, repintar y guardar.
   function coopAfter(res, who, ack) {
     coopBroadcast(res, who, ack);
     if (who === co.me) hideHint();
     else if (hint && res.touched.indexOf(hint.row * 9 + hint.col) >= 0) hideHint();
+    if (res.lost) {
+      pulseLives();
+      if (G.lives > 0) {
+        toast((who === co.me ? 'Te equivocaste' : (co.friendAlias || 'Tu amigo') + ' se equivocó') +
+          ' · ' + (G.lives === 1 ? 'queda 1 vida' : 'quedan ' + G.lives + ' vidas'));
+      }
+    }
     if (!G.won && res.touched.length && !res.rej && isSolvedNow()) {
       G.won = true; sel = -1;
       const counts = C.countByOwner(G.owners, G.board, G.puzzle, G.solution);
       co.session.send({ type: 'won', secs: G.secs, hints: G.hints | 0, counts: counts });
       render(); persist();
       showCoopWin(counts);
+      return;
+    }
+    if (!G.won && !G.lost && G.lives <= 0) {
+      G.lost = true; sel = -1;
+      co.session.send({ type: 'lost', secs: G.secs, hints: G.hints | 0 });
+      render(); persist();
+      showLose();
       return;
     }
     render(); persist();
@@ -1390,7 +1664,7 @@
     }
     if (!co.session.isConnected()) { toast('Sin conexión con tu amigo. Reconectando…'); return; }
     op.id = ++co.opId;
-    coopApply(2, op, false);   // pinta al instante; el Host confirma o corrige con `cells`
+    coopApply(2, op, false);   // pinta al instante; el Host confirma o corrige con `cells` (y descuenta la vida)
     co.session.send(op);
     hideHint(); render(); persist();
   }
@@ -1405,6 +1679,7 @@
         syncFocus();
         toast(m.alias + (m.resume ? ' volvió a la sala' : ' se unió a la sala'));
         render();
+        if (G.lost) showLose();
         break;
       case 'focus':
         rt.friendFocus = m.index; render();
@@ -1413,12 +1688,13 @@
         coopAfter(coopApply(2, m, m.kind !== 'undo'), 2, m.id);
         break;
       case 'hint':
-        G.hints = (G.hints | 0) + 1;
+        if ((G.hints | 0) < G.hintsMax) G.hints = (G.hints | 0) + 1; // tope de pistas compartidas
         rt.session.send({ type: 'clock', secs: G.secs, hints: G.hints });
-        persist();
+        render(); persist();
         break;
       case 'again':
         if (G.won) coopNewGame();
+        else if (G.lost) coopRetry();
         break;
       case 'bye':
         rt.friendFocus = -1;
@@ -1465,8 +1741,10 @@
     const first = !rt.hasState;
     G = {
       mode: m.mode, variant: m.mode, puzzle: m.puzzle, solution: m.solution, board: E.cloneBoard(m.board),
-      notes: m.notes, diff: m.diff, req: m.req, seed: m.seed, hist: [], secs: m.secs, won: m.won, counted: true,
-      rec: null, coop: true, owners: m.owners, hints: m.hints
+      notes: m.notes, diff: m.diff, req: m.req, seed: m.seed, hist: [], secs: m.secs, won: m.won,
+      lost: !m.won && m.lives <= 0, counted: true,
+      rec: null, coop: true, owners: m.owners, hints: m.hints,
+      maxLives: FRIEND_LIVES, lives: m.lives, hintsMax: HINTS_COOP, hintsUsed: 0
     };
     if (m.mode === 'killer') G.cages = m.cages;
     prepareGame();
@@ -1480,6 +1758,7 @@
     showView('game');
     render();
     if (m.won && first) showCoopWin();
+    else if (G.lost && first) showLose();
   }
 
   // Mensajes que llegan al Invitado desde el Host.
@@ -1492,6 +1771,17 @@
         const touched = C.applyChanges(G.board, G.notes, G.owners, G.puzzle, m.changes);
         if (m.hints !== undefined) G.hints = m.hints;
         if (m.secs !== undefined) G.secs = m.secs;
+        if (m.lives !== undefined) {
+          const before = G.lives;
+          G.lives = m.lives;
+          if (m.lives < before) {
+            pulseLives();
+            if (m.lives > 0) {
+              toast((m.by === rt.me ? 'Te equivocaste' : (rt.friendAlias || 'Tu amigo') + ' se equivocó') +
+                ' · ' + (m.lives === 1 ? 'queda 1 vida' : 'quedan ' + m.lives + ' vidas'));
+            }
+          }
+        }
         if (hint && touched.indexOf(hint.row * 9 + hint.col) >= 0) hideHint();
         if (m.rej) toast('Tu amigo se adelantó en esa celda');
         render(); persist();
@@ -1500,6 +1790,7 @@
       case 'clock':
         G.secs = m.secs; G.hints = m.hints;
         setText('#clock', fmt(G.secs));
+        render();
         if (G.secs % 10 === 0) persist();
         break;
       case 'focus':
@@ -1509,6 +1800,11 @@
         G.won = true; sel = -1; G.secs = m.secs; G.hints = m.hints;
         render(); persist();
         showCoopWin(m.counts);
+        break;
+      case 'lost':
+        G.lost = true; G.lives = 0; sel = -1; G.secs = m.secs; G.hints = m.hints;
+        hideHint(); render(); persist();
+        showLose();
         break;
       default:
         break;
@@ -1542,7 +1838,8 @@
       });
       box.appendChild(bar);
       const hs = G.hints | 0;
-      if (hs) box.appendChild(mk('p', 'cr-note', 'Pistas usadas: ' + hs));
+      if (hs) box.appendChild(mk('p', 'cr-note', 'Pistas usadas: ' + hs + ' de ' + G.hintsMax));
+      if (G.lives < G.maxLives) box.appendChild(mk('p', 'cr-note', 'Vidas restantes: ' + G.lives + ' de ' + G.maxLives));
       box.hidden = false;
     }
     if (note) {
@@ -1583,6 +1880,19 @@
       persist(); showView('game'); render();
       toast('¡Nuevo tablero!');
     });
+  }
+
+  // Reintentar el MISMO tablero tras quedarse sin vidas compartidas (lo ejecuta el Host; el Invitado lo pide con `again`).
+  function coopRetry() {
+    if (!inCoop() || co.role !== 'host' || !G.lost) return;
+    G.board = E.cloneBoard(G.puzzle); G.notes = emptyNotes(); G.owners = C.emptyOwners();
+    G.secs = 0; G.hints = 0; G.lives = G.maxLives; G.won = false; G.lost = false;
+    co.hist = []; co.friendFocus = -1; co.sentFocus = -2;
+    sel = -1; pencil = false; activeDigit = null; hideHint(); lastHintKey = '';
+    closeModals();
+    sendState(true);
+    persist(); render();
+    toast('¡Otro intento con el mismo tablero!');
   }
 
   // Lee #coop=XXXX (al cargar y en hashchange): sin partida en curso se conecta solo; con partida, pide confirmar.
@@ -1626,6 +1936,7 @@
     $('meta[name="theme-color"]')?.setAttribute('content', set.theme === 'night' ? '#121212' : '#F7F4EB');
     document.querySelectorAll('[data-theme-set]').forEach(b => b.classList.toggle('on', b.dataset.themeSet === set.theme));
     const oe = $('#optErr'); if (oe) oe.checked = set.showErrors;
+    const op = $('#optPractice'); if (op) op.checked = set.practice;
   }
 
   /* ---------- Eventos ---------- */
@@ -1650,6 +1961,14 @@
     document.querySelectorAll('.modes [data-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.mode)));
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff, selMode)));
 
+    // Supervivencia (No-Hit) y derrota por vidas
+    on('btnSurv', 'click', openSurv);
+    document.querySelectorAll('[data-surv]').forEach(b => b.addEventListener('click', () => startSurvival(b.dataset.surv)));
+    on('seAgain', 'click', () => { const rot = G && G.surv ? G.surv.rot : null; closeModals(); if (rot) startSurvival(rot); });
+    on('seHome', 'click', () => { goHome(); });
+    on('loseRetry', 'click', onLoseRetry);
+    on('loseHome', 'click', () => { goHome(); });
+
     // Co-op
     on('btnCoop', 'click', openCoop);
     on('coopGo', 'click', () => startCoopHost(coopMode, coopDiff));
@@ -1669,7 +1988,7 @@
       sel = i; hideHint();
       // Número Primero: una celda vacía editable recibe el dígito activo (o su nota, con el lápiz activo).
       // Una celda que ya tiene número no se sobrescribe: solo se selecciona para inspeccionarla.
-      if (isDigitFirst() && activeDigit && !G.won && !G.puzzle[r][c] && !G.board[r][c]) input(activeDigit);
+      if (isDigitFirst() && activeDigit && !isOver() && !G.puzzle[r][c] && !G.board[r][c]) input(activeDigit);
       else render();
     });
     on('keypad', 'click', e => { const b = e.target.closest('button'); if (b && !b.disabled) pressDigit(+b.dataset.n); });
@@ -1684,8 +2003,11 @@
     on('hintClose', 'click', () => { hideHint(); render(); });
     on('btnHome', 'click', goHome);
     on('btnSet', 'click', openSettings);
-    // Con la partida resuelta, tocar el reloj vuelve a abrir el resultado (y el botón de desafiar).
-    on('clock', 'click', () => { if (G && G.won && view === 'game') showWin(); });
+    // Con la partida terminada, tocar el reloj vuelve a abrir el resultado (victoria, derrota o fin de racha).
+    on('clock', 'click', () => {
+      if (!G || view !== 'game') return;
+      if (G.won && !G.surv) showWin(); else if (G.lost) showLose();
+    });
     on('winNew', 'click', () => { if (inCoop()) leaveCoop(); closeModals(); goHome(); setPlayOpen(true); });
     on('winChallenge', 'click', challengeFriend);
     on('winRematch', 'click', rematch);
@@ -1701,11 +2023,12 @@
     // Modales y ajustes
     document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
     document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
-      if (e.target !== m || m.id === 'mLoad') return;
+      if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext') return;
       if (m.id === 'mAlias') hideAlias(); else closeModals();
     }));
     document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => { set.theme = b.dataset.themeSet; saveSet(); applyTheme(); }));
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
+    on('optPractice', 'change', e => { set.practice = e.target.checked; saveSet(); render(); });
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && modalOpen()) {
@@ -1729,12 +2052,12 @@
       }
     });
 
-    // Cronómetro: solo corre en la vista de juego, con la pestaña visible y la partida activa.
+    // Cronómetro: solo corre en la vista de juego, con la pestaña visible y la partida activa (ni ganada ni perdida).
     // En un duelo también avanza el fantasma: destellos y progreso del rival según el tiempo efectivo.
     // En una sala Co-op manda el reloj del Host: corre mientras el Invitado esté conectado (aunque el Host esté en el inicio),
     // lo difunde cada segundo y el Invitado solo lo muestra (si el Host se pausa, el reloj del Invitado también).
     setInterval(() => {
-      if (!G || busy || G.won || document.hidden) return;
+      if (!G || busy || G.won || G.lost || document.hidden) return;
       if (inCoop()) {
         if (co.role === 'host' && co.session.isConnected()) {
           G.secs++;
@@ -1759,7 +2082,7 @@
   /* ---------- Inicio de la app ---------- */
   function init() {
     boardEl = $('#board'); keypad = $('#keypad');
-    ['home-view', 'game-view', 'btnPlay', 'playPanel', 'duelBar', 'mDuel', 'coopBar', 'mCoop'].forEach(id => {
+    ['home-view', 'game-view', 'btnPlay', 'playPanel', 'duelBar', 'mDuel', 'coopBar', 'mCoop', 'mLose', 'mSurv', 'mSurvNext', 'mSurvEnd', 'survBar', 'lives', 'hintTag'].forEach(id => {
       if (!document.getElementById(id)) console.error('[Sudoku] Falta #' + id + ': ¿index.html y app.js son de la misma versión?');
     });
     if (!D) {

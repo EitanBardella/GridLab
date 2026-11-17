@@ -11,6 +11,8 @@
  *   - El Host es la fuente de verdad: valida cada operación del Invitado, la aplica a su estado y
  *     difunde el resultado (`cells`). El Invitado nunca modifica su tablero por su cuenta: aplica lo
  *     que dice el Host (o pinta de forma optimista y se corrige con `cells`).
+ *   - Las VIDAS (3, compartidas) y las PISTAS (3, compartidas) también las arbitra el Host:
+ *     viajan en `state`, `cells` (lives) y `clock` (hints), y el fin de partida por vidas en `lost`.
  *   - Conexión: STUN públicos de Google; latido (ping/pong) para detectar caídas silenciosas;
  *     reconexión automática del Invitado y de la señalización del Host.
  *
@@ -33,13 +35,14 @@
  *     op      { id, kind:'set'|'note'|'erase', index, value, expect, hint }
  *             { id, kind:'undo' }                   `expect` = valor que el Invitado veía en la celda
  *     hint    {}                                    se usó una pista (el Host suma y difunde)
- *     again   {}                                    pide "Jugar otro juntos"
+ *     again   {}                                    pide "Jugar otro juntos" (si ganaron) o reintentar (si perdieron)
  *   Host -> Invitado
  *     state   { alias, mode, diff, req, seed, puzzle, solution, cages?, board, notes, owners,
- *               secs, hints, won, fresh }           estado completo (alta, reconexión, tablero nuevo)
- *     cells   { seq, by, ack, rej, changes:[{i,v,n,o}], hints?, secs? }
+ *               secs, hints, lives, won, fresh }    estado completo (alta, reconexión, tablero nuevo)
+ *     cells   { seq, by, ack, rej, changes:[{i,v,n,o}], hints?, secs?, lives? }
  *     clock   { secs, hints }                       corrección de reloj (cada pocos segundos)
  *     won     { secs, hints, counts:[p1,p2] }
+ *     lost    { secs, hints }                       se acabaron las vidas compartidas
  *   Ambos
  *     focus   { index }                             celda activa (-1 = ninguna)
  *     bye     {}                                    salida voluntaria
@@ -60,7 +63,9 @@
    * Constantes
    * ========================================================================= */
 
-  var VERSION = 1;
+  var VERSION = 2;
+  var DEFAULT_LIVES = 3;       // vidas compartidas de una sala
+  var MAX_LIVES = 9;
   var CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sin I, L, O, 0, 1
   var CODE_LEN = 4;
   var CODE_RX = /^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{4}$/;
@@ -89,7 +94,7 @@
 
   // Tipos de mensaje que cada rol acepta del otro lado.
   var HOST_ACCEPTS = { hello: 1, focus: 1, op: 1, hint: 1, again: 1, bye: 1 };
-  var GUEST_ACCEPTS = { state: 1, cells: 1, clock: 1, won: 1, focus: 1, full: 1, bye: 1 };
+  var GUEST_ACCEPTS = { state: 1, cells: 1, clock: 1, won: 1, lost: 1, focus: 1, full: 1, bye: 1 };
 
   /* ===========================================================================
    * Utilidades
@@ -346,6 +351,7 @@
       puzzle: puzzle, solution: solution, board: board, notes: notes, owners: owners,
       secs: isInt(m.secs, 0, MAX_SECS) ? m.secs : 0,
       hints: isInt(m.hints, 0, 255) ? m.hints : 0,
+      lives: isInt(m.lives, 0, MAX_LIVES) ? m.lives : DEFAULT_LIVES,
       won: !!m.won
     };
     if (cages) { st.cages = cages; }
@@ -401,6 +407,7 @@
           };
           if (isInt(m.hints, 0, 255)) { out.hints = m.hints; }
           if (isInt(m.secs, 0, MAX_SECS)) { out.secs = m.secs; }
+          if (isInt(m.lives, 0, MAX_LIVES)) { out.lives = m.lives; }
           return out;
         }
         case 'clock':
@@ -410,6 +417,9 @@
           if (!isInt(m.secs, 0, MAX_SECS) || !Array.isArray(m.counts) || m.counts.length !== 2 ||
             !isInt(m.counts[0], 0, 81) || !isInt(m.counts[1], 0, 81)) { return null; }
           return { type: 'won', secs: m.secs, hints: isInt(m.hints, 0, 255) ? m.hints : 0, counts: [m.counts[0], m.counts[1]] };
+        case 'lost':
+          if (!isInt(m.secs, 0, MAX_SECS)) { return null; }
+          return { type: 'lost', secs: m.secs, hints: isInt(m.hints, 0, 255) ? m.hints : 0 };
         default:
           return null;
       }
@@ -433,7 +443,7 @@
    * Copia profunda lista para enviar como mensaje `state`.
    * @param {{alias:string, mode:string, diff:string, req?:string, seed:number, puzzle:number[][], solution:number[][],
    *          cages?:Object[], board:number[][], notes:number[][][], owners:number[], secs:number, hints:number,
-   *          won?:boolean, fresh?:boolean}} src
+   *          lives?:number, won?:boolean, fresh?:boolean}} src
    */
   function buildState(src) {
     var s = {
@@ -444,7 +454,9 @@
       puzzle: clone9(src.puzzle), solution: clone9(src.solution), board: clone9(src.board),
       notes: cloneNotes9(src.notes),
       owners: Array.prototype.slice.call(src.owners || emptyOwners()),
-      secs: src.secs | 0, hints: src.hints | 0, won: !!src.won
+      secs: src.secs | 0, hints: src.hints | 0,
+      lives: src.lives === undefined || src.lives === null ? DEFAULT_LIVES : (src.lives | 0),
+      won: !!src.won
     };
     if (src.mode === 'killer' && src.cages) { s.cages = JSON.parse(JSON.stringify(src.cages)); }
     return s;
@@ -1085,6 +1097,7 @@
 
   return {
     VERSION: VERSION,
+    DEFAULT_LIVES: DEFAULT_LIVES,
     OWNER: OWNER,
     CODE_CHARS: CODE_CHARS,
     ICE_SERVERS: ICE_SERVERS.slice(),
