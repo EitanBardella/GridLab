@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v6">
-<link rel="stylesheet" href="tutorial.css?v=ui-v6">
+<link rel="stylesheet" href="style.css?v=ui-v8">
+<link rel="stylesheet" href="tutorial.css?v=ui-v8">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
 </head>
@@ -178,14 +178,17 @@
       </div>
       <p class="sub cal-count" id="dailyCount"></p>
       <p class="sub cal-cup" id="dailyCup"></p>
-      <div class="cal-dow" aria-hidden="true">
-        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+      <div class="cal-wrap" id="calWrap">
+        <div class="cal-mark" id="calMark" aria-hidden="true"></div>
+        <div class="cal-dow" aria-hidden="true">
+          <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+        </div>
+        <div id="dailyGrid" class="cal-grid" role="grid" aria-label="Días del mes"></div>
       </div>
-      <div id="dailyGrid" class="cal-grid" role="grid" aria-label="Días del mes"></div>
       <div class="cal-legend" aria-label="Leyenda">
-        <span><svg class="lg-star t-gold" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>0 errores</span>
-        <span><svg class="lg-star t-silver" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>1–2 errores</span>
-        <span><svg class="lg-star t-bronze" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>3+ errores</span>
+        <span><svg class="lg-star t-gold" viewBox="0 0 24 24" aria-hidden="true"><polygon class="s-smooth" points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/><path class="s-pixel" transform="translate(1 1) scale(2)" d="M5 0h1v1h-1zM5 1h1v1h-1zM4 2h3v1h-3zM4 3h3v1h-3zM0 4h11v1h-11zM1 5h9v1h-9zM2 6h7v1h-7zM3 7h5v1h-5zM3 8h2v1h-2zM6 8h2v1h-2zM2 9h2v1h-2zM7 9h2v1h-2zM2 10h1v1h-1zM8 10h1v1h-1z"/></svg>0 errores</span>
+        <span><svg class="lg-star t-silver" viewBox="0 0 24 24" aria-hidden="true"><polygon class="s-smooth" points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/><path class="s-pixel" transform="translate(1 1) scale(2)" d="M5 0h1v1h-1zM5 1h1v1h-1zM4 2h3v1h-3zM4 3h3v1h-3zM0 4h11v1h-11zM1 5h9v1h-9zM2 6h7v1h-7zM3 7h5v1h-5zM3 8h2v1h-2zM6 8h2v1h-2zM2 9h2v1h-2zM7 9h2v1h-2zM2 10h1v1h-1zM8 10h1v1h-1z"/></svg>1–2 errores</span>
+        <span><svg class="lg-star t-bronze" viewBox="0 0 24 24" aria-hidden="true"><polygon class="s-smooth" points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/><path class="s-pixel" transform="translate(1 1) scale(2)" d="M5 0h1v1h-1zM5 1h1v1h-1zM4 2h3v1h-3zM4 3h3v1h-3zM0 4h11v1h-11zM1 5h9v1h-9zM2 6h7v1h-7zM3 7h5v1h-5zM3 8h2v1h-2zM6 8h2v1h-2zM2 9h2v1h-2zM7 9h2v1h-2zM2 10h1v1h-1zM8 10h1v1h-1z"/></svg>3+ errores</span>
         <span><b class="lg-today"></b>Hoy</span>
         <span><b class="lg-avail"></b>Disponible</span>
         <span><b class="lg-lock"></b>Bloqueado</span>
@@ -469,18 +472,18 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v6"></script>
-<script src="engine.js?v=ui-v6"></script>
-<script src="killer-engine.js?v=ui-v6"></script>
-<script src="duel.js?v=ui-v6"></script>
+<script src="sound.js?v=ui-v8"></script>
+<script src="engine.js?v=ui-v8"></script>
+<script src="killer-engine.js?v=ui-v8"></script>
+<script src="duel.js?v=ui-v8"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v6"></script>
+<script src="coop.js?v=ui-v8"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
 <script src="tutorial.js?v=ui-v1"></script>
-<script src="app.js?v=ui-v6"></script>
+<script src="app.js?v=ui-v8"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

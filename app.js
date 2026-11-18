@@ -132,7 +132,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v5';
+  const BUILD = 'ui-v8';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   let pendingSfx = null;                    // sonido de la jugada en curso; afterChange decide el definitivo
@@ -840,10 +840,13 @@
 
   /* Estrellas por errores (oro 0 · plata 1–2 · bronce 3+) y copas mensuales. Los días sin dato de errores cuentan como oro. */
   const TIERS = ['gold', 'silver', 'bronze'], TIER_ES = ['oro', 'plata', 'bronce'];
-  const STAR_SVG = '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>';
+  // Dos geometrías en el mismo SVG: la suave (Papel, Noche, Minimalista) y la de píxeles (Retro); el CSS muestra la del tema activo.
+  const STAR_SVG = '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><polygon class="s-smooth" points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/><path class="s-pixel" transform="translate(1 1) scale(2)" d="M5 0h1v1h-1zM5 1h1v1h-1zM4 2h3v1h-3zM4 3h3v1h-3zM0 4h11v1h-11zM1 5h9v1h-9zM2 6h7v1h-7zM3 7h5v1h-5zM3 8h2v1h-2zM6 8h2v1h-2zM2 9h2v1h-2zM7 9h2v1h-2zM2 10h1v1h-1zM8 10h1v1h-1z"/></svg>';
   const CUP_SVG = t => '<svg class="cup t-' + TIERS[t] + '" viewBox="0 0 24 24" role="img" aria-label="Copa de ' + TIER_ES[t] + '">' +
-    '<path d="M7 3h10v5a5 5 0 0 1-10 0V3z"/><path class="nf" d="M7 5H4v2.5A3.5 3.5 0 0 0 7.5 11M17 5h3v2.5a3.5 3.5 0 0 1-3.5 3.5"/>' +
-    '<path class="nf" d="M12 13v4M8.5 21h7M10 17h4v4h-4z"/></svg>';
+    '<g class="c-smooth"><path d="M7 3h10v5a5 5 0 0 1-10 0V3z"/><path class="nf" d="M7 5H4v2.5A3.5 3.5 0 0 0 7.5 11M17 5h3v2.5a3.5 3.5 0 0 1-3.5 3.5"/>' +
+    '<path class="nf" d="M12 13v4M8.5 21h7M10 17h4v4h-4z"/></g>' +
+    // Versión 8-bit para el tema Retro (el CSS muestra una u otra)
+    '<path class="c-pixel" transform="translate(1 1) scale(2)" d="M1 0h9v1h-9zM0 1h11v1h-11zM0 2h1v1h-1zM2 2h7v1h-7zM10 2h1v1h-1zM1 3h9v1h-9zM2 4h7v1h-7zM3 5h5v1h-5zM4 6h3v1h-3zM5 7h1v1h-1zM5 8h1v1h-1zM4 9h3v1h-3zM2 10h7v1h-7z"/></svg>';
   const dayLevel = ds => { const e = stats.dd[ds] ? stats.dd[ds].e : 0; return e === 0 ? 0 : (e <= 2 ? 1 : 2); };
   const addDay = (ds, n) => { const p = ds.split('-'); const d = new Date(+p[0], +p[1] - 1, +p[2] + n); return ymd(d.getFullYear(), d.getMonth(), d.getDate()); };
   const CUP_WHY = ['todas las estrellas del mes son de oro (sin errores)', 'ninguna estrella de bronce en el mes', 'mes completo, con alguna estrella de bronce'];
@@ -922,6 +925,10 @@
       mEl.title = mi.complete ? 'Copa de ' + TIER_ES[mi.tier] + ': ' + CUP_WHY[mi.tier] : '';
     }
     setText('#dailyCount', done + ' de ' + total + ' completados');
+    // Copa grande como marca de agua detrás de la grilla (solo con el mes completo).
+    const cw = $('#calWrap'), cm = $('#calMark');
+    if (cw) cw.classList.toggle('cup-on', mi.complete);
+    if (cm) cm.innerHTML = mi.complete ? CUP_SVG(mi.tier) : '';
     setText('#dailyCup', mi.complete ? 'Copa de ' + TIER_ES[mi.tier] + ' · ' + CUP_WHY[mi.tier] : '\u00A0');
     const prev = $('#dailyPrev'), next = $('#dailyNext');
     if (prev) prev.disabled = viewIdx <= curIdx - MAX_BACK_MONTHS;

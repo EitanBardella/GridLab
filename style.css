@@ -739,3 +739,67 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 
 /* Desafíos diarios (Estadísticas): misma separación bajo el título que Supervivencia y el detalle por modo */
 #statsDaily { margin-top:6px; }
+
+/* ---------- Estrellas según el tema ---------- */
+.star .s-pixel, .lg-star .s-pixel { display:none; }
+/* Papel: sello editorial, relleno cálido translúcido y trazo fino */
+[data-theme="paper"] .dday .star, [data-theme="paper"] .lg-star { fill-opacity:.34; stroke-opacity:.9; stroke-width:.9; }
+/* Noche: contorno y relleno luminosos con resplandor suave */
+[data-theme="night"] .dday .star, [data-theme="night"] .lg-star { fill-opacity:.3; stroke-opacity:1; stroke-width:1.2;
+  filter:drop-shadow(0 0 2.5px var(--star)) drop-shadow(0 0 6px color-mix(in srgb, var(--star) 55%, transparent)); }
+/* Minimalista: trazo geométrico de 1.5px, sin relleno ni adornos */
+[data-theme="swiss"] .dday .star, [data-theme="swiss"] .lg-star { fill:none; stroke-opacity:1; stroke-width:1.5; stroke-linejoin:miter; }
+[data-theme="swiss"] .dday.completed { border-radius:0; }
+/* Retro: estrella 8-bit escalonada, bordes duros */
+[data-theme="retro"] .dday .star .s-smooth, [data-theme="retro"] .lg-star .s-smooth { display:none; }
+[data-theme="retro"] .dday .star .s-pixel, [data-theme="retro"] .lg-star .s-pixel { display:inline; fill:var(--star); fill-opacity:.85; stroke:none; }
+[data-theme="retro"] .dday .star, [data-theme="retro"] .lg-star { fill:none; stroke:none; shape-rendering:crispEdges; }
+[data-theme="retro"] .dday .star { width:70%; height:70%; }
+
+/* ---------- Copa mensual como marca de agua detrás del calendario ---------- */
+.cal-wrap { position:relative; width:100%; }
+.cal-wrap .cal-dow, .cal-wrap .cal-grid { position:relative; z-index:1; }
+.cal-mark { position:absolute; inset:0; z-index:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:.15; overflow:hidden; }
+.cal-mark:empty { display:none; }
+.cal-mark .cup { width:76%; height:auto; max-height:100%; fill:var(--star); fill-opacity:.9; stroke:var(--star); stroke-width:.9; stroke-linejoin:round; stroke-linecap:round; }
+.cal-mark .cup .nf { fill:none; stroke-width:1.1; }
+.cal-wrap.cup-on .dday.completed { background:color-mix(in srgb, var(--panel) 50%, transparent); }
+[data-theme="retro"] .cal-mark .cup, [data-theme="swiss"] .cal-mark .cup { stroke-linejoin:miter; }
+.cal-cup { min-height:2.7em; }
+
+/* ---------- Copa mensual: metal real (oro / plata / bronce) y estilo por tema ---------- */
+.cup.t-gold { --star:#d4af37; }
+.cup.t-silver { --star:#94a3b8; }
+.cup.t-bronze { --star:#b45309; }
+.cup .c-pixel { display:none; }
+.cal-mark { opacity:.24; }
+.cal-mark .cup, .cal-mark .cup * { vector-effect:non-scaling-stroke; }
+.cal-mark .cup { fill-opacity:.85; stroke:var(--star); stroke-opacity:1; stroke-width:2px; }
+.cal-mark .cup .nf { stroke-width:2px; }
+.cal-month .cup { fill-opacity:.7; stroke:var(--star); }
+.dday, .dday .dn { position:relative; }
+.dday .dn, .dday .star { z-index:1; }
+.dday .star { z-index:0; }   /* la estrella queda detrás del número, ambos sobre la marca de agua */
+
+/* Papel: copa editorial, relleno suave y contorno fino */
+[data-theme="paper"] :is(.cal-month, .cal-mark) .cup { fill-opacity:.5; stroke:color-mix(in srgb, var(--star) 62%, #000); }
+[data-theme="paper"] .cal-month .cup { stroke-width:1; }
+[data-theme="paper"] .cal-mark .cup, [data-theme="paper"] .cal-mark .cup .nf { stroke-width:1.2px; }
+/* Noche: copa luminosa con resplandor del color del metal */
+[data-theme="night"] :is(.cal-month, .cal-mark) .cup { fill-opacity:.38; stroke:var(--star);
+  filter:drop-shadow(0 0 3px var(--star)) drop-shadow(0 0 9px color-mix(in srgb, var(--star) 55%, transparent)); }
+/* Minimalista: copa geométrica de trazo continuo de 1.5px */
+[data-theme="swiss"] :is(.cal-month, .cal-mark) .cup { fill:none; stroke:var(--star); stroke-linejoin:miter; stroke-linecap:butt; }
+[data-theme="swiss"] .cup, [data-theme="swiss"] .cup * { vector-effect:non-scaling-stroke; stroke-width:1.5px; }
+/* Retro: copa 8-bit escalonada, bordes duros (a juego con las estrellas de píxeles) */
+[data-theme="retro"] .cup .c-smooth { display:none; }
+[data-theme="retro"] .cup .c-pixel { display:inline; fill:var(--star); fill-opacity:1; stroke:none; }
+[data-theme="retro"] :is(.cal-month, .cal-mark) .cup { fill:none; stroke:none; shape-rendering:crispEdges; }
+.cal-wrap.cup-on .dday.completed { background:color-mix(in srgb, var(--panel) 14%, transparent); }
+/* La marca de agua necesita más cuerpo que el ícono pequeño (la opacidad del contenedor ya la suaviza) */
+[data-theme="paper"] .cal-mark .cup { fill-opacity:.8; }
+[data-theme="night"] .cal-mark .cup { fill-opacity:.75; }
+.cal-mark { opacity:.3; }
+[data-theme="paper"] .cal-mark .cup, [data-theme="night"] .cal-mark .cup { fill-opacity:1; }
+[data-theme="night"] .cal-mark .cup { filter:drop-shadow(0 0 6px var(--star)); }
+.cal-mark { opacity:.36; }
