@@ -1017,3 +1017,12 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 
 /* ---------- Ajustes: aire bajo "Listo" (Retro usa la misma altura y padding que los demás temas) ---------- */
 #mSet .credit { margin-top:12px; padding-bottom:4px; }
+
+/* ---------- Fondo edge-to-edge (sin franja bajo la barra de gestos) ---------- */
+html { min-height:100vh; min-height:100dvh; background-color:var(--bg); }
+body { min-height:100vh; min-height:100dvh; background-color:var(--bg); }
+[data-theme="night"] { color-scheme:dark; }
+[data-theme="paper"], [data-theme="swiss"], [data-theme="retro"] { color-scheme:light; }
+.app:not(.game) { padding-bottom:max(12px, env(safe-area-inset-bottom)); }
+#game-view { padding-bottom:max(12px, calc(env(safe-area-inset-bottom) + 12px)); }
+#mSet .sheet { padding-bottom:max(12px, calc(env(safe-area-inset-bottom) + 12px)); }

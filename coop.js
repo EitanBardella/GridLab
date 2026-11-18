@@ -83,7 +83,8 @@
   var STALE_MS = 13000;        // sin noticias del otro lado -> conexión caída
   var OPEN_TIMEOUT_MS = 10000; // tiempo máx. para abrir el canal de datos
   var STATE_TIMEOUT_MS = 8000; // el Invitado espera el estado completo tras el hello
-  var MAX_FIRST_ATTEMPTS = 5;  // intentos del Invitado antes de rendirse (primera conexión)
+  var MAX_FIRST_ATTEMPTS = 8;  // intentos del Invitado antes de rendirse (primera conexión)
+  var FIRST_RETRY_MS = 2500;   // espera fija entre intentos de la primera conexión (el anfitrión pudo estar en otra app)
   var MAX_RESUME_ATTEMPTS = 12;
   var MAX_PEER_TRIES = 15;
   var MAX_SECS = 359999;
@@ -543,7 +544,8 @@
     switch (info.state) {
       case 'creating': return 'Creando sala...';
       case 'waiting': return 'Esperando a tu amigo...';
-      case 'connecting': return 'Conectando...';
+      case 'connecting':
+        return (info.role === 'guest' && info.attempt > 0 && !info.peerAlias) ? 'Conectando con la sala… (intento ' + info.attempt + ')' : 'Conectando...';
       case 'connected': return 'Conectado con ' + who;
       case 'reconnecting': return 'Reconectando...';
       case 'closed': return info.reason === 'host-left' ? 'El anfitrión cerró la sala.' : 'Desconectado.';
@@ -613,7 +615,7 @@
   };
 
   Session.prototype._setStatus = function (state, reason) {
-    var key = state + '|' + (reason || '') + '|' + this.peerAlias;
+    var key = state + '|' + (reason || '') + '|' + this.peerAlias + ((state === 'connecting' || state === 'reconnecting') ? '|' + this.attempts : '');
     if (key === this._lastKey) { return; }
     this._lastKey = key;
     this.state = state;
@@ -916,7 +918,7 @@
       return;
     }
     this._setStatus(this.everConnected ? 'reconnecting' : 'connecting');
-    this._later('retry', Math.min(1500 * this.attempts, 6000), this._connectToHost);
+    this._later('retry', this.everConnected ? Math.min(1500 * this.attempts, 6000) : FIRST_RETRY_MS, this._connectToHost);
   };
 
   Session.prototype._adopt = function (conn) {
@@ -1075,6 +1077,13 @@
 
   // Al volver a primer plano los temporizadores pudieron estar congelados: se da margen y se comprueba el canal.
   Session.prototype._wake = function () {
+    if (!this.peer && this._started && !this.closed) {   // el Peer se destruyó en segundo plano: se recrea sin esperar
+      this._clear('repeer');
+      this._peerTries = 0;
+      if (this.role === 'guest') { this.attempts = 0; }
+      this._openPeer(this.role === 'host' ? ID_PREFIX + this.code : undefined);
+      return;
+    }
     if (this.peer && this.peer.disconnected && !this.peer.destroyed) {
       try { this.peer.reconnect(); } catch (e) { /* ignorar */ }
     }

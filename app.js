@@ -132,7 +132,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v23';
+  const BUILD = 'ui-v25';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -169,11 +169,13 @@
   function showLoad(txt, cancelable) {
     setText('#loadTxt', txt);
     const b = $('#loadCancel'); if (b) b.hidden = !cancelable;
+    const rb = $('#loadRetry'); if (rb) rb.hidden = true;
     const m = $('#mLoad'); if (m) m.hidden = false;
   }
   function hideLoad() {
     const m = $('#mLoad'); if (m) m.hidden = true;
     const b = $('#loadCancel'); if (b) b.hidden = true;
+    const rb = $('#loadRetry'); if (rb) rb.hidden = true;
   }
 
   /* ---------- Tiempo efectivo (cronómetro + penalización por pistas) ---------- */
@@ -1990,11 +1992,16 @@
     if (rt.joining) { // el Invitado todavía no recibió el tablero
       if (info.state === 'error' || info.state === 'closed') {
         co = null;
-        hideLoad();
-        toast(C.statusText(info));
+        if (info.state === 'error' && rt.code) { // falló tras todos los intentos: se ofrece reintentar a mano
+          showLoad(C.statusText(info), true);
+          const rb = $('#loadRetry'); if (rb) { rb.hidden = false; rb.dataset.code = rt.code; }
+        } else {
+          hideLoad();
+          toast(C.statusText(info));
+        }
         updateHome();
       } else {
-        setText('#loadTxt', info.state === 'reconnecting' ? 'Reconectando…' : 'Conectando con la sala…');
+        setText('#loadTxt', info.state === 'reconnecting' ? 'Reconectando…' : C.statusText(info));
       }
       return;
     }
@@ -2515,6 +2522,7 @@
     on('coopJoinGo', 'click', () => { const code = pendingCoop; closeModals(); if (code) joinCoop(code); });
     on('coopJoinCancel', 'click', closeModals);
     on('loadCancel', 'click', cancelJoin);
+    on('loadRetry', 'click', () => { const rb = $('#loadRetry'); const code = rb && rb.dataset.code; hideLoad(); if (code) joinCoop(code); });
 
     // Juego
     on('board', 'click', e => {
