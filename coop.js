@@ -71,7 +71,7 @@
   var CODE_RX = /^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{4}$/;
   var ID_PREFIX = 'sudoku-';
   var MODES = ['classic', 'killer', 'diagonal', 'antiknight'];
-  var DIFFS = ['facil', 'medio', 'dificil', 'experto'];
+  var DIFFS = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo'];
   var OWNER = { GIVEN: 0, HOST: 1, GUEST: 2 };
   var ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },

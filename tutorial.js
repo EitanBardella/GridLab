@@ -1092,7 +1092,9 @@
       }
       refreshKeys(); setProg();
     }
+    const sfx = n => { try { if (window.Sound) window.Sound.play(n); } catch (e) { /* ignorar */ } };
     const flash = (i, msg) => {
+      sfx('error');
       const c = b.cells[i];
       c.classList.add('tut-shake', 'err');
       setTimeout(() => { c.classList.remove('tut-shake', 'err'); }, 420);
@@ -1106,7 +1108,7 @@
       let ok = false;
       if (goal.place) ok = goal.place.some(x => P.val[x[0]] === x[1] && !given[x[0]]);
       if (!ok && goal.elimSets) ok = goal.elimSets.some(set => set.every(x => P.val[x[0]] !== 0 || !P.notes[x[0]].has(x[1])));
-      if (ok) { P.won = true; markDone(ui.variant, ch, ls); paintAll(); setTimeout(() => celebrate(ch, ls), 350); }
+      if (ok) { P.won = true; sfx('win'); markDone(ui.variant, ch, ls); paintAll(); setTimeout(() => celebrate(ch, ls), 350); }
     }
 
     function applyToCell(i, d) {
@@ -1116,6 +1118,7 @@
         const has = P.notes[i].has(d);
         if (has && sol && sol[i] === d) { flash(i, 'Ese candidato sí puede ser el correcto: no lo tachés.'); return; }
         pushHist(i);
+        sfx('note');
         if (has) P.notes[i].delete(d); else P.notes[i].add(d);
       } else {
         if (P.val[i] === d) return;
@@ -1124,6 +1127,7 @@
         else { ok = true; peers[i].forEach(p => { if (P.val[p] === d) ok = false; }); }
         if (!ok) { flash(i, 'Ese número no encaja ahí. Probá otra deducción.'); return; }
         pushHist(i);
+        sfx('correct');
         P.val[i] = d; P.notes[i].clear();
         const inGoal = goal.place && goal.place.some(x => x[0] === i && x[1] === d);
         if (goal.place && !inGoal) toast('Correcto, pero buscá la técnica de esta lección.');
@@ -1135,6 +1139,7 @@
       const t = e.target.closest('.cell'); if (!t) return;
       const i = +t.dataset.i;
       P.sel = i; P.hintOn = false; hintTxt.hidden = true;
+      if (!(P.inputMode === 'digit-first' && P.digit && !given[i])) sfx('tap');
       if (P.inputMode === 'digit-first' && P.digit && !given[i]) { applyToCell(i, P.digit); if (P.won) return; }
       paintAll();
     });

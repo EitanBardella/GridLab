@@ -5,8 +5,8 @@
   const D = window.SudokuDuel || null; // duelos y fantasma (duel.js)
   const C = window.SudokuCoop || null; // modo cooperativo (coop.js + peerjs.min.js)
   const $ = s => document.querySelector(s);
-  const NAMES = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto' };
-  const DIFF_ORDER = ['facil', 'medio', 'dificil', 'experto'];
+  const NAMES = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto', maestro: 'Maestro', extremo: 'Extremo' };
+  const DIFF_ORDER = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo'];
   const MODES = ['classic', 'killer', 'diagonal', 'antiknight'];
   const MODE_NAMES = { classic: 'Clásico', killer: 'Killer', diagonal: 'Diagonal', antiknight: 'Anti-Caballo' };
   const KN = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
@@ -20,7 +20,7 @@
 
   /* ---------- Vidas y pistas ---------- */
   // Vidas en solitario según la dificultad (0 = infinitas). Duelos y Co-op: 3 fijas. Supervivencia: 0 de margen (1 error = fin).
-  const LIVES_BY_DIFF = { facil: 0, medio: 3, dificil: 2, experto: 1 };
+  const LIVES_BY_DIFF = { facil: 0, medio: 3, dificil: 2, experto: 1, maestro: 1, extremo: 1 };
   const FRIEND_LIVES = 3;
   const HINTS_SOLO = 3, HINTS_DUEL = 2, HINTS_COOP = 3;
   const HEART_ON = '\u2764\uFE0F', HEART_OFF = '\uD83D\uDDA4';
@@ -70,11 +70,32 @@
   const saveStats = () => { try { store.set(K_STATS, JSON.stringify(stats)); } catch (e) { /* ignorar */ } };
 
   /* ---------- Estado ---------- */
+  const THEMES = { paper: '#F7F4EB', night: '#0E0F12', swiss: '#FFFFFF', retro: '#CCD4A0' }; // tema → color de la barra del navegador
   let set = Object.assign({ theme: 'paper', showErrors: true, mode: 'classic', practice: false }, load(K_SET, {}));
+  if (!THEMES[set.theme]) set.theme = 'paper';
   set.mode = validMode(set.mode);
   set.practice = !!set.practice;
+  set.zen = !!set.zen;
   let stats = Object.assign({ won: {}, best: {}, daily: {}, surv: {} }, load(K_STATS, {}));
-  ['won', 'best', 'daily', 'surv'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
+  ['won', 'best', 'daily', 'surv', 'g'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
+  // stats.g['<modo|all>.<dificultad>'] = { s: iniciadas, w: ganadas, f: sin errores, bt: mejor tiempo, tt: suma de tiempos,
+  //   tn: partidas con tiempo, cs: racha actual, ms: mejor racha }. Las partidas en Modo Zen suman a w/f/racha pero no a bt/tt/tn.
+  const blankG = () => ({ s: 0, w: 0, f: 0, bt: 0, tt: 0, tn: 0, cs: 0, ms: 0 });
+  const cleanG = o => {
+    const b = blankG();
+    Object.keys(b).forEach(k => { b[k] = (o && Number.isFinite(o[k]) && o[k] > 0) ? Math.floor(o[k]) : 0; });
+    return b;
+  };
+  Object.keys(stats.g).forEach(k => { stats.g[k] = cleanG(stats.g[k]); });
+  // Migración: los mejores tiempos de versiones anteriores pasan a las tarjetas nuevas (lo demás empieza en cero).
+  Object.keys(stats.best).forEach(k => {
+    const t = stats.best[k], p = k.split('.');
+    if (p.length !== 2 || !Number.isFinite(t) || t <= 0) return;
+    [k, 'all.' + p[1]].forEach(key => {
+      const g = stats.g[key] || (stats.g[key] = blankG());
+      if (!g.bt || t < g.bt) g.bt = Math.floor(t);
+    });
+  });
   Object.keys(stats.surv).forEach(k => { // récords de Supervivencia: { n: tableros, t: segundos }
     const v = stats.surv[k];
     if (!SURV_MODES[k] || !v || !Number.isInteger(v.n) || v.n < 1 || !Number.isFinite(v.t) || v.t < 0) delete stats.surv[k];
@@ -100,7 +121,11 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'lives-v1';
+  const BUILD = 'ui-v2';
+  // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
+  const sfx = name => { try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
+  let pendingSfx = null;                    // sonido de la jugada en curso; afterChange decide el definitivo
+  let unitsMemo = { g: null, n: 0 };        // filas/columnas/cajas completas y correctas (para el sonido de "completaste")
   // Enlaza un evento a un id; si el id no existe lo avisa en consola (antes el ?. lo ocultaba).
   const on = (id, ev, fn) => {
     const el = document.getElementById(id);
@@ -154,6 +179,7 @@
   // Reglas iniciales de vidas y pistas según el tipo de partida.
   function rulesFor(diff, o) {
     if (o.surv) return { maxLives: 1, maxHints: 0 };
+    if (o.zen) return { maxLives: 0, maxHints: 9 };   // Modo Zen: sin vidas y con pistas de sobra
     if (o.duel || o.invite) return { maxLives: FRIEND_LIVES, maxHints: HINTS_DUEL };
     return { maxLives: LIVES_BY_DIFF[diff] | 0, maxHints: HINTS_SOLO };
   }
@@ -167,7 +193,7 @@
 
   function updateLives() {
     const el = $('#lives'), sp = $('#livesSep'); if (!el) return;
-    const show = !!G && !G.surv;   // en una racha no hay margen: la sub-barra muestra la racha
+    const show = !!G && !G.surv && !G.zen;   // en una racha no hay margen (la sub-barra muestra la racha); en Zen no hay vidas
     el.hidden = !show; if (sp) sp.hidden = !show;
     if (!show) return;
     const inf = lifeInf();
@@ -302,6 +328,36 @@
     });
   }
 
+  // Filas, columnas y cajas completas y correctas.
+  function unitsDone() {
+    const ok = (r, c) => G.board[r][c] && G.board[r][c] === G.solution[r][c];
+    let n = 0;
+    for (let a = 0; a < 9; a++) {
+      let row = true, col = true, box = true;
+      for (let b = 0; b < 9; b++) {
+        if (!ok(a, b)) row = false;
+        if (!ok(b, a)) col = false;
+        if (!ok(Math.floor(a / 3) * 3 + Math.floor(b / 3), (a % 3) * 3 + (b % 3))) box = false;
+      }
+      n += (row ? 1 : 0) + (col ? 1 : 0) + (box ? 1 : 0);
+    }
+    return n;
+  }
+
+  // Un único sonido por jugada: victoria > derrota > unidad completada > el de la propia acción (nota, acierto, error).
+  function sfxFor(defeat) {
+    const fromAction = pendingSfx; pendingSfx = null;
+    let units = unitsMemo.n;
+    try { units = G.solution ? unitsDone() : 0; } catch (e) { units = 0; }
+    const grew = unitsMemo.g === G && units > unitsMemo.n;
+    unitsMemo = { g: G, n: units };
+    if (G.won) return 'win';
+    if (defeat) return 'lose';
+    if (fromAction === 'error') return 'error';
+    if (grew) return 'line';
+    return fromAction;
+  }
+
   function afterChange() {
     hideHint();
     // El grabador del fantasma se sincroniza tras CADA cambio (colocar, borrar, deshacer, pista).
@@ -310,6 +366,8 @@
     // Derrota por vidas: se frena el cronómetro (el intervalo ignora las partidas perdidas) y se muestra el modal.
     let defeat = false;
     if (!G.won && !G.lost && !lifeInf() && G.lives <= 0) { G.lost = true; sel = -1; defeat = true; }
+    if (defeat) statLoss(G);
+    sfx(sfxFor(defeat));
     render(); persist();
     if (defeat) showLose();
   }
@@ -319,12 +377,16 @@
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c]) return;
     if (inCoop()) {
-      if (pencil) { if (!G.board[r][c]) coopDo('note', sel, n); }
-      else if (G.board[r][c] !== n) coopDo('set', sel, n);
+      if (pencil) { if (!G.board[r][c]) { sfx('note'); coopDo('note', sel, n); } }
+      else if (G.board[r][c] !== n) {
+        sfx(G.solution && G.solution[r][c] && n !== G.solution[r][c] ? 'error' : 'correct');
+        coopDo('set', sel, n);
+      }
       return;
     }
     if (pencil) {
       if (G.board[r][c]) return;
+      pendingSfx = 'note';
       mutate(t => {
         t(r, c);
         const a = G.notes[r][c], k = a.indexOf(n);
@@ -339,6 +401,7 @@
         pulseLives();
         if (G.lives > 0) toast('\u22121 vida \u00B7 te ' + (G.lives === 1 ? 'queda 1' : 'quedan ' + G.lives));
       }
+      pendingSfx = bad ? (G.zen ? 'note' : 'error') : 'correct';
       mutate(t => place(r, c, n, t));
     }
   }
@@ -348,6 +411,7 @@
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c] || (!G.board[r][c] && !G.notes[r][c].length)) return;
     if (inCoop()) { coopDo('erase', sel, 0); return; }
+    pendingSfx = 'tap';
     mutate(t => { t(r, c); G.board[r][c] = 0; G.notes[r][c] = []; });
   }
 
@@ -382,6 +446,7 @@
     if (!G || isOver()) return;
     if (isDigitFirst()) {
       activeDigit = activeDigit === n ? null : n;
+      sfx('tap');
       sel = -1; hideHint(); render();
     } else {
       input(n);
@@ -412,6 +477,7 @@
     }
     if (!G.hist.length) return;
     G.hist.pop().forEach(([r, c, v, n]) => { G.board[r][c] = v; G.notes[r][c] = n; });
+    pendingSfx = 'tap';
     G.won = false; afterChange(); // las vidas perdidas no se recuperan al deshacer
   }
 
@@ -479,6 +545,7 @@
       coopDo('set', h.row * 9 + h.col, h.value);
       return;
     }
+    pendingSfx = 'correct';
     mutate(t => place(h.row, h.col, h.value, t)); // el valor de la pista es el correcto: nunca resta vida
   }
 
@@ -609,8 +676,14 @@
     // Etiquetas superiores, modo en tablero y barra de estado
     const ml = G.surv ? '\uD83D\uDD25 ' + (MODE_NAMES[mode] || 'Sudoku') : (G.daily ? 'Diario' : (MODE_NAMES[mode] || 'Sudoku'));
     setText('#modeLabel', (G.duel ? '⚔ ' : (coop ? '👥 ' : '')) + ml);
-    setText('#diffLabel', G.surv ? '#' + G.surv.n + ' ' + (NAMES[G.diff] || '') : (G.daily ? dateLabel(G.daily) : (NAMES[G.diff] || 'Sudoku')));
+    setText('#diffLabel', G.zen ? (NAMES[G.diff] || 'Sudoku') + ' · Zen' : G.surv ? '#' + G.surv.n + ' ' + (NAMES[G.diff] || '') : (G.daily ? dateLabel(G.daily) : (NAMES[G.diff] || 'Sudoku')));
     setText('#clock', fmt(coop ? G.secs : showSecs()));
+    // Modo Zen: sin cronómetro ni vidas (queda una etiqueta tranquila en su lugar).
+    const zenOn = !!G.zen;
+    const ck = $('#clock'), zt = $('#zenTag'), sd = $('#livesSep');
+    if (ck) ck.hidden = zenOn;
+    if (zt) zt.hidden = !zenOn;
+    if (zenOn && sd) sd.hidden = true;
     updateLives();
     updateSurvBar();
     if (boardEl) {
@@ -730,12 +803,18 @@
     showView('home');    // oculta el tutorial y vuelve al inicio
   }
 
-  // Despliega o pliega el selector de modo + dificultad del inicio.
+  // Abre o cierra el selector de dificultad del modo elegido (hoja inferior).
   function setPlayOpen(open) {
-    const p = $('#playPanel'), b = $('#btnPlay');
+    const p = $('#playPanel');
     if (p) p.hidden = !open;
-    if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open && p) { try { p.scrollIntoView({ block: 'nearest' }); } catch (e) { /* ignorar */ } }
+  }
+
+  // Inicio: 'main' (título y cinco accesos) o 'play' (modos de juego).
+  function setHomeScreen(name) {
+    const main = $('#homeMain'), play = $('#homePlay');
+    if (main) main.hidden = name !== 'main';
+    if (play) play.hidden = name !== 'play';
+    const h = $('#home-view'); if (h) h.scrollTop = 0;
   }
 
   /* ---------- Calendario de Desafíos Diarios ---------- */
@@ -795,22 +874,25 @@
   function updateHome() {
     const prog = hasProgress();
     const bc = $('#btnContinue'); if (bc) bc.hidden = !prog;
+    setText('#playSub', prog ? 'Tenés una partida en curso' : 'Elegí modo y dificultad');
     if (prog) {
-      setText('#continueInfo', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • ' + fmt(showSecs()) +
+      setText('#continueInfo', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + (G.zen ? ' • Zen' : ' • ' + fmt(showSecs())) +
         (G.surv ? ' • 🔥 Racha: ' + (G.surv.n - 1) : '') +
         (G.daily ? ' • Diario' : '') + (G.duel ? (G.duel.open ? ' • ⚔ en vivo' : ' • ⚔ vs ' + G.duel.alias) : '') +
         (inCoop() ? ' • 👥 co-op' : ''));
     }
     const w = $('#playWarn'); if (w) w.hidden = !prog;
     const t = todayStr();
-    setText('#dailyInfo', stats.daily[t] ? 'Hoy completado ✓ ' + fmt(stats.daily[t]) : 'Hoy disponible • ' + dateLabel(t));
+    const dn = !!stats.daily[t], bd = $('#btnDaily');
+    setText('#dailyInfo', dn ? 'Completado ✓ ' + fmt(stats.daily[t]) : 'Hoy · ' + dateLabel(t).slice(0, 5));
+    if (bd) bd.dataset.done = dn ? '1' : '0';
   }
 
   // Inicio: guarda la partida (modo, jaulas y fantasma incluidos, vía G) y vuelve a #home-view.
   // El cronómetro se pausa solo porque únicamente corre con view === 'game' (en una sala Co-op sigue el reloj del Host).
   function goHome() {
     if (G) persist();
-    hideHint(); closeModals(); setPlayOpen(false);
+    hideHint(); closeModals(); setPlayOpen(false); setHomeScreen('main');
     showView('home');
   }
 
@@ -832,6 +914,7 @@
   function setModeAttrs(m) {
     m = validMode(m);
     const panel = $('#playPanel'); if (panel) panel.dataset.mode = m;
+    setText('#playTitle', MODE_NAMES[m] || '');
     document.querySelectorAll('.modes [data-mode]').forEach(b => {
       const on_ = b.dataset.mode === m;
       b.classList.toggle('on', on_);
@@ -908,7 +991,9 @@
         throw new Error('duel-mismatch');
       }
       if (co) leaveCoop(); // empezar otra partida cierra la sala Co-op
-      const rules = rulesFor(diff, opts);
+      const prevG = G;
+      const zen = !!opts.zen && !opts.daily && !opts.duel && !opts.invite && !opts.surv;
+      const rules = rulesFor(diff, Object.assign({}, opts, { zen: zen }));
       G = {
         mode: mode, variant: mode, puzzle: puzzle, solution: g.solution, board: E.cloneBoard(puzzle),
         notes: emptyNotes(), diff: g.difficulty, req: diff, seed: seed, hist: [], secs: 0, won: false, lost: false, counted: false,
@@ -916,6 +1001,7 @@
         maxLives: rules.maxLives, lives: rules.maxLives, hintsMax: rules.maxHints, hintsUsed: 0
       };
       if (killer) G.cages = g.cages;
+      if (zen) G.zen = true;
       if (opts.daily) G.daily = opts.daily;
       if (opts.duel) G.duel = opts.duel;
       if (opts.surv) { G.surv = opts.surv; G.counted = true; G.rec = null; } // la racha no suma a las estadísticas normales ni se desafía
@@ -924,6 +1010,9 @@
         G.duel = { id: dec.ok ? dec.id : 'live.' + seed.toString(36), open: true, alias: '', time: 0, errors: 0, hints: 0, moves: [] };
       }
       if (opts.rematchTo) G.rematchTo = opts.rematchTo;
+      // Estadísticas: la partida anterior sin terminar cuenta como abandonada (corta la racha); la nueva cuenta como iniciada.
+      if (prevG && !prevG.won && !prevG.lost && !prevG.surv && !prevG.coop && !prevG.zen) statLoss(prevG);
+      if (!opts.surv) statStart(G);
       prepareGame();
       sel = -1; pencil = false; activeDigit = null; hideHint();
       ghostSeen = 0; flash.fill(0); lastHintKey = '';
@@ -984,6 +1073,7 @@
       s.mode = mode; s.variant = mode; s.secs = s.secs | 0; s.won = !!s.won; s.lost = !!s.lost;
       s.counted = !!s.counted || s.won;
       if (typeof s.daily !== 'string') delete s.daily;
+      if (!s.zen || s.surv || s.duel) delete s.zen; else s.zen = true;
       if (!NAMES[s.diff]) s.diff = 'facil';
       // Campos de duelos (las partidas guardadas antes de esta versión no los tienen y siguen funcionando).
       if (typeof s.seed === 'number' && isFinite(s.seed)) s.seed = s.seed >>> 0; else delete s.seed;
@@ -1018,13 +1108,42 @@
   }
 
   /* ---------- Victoria y estadísticas ---------- */
+  const gStat = key => stats.g[key] || (stats.g[key] = blankG());
+  const statKeys = g => [g.mode + '.' + g.diff, 'all.' + g.diff];
+  // Partida iniciada (nueva o reintento). Las partidas guardadas por versiones anteriores no la tienen: ganar sigue funcionando.
+  function statStart(g) {
+    statKeys(g).forEach(k => { gStat(k).s++; });
+    saveStats();
+  }
+  // Derrota o abandono: corta la racha de victorias de esa dificultad (una sola vez por partida).
+  function statLoss(g) {
+    if (!g || g.statLost || g.surv || g.coop || g.zen) return;
+    g.statLost = true;
+    statKeys(g).forEach(k => { gStat(k).cs = 0; });
+    saveStats();
+  }
+
   function recordWin() {
     if (!G || G.counted) return; // evita contar dos veces si se deshace y se vuelve a resolver
     G.counted = true;
     const m = G.mode, key = m + '.' + G.diff;
+    const clean = (G.rec ? G.rec.errors : 0) === 0;
     stats.won[m] = (stats.won[m] | 0) + 1;
-    if (!stats.best[key] || G.secs < stats.best[key]) stats.best[key] = G.secs;
-    if (G.daily && (!stats.daily[G.daily] || G.secs < stats.daily[G.daily])) stats.daily[G.daily] = G.secs;
+    statKeys(G).forEach(k => {
+      const g = gStat(k);
+      g.w++;
+      if (g.s < g.w) g.s = g.w;
+      if (clean) g.f++;
+      g.cs++; if (g.cs > g.ms) g.ms = g.cs;
+      if (!G.zen) {                                  // el Modo Zen no toca récords ni promedios de tiempo
+        if (!g.bt || G.secs < g.bt) g.bt = Math.max(1, G.secs);
+        g.tt += G.secs; g.tn++;
+      }
+    });
+    if (!G.zen) {
+      if (!stats.best[key] || G.secs < stats.best[key]) stats.best[key] = G.secs;
+      if (G.daily && (!stats.daily[G.daily] || G.secs < stats.daily[G.daily])) stats.daily[G.daily] = G.secs;
+    }
     saveStats();
   }
 
@@ -1084,6 +1203,7 @@
       if (box) { buildDuelResult(box); box.hidden = false; }
     } else {
       if (G.daily) txt = 'Completaste el desafío del ' + dateLabel(G.daily) + ' en ' + fmt(G.secs) + '.';
+      else if (G.zen) txt = 'Completaste el tablero ' + (MODE_NAMES[G.mode] || '') + ' ' + (NAMES[G.diff] || '') + ' en Modo Zen. Sin prisa, sin presión.';
       else txt = 'Completaste el tablero ' + (MODE_NAMES[G.mode] || '') + ' ' + (NAMES[G.diff] || '') + ' en ' + fmt(G.secs) + '.';
       if (box) { box.textContent = ''; box.hidden = true; }
     }
@@ -1102,7 +1222,7 @@
       } else note.hidden = true;
     }
     const bc = $('#winChallenge'); if (bc) {
-      bc.hidden = !canChallenge();
+      bc.hidden = !canChallenge() || !!G.zen;
       bc.textContent = live ? 'Enviar mi resultado (con fantasma)'
         : (G.rematchTo ? 'Mandar revancha a ' + G.rematchTo : 'Desafiar a un amigo');
     }
@@ -1133,8 +1253,9 @@
   function retryBoard() {
     if (!G || !G.lost) return;
     G.board = E.cloneBoard(G.puzzle); G.notes = emptyNotes(); G.hist = [];
-    G.secs = 0; G.won = false; G.lost = false; G.counted = false;
+    G.secs = 0; G.won = false; G.lost = false; G.counted = false; delete G.statLost;
     G.lives = G.maxLives; G.hintsUsed = 0;
+    if (!G.surv && !G.coop) statStart(G);
     delete G.finalTime; delete G.duelResult;
     if (D) G.rec = new D.DuelRecorder();
     sel = -1; pencil = false; activeDigit = null; hideHint();
@@ -1212,28 +1333,58 @@
     const m = $('#mSurvEnd'); if (m) m.hidden = false;
   }
 
-  function showStats() {
+  // Pestañas por dificultad + filtro por modo; tarjetas con los números de esa combinación.
+  let statsDiff = 'facil', statsMode = 'all';
+  const statCard = (label, value, sub, wide) =>
+    '<div class="stat-card' + (wide ? ' wide' : '') + '"><span class="sl">' + label + '</span><b class="sv">' + value + '</b>' +
+    (sub ? '<span class="ss">' + sub + '</span>' : '') + '</div>';
+
+  function renderStats() {
+    const g = Object.assign(blankG(), stats.g[statsMode + '.' + statsDiff] || {});
+    const started = Math.max(g.s, g.w);
+    const pct = started ? Math.round(g.w * 100 / started) : 0;
+    document.querySelectorAll('#statsTabs [data-sdiff]').forEach(b => {
+      const on_ = b.dataset.sdiff === statsDiff;
+      b.classList.toggle('on', on_); b.setAttribute('aria-selected', on_ ? 'true' : 'false');
+    });
+    document.querySelectorAll('#statsFilter [data-smode]').forEach(b => {
+      const on_ = b.dataset.smode === statsMode;
+      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
+    });
     const body = $('#statsBody'); if (!body) return;
-    let total = 0, rows = '';
-    MODES.forEach(m => {
-      const w = stats.won[m] | 0;
-      total += w;
-      rows += '<tr><th scope="row">' + MODE_NAMES[m] + '</th><td>' + w + '</td>' +
-        DIFF_ORDER.map(d => { const t = stats.best[m + '.' + d]; return '<td>' + (t ? fmt(t) : '—') + '</td>'; }).join('') +
-        '</tr>';
-    });
-    let srows = '';
-    Object.keys(SURV_MODES).forEach(k => {
-      const r = stats.surv[k];
-      srows += '<tr><th scope="row">' + SURV_MODES[k].label + '</th><td>' + (r ? r.n : '—') + '</td><td>' + (r ? fmt(r.t) : '—') + '</td></tr>';
-    });
-    const dailyDone = Object.keys(stats.daily).length;
+    const avg = g.tn ? Math.round(g.tt / g.tn) : 0;
     body.innerHTML =
-      '<table class="stats-tbl"><thead><tr><th>Modo</th><th>Gan.</th><th>Fác.</th><th>Med.</th><th>Dif.</th><th>Exp.</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>' +
-      '<table class="stats-tbl surv-tbl"><thead><tr><th>🔥 Supervivencia</th><th>Racha</th><th>Tiempo</th></tr></thead>' +
-      '<tbody>' + srows + '</tbody></table>' +
-      '<p class="stats-sum">Partidas ganadas: <b>' + total + '</b> · Desafíos diarios: <b>' + dailyDone + '</b></p>';
+      '<div class="stat-hero"><div class="ring" style="--p:' + pct + '"><b>' + (started ? pct + '%' : '—') + '</b></div>' +
+      '<div class="hero-txt"><b>' + g.w + (g.w === 1 ? ' victoria' : ' victorias') + '</b><span>de ' + started +
+      (started === 1 ? ' partida iniciada' : ' partidas iniciadas') + '</span></div></div>' +
+      '<div class="stat-grid">' +
+      statCard('Partidas iniciadas', started) +
+      statCard('Partidas ganadas', g.w, started ? pct + '% de victorias' : '') +
+      statCard('Mejor tiempo', g.bt ? fmt(g.bt) : '—') +
+      statCard('Tiempo promedio', avg ? fmt(avg) : '—') +
+      statCard('Racha actual', g.cs, g.cs === 1 ? 'victoria seguida' : 'victorias seguidas') +
+      statCard('Mejor racha', g.ms, g.ms === 1 ? 'victoria' : 'victorias') +
+      statCard('Victorias sin equivocarse', g.f, g.w ? Math.round(g.f * 100 / g.w) + '% de tus victorias' : '', true) +
+      '</div>';
+  }
+
+  function showStats() {
+    const ex = $('#statsExtra');
+    if (ex) {
+      let srows = '', total = 0;
+      Object.keys(SURV_MODES).forEach(k => {
+        const r = stats.surv[k];
+        srows += '<tr><th scope="row">' + SURV_MODES[k].label + '</th><td>' + (r ? r.n : '—') + '</td><td>' + (r ? fmt(r.t) : '—') + '</td></tr>';
+      });
+      MODES.forEach(m => { total += stats.won[m] | 0; });
+      ex.innerHTML =
+        '<table class="stats-tbl surv-tbl"><thead><tr><th>🔥 Supervivencia</th><th>Racha</th><th>Tiempo</th></tr></thead>' +
+        '<tbody>' + srows + '</tbody></table>' +
+        '<p class="stats-sum">Partidas ganadas: <b>' + total + '</b> · Desafíos diarios: <b>' + Object.keys(stats.daily).length + '</b></p>' +
+        '<p class="stats-sum">Las victorias en Modo Zen suman a las ganadas, pero no a los tiempos.</p>';
+    }
+    if (G && NAMES[G.diff] && !G.surv) statsDiff = G.diff;   // abre en la dificultad que se está jugando
+    renderStats();
     const m = $('#mStats'); if (m) m.hidden = false;
   }
 
@@ -1654,6 +1805,7 @@
       G.won = true; sel = -1;
       const counts = C.countByOwner(G.owners, G.board, G.puzzle, G.solution);
       co.session.send({ type: 'won', secs: G.secs, hints: G.hints | 0, counts: counts });
+      sfx('win');
       render(); persist();
       showCoopWin(counts);
       return;
@@ -1661,6 +1813,7 @@
     if (!G.won && !G.lost && G.lives <= 0) {
       G.lost = true; sel = -1;
       co.session.send({ type: 'lost', secs: G.secs, hints: G.hints | 0 });
+      sfx('lose');
       render(); persist();
       showLose();
       return;
@@ -1947,8 +2100,14 @@
 
   function applyTheme() {
     document.documentElement.dataset.theme = set.theme;
-    $('meta[name="theme-color"]')?.setAttribute('content', set.theme === 'night' ? '#121212' : '#F7F4EB');
-    document.querySelectorAll('[data-theme-set]').forEach(b => b.classList.toggle('on', b.dataset.themeSet === set.theme));
+    $('meta[name="theme-color"]')?.setAttribute('content', THEMES[set.theme] || THEMES.paper);
+    document.querySelectorAll('[data-theme-set]').forEach(b => {
+      const on_ = b.dataset.themeSet === set.theme;
+      b.classList.toggle('on', on_);
+      b.setAttribute('aria-checked', on_ ? 'true' : 'false');
+    });
+    const os = $('#optSound'); if (os) os.checked = !!(window.Sound && window.Sound.enabled());
+    const oz = $('#optZen'); if (oz) oz.checked = !!set.zen;
     const oe = $('#optErr'); if (oe) oe.checked = set.showErrors;
     const op = $('#optPractice'); if (op) op.checked = set.practice;
   }
@@ -1957,7 +2116,13 @@
   function bindEvents() {
     // Inicio
     on('btnContinue', 'click', continueGame);
-    on('btnPlay', 'click', () => { const p = $('#playPanel'); setPlayOpen(!!p && p.hidden); });
+    on('btnPlay', 'click', () => { sfx('tap'); setHomeScreen('play'); });
+    on('btnPlayBack', 'click', () => { sfx('tap'); setHomeScreen('main'); });
+    document.querySelectorAll('[data-play-mode]').forEach(b => b.addEventListener('click', () => {
+      sfx('tap'); selectMode(b.dataset.playMode); setPlayOpen(true);
+    }));
+    on('btnFriends', 'click', () => { sfx('tap'); const m = $('#mFriends'); if (m) m.hidden = false; });
+    // Duelo y Co-op abren su propia hoja: la de "Jugar con amigos" se cierra (se registra después de openFriend / openCoop).
     on('btnDaily', 'click', openDaily);
     on('btnFriend', 'click', openFriend);
     on('friendGo', 'click', createFriendDuel);
@@ -1975,7 +2140,10 @@
     on('tutorial-view', 'tutorial:exit', closeTutorial);
     on('btnHomeSet', 'click', openSettings);
     document.querySelectorAll('.modes [data-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.mode)));
-    document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff, selMode)));
+    document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff, selMode, { zen: !!set.zen })));
+    on('optZen', 'change', e => { set.zen = e.target.checked; saveSet(); });
+    document.querySelectorAll('#statsTabs [data-sdiff]').forEach(b => b.addEventListener('click', () => { statsDiff = b.dataset.sdiff; renderStats(); }));
+    document.querySelectorAll('#statsFilter [data-smode]').forEach(b => b.addEventListener('click', () => { statsMode = b.dataset.smode; renderStats(); }));
 
     // Supervivencia (No-Hit) y derrota por vidas
     on('btnSurv', 'click', openSurv);
@@ -1987,6 +2155,7 @@
 
     // Co-op
     on('btnCoop', 'click', openCoop);
+    ['btnFriend', 'btnCoop'].forEach(id => on(id, 'click', () => { const m = $('#mFriends'); if (m) m.hidden = true; }));
     on('coopGo', 'click', () => startCoopHost(coopMode, coopDiff));
     document.querySelectorAll('#coopModes [data-cmode]').forEach(b => b.addEventListener('click', () => { coopMode = b.dataset.cmode; setCoopSel(); }));
     document.querySelectorAll('#coopDiffs [data-cdiff]').forEach(b => b.addEventListener('click', () => { coopDiff = b.dataset.cdiff; setCoopSel(); }));
@@ -2002,6 +2171,7 @@
       if (!t || !G) return;
       const i = +t.dataset.i, r = Math.floor(i / 9), c = i % 9;
       sel = i; hideHint();
+      if (!(isDigitFirst() && activeDigit && !isOver() && !G.puzzle[r][c] && !G.board[r][c])) sfx('tap');
       // Número Primero: una celda vacía editable recibe el dígito activo (o su nota, con el lápiz activo).
       // Una celda que ya tiene número no se sobrescribe: solo se selecciona para inspeccionarla.
       if (isDigitFirst() && activeDigit && !isOver() && !G.puzzle[r][c] && !G.board[r][c]) input(activeDigit);
@@ -2020,11 +2190,11 @@
     on('btnHome', 'click', goHome);
     on('btnSet', 'click', openSettings);
     // Con la partida terminada, tocar el reloj vuelve a abrir el resultado (victoria, derrota o fin de racha).
-    on('clock', 'click', () => {
+    ['clock', 'zenTag'].forEach(id => on(id, 'click', () => {
       if (!G || view !== 'game') return;
       if (G.won && !G.surv) showWin(); else if (G.lost) showLose();
-    });
-    on('winNew', 'click', () => { if (inCoop()) leaveCoop(); closeModals(); goHome(); setPlayOpen(true); });
+    }));
+    on('winNew', 'click', () => { if (inCoop()) leaveCoop(); closeModals(); goHome(); setHomeScreen('play'); });
     on('winChallenge', 'click', challengeFriend);
     on('winRematch', 'click', rematch);
 
@@ -2042,7 +2212,11 @@
       if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext') return;
       if (m.id === 'mAlias') hideAlias(); else closeModals();
     }));
-    document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => { set.theme = b.dataset.themeSet; saveSet(); applyTheme(); }));
+    document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => {
+      if (!THEMES[b.dataset.themeSet]) return;
+      set.theme = b.dataset.themeSet; saveSet(); applyTheme(); sfx('tap');
+    }));
+    on('optSound', 'change', e => { if (window.Sound) window.Sound.setEnabled(e.target.checked); });
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
     on('optPractice', 'change', e => { set.practice = e.target.checked; saveSet(); render(); });
 
@@ -2108,6 +2282,10 @@
     if (!C || !C.available()) {
       console.error('[Sudoku] Falta coop.js o peerjs.min.js: el modo Co-op está desactivado.');
       const bc = $('#btnCoop'); if (bc) bc.hidden = true;
+    }
+    {
+      const bf = $('#btnFriend'), bc = $('#btnCoop'), bs = $('#btnFriends');
+      if (bs && bf && bc && bf.hidden && bc.hidden) bs.hidden = true;
     }
     console.info('[Sudoku] app.js ' + BUILD);
     buildDom();

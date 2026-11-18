@@ -1,25 +1,22 @@
 /* =====================================================================
    Tutorial y Rutas de Aprendizaje — estilos (tutorial.css)  ·  v tut-v2
-   Reutiliza las variables de los temas Papel y Noche de style.css
+   Reutiliza las variables de los 4 temas (Papel, Noche, Minimalista, Retro) de style.css
    (--bg, --panel, --ink, --user, --muted, --thin, --accent, --err ...)
    y las clases .chip, .board, .cell, .nt, .tools y .keypad de la app.
    Todo lo propio lleva el prefijo .tut- para no pisar nada existente.
    ===================================================================== */
 
-/* ---------- Paleta de progresión (principiante → cobalto → maestría) ---------- */
+/* ---------- Paleta de progresión (principiante → cobalto → maestría), una por tema ---------- */
 .tut-app {
   --t-beg:#5F8F6B;      --t-beg-bg:#E1EBDF;
   --t-mid:var(--user);
   --t-exp:#B7791F;
   --t-master:#6D3FC0;
-  --t-on:#fff;
+  --t-on:var(--on-user);
 }
-[data-theme="night"] .tut-app {
-  --t-beg:#8FC39C;      --t-beg-bg:#1D3326;
-  --t-exp:#F2B04C;
-  --t-master:#B79BFF;
-  --t-on:#0B1020;
-}
+[data-theme="night"] .tut-app { --t-beg:#8FC39C; --t-beg-bg:#1D3326; --t-exp:#F2B04C; --t-master:#B79BFF; }
+[data-theme="swiss"] .tut-app { --t-beg:#1B7A2E; --t-beg-bg:#E1F3E5; --t-exp:#B25E00; --t-master:#6A2FC0; }
+[data-theme="retro"] .tut-app { --t-beg:#2B5E1B; --t-beg-bg:#A6C282; --t-exp:#7A4A0B; --t-master:#5A2E7A; }
 
 /* ---------- Contenedor ---------- */
 .tut-app { height:100vh; height:100dvh; max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:8px;
@@ -62,9 +59,8 @@
 .tut-tab { flex:none; min-height:44px; padding:0 14px; border:1px solid var(--thin); border-radius:999px; background:var(--panel);
   font-size:.86rem; font-weight:600; white-space:nowrap; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.1; }
 .tut-tab small { font-size:.62rem; font-weight:500; color:var(--muted); }
-.tut-tab[aria-selected="true"] { background:var(--user); border-color:var(--user); color:#fff; }
+.tut-tab[aria-selected="true"] { background:var(--user); border-color:var(--user); color:var(--on-user); }
 .tut-tab[aria-selected="true"] small { color:inherit; opacity:.85; }
-[data-theme="night"] .tut-tab[aria-selected="true"] { color:#0B1020; }
 .tut-tab:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
 .tut-summary { margin:0 2px 6px; font-size:.84rem; color:var(--muted); text-align:center; }
@@ -193,8 +189,7 @@
 .tut-board .cell.user { color:var(--user); font-weight:600; }
 .tut-ptools { margin-top:2px; }
 .tut-pkeys { margin-bottom:2px; }
-.tut-ptools button.dfirst { background:var(--user); border-color:var(--user); color:#fff; }
-[data-theme="night"] .tut-ptools button.dfirst { color:#0B1020; }
+.tut-ptools button.dfirst { background:var(--user); border-color:var(--user); color:var(--on-user); }
 
 /* ---------- Celebración de técnica superada ---------- */
 .tut-celebrate { position:fixed; inset:0; z-index:14; display:flex; align-items:center; justify-content:center; padding:20px;
@@ -224,8 +219,7 @@
 
 .tut-guide .tut-card ol { margin:6px 0 0; padding-left:20px; font-size:.92rem; line-height:1.45; }
 .tut-guide .tut-card li { margin:3px 0; }
-.tut-guide .tut-card .tag { display:inline-block; margin:0 0 6px; padding:2px 10px; border-radius:99px; background:var(--user); color:#fff; font-size:.7rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
-[data-theme="night"] .tut-guide .tut-card .tag { color:#0B1020; }
+.tut-guide .tut-card .tag { display:inline-block; margin:0 0 6px; padding:2px 10px; border-radius:99px; background:var(--user); color:var(--on-user); font-size:.7rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
 .tut-guide .tut-card .tip { margin-top:8px; padding:8px 10px; border-radius:10px; background:var(--bg); border:1px dashed var(--thin); font-size:.85rem; color:var(--muted); }
 
 /* Lista numerada de reglas y lista de errores */
@@ -233,8 +227,7 @@
   list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; counter-reset:tr; }
 .tut-guide .tut-rules li { position:relative; margin:0; padding-left:36px; min-height:26px; font-size:.93rem; line-height:1.42; counter-increment:tr; }
 .tut-guide .tut-rules li::before { content:counter(tr); position:absolute; left:0; top:0; width:26px; height:26px; border-radius:50%;
-  background:var(--user); color:#fff; display:flex; align-items:center; justify-content:center; font-size:.85rem; font-weight:800; }
-[data-theme="night"] .tut-guide .tut-rules li::before { color:#0B1020; }
+  background:var(--user); color:var(--on-user); display:flex; align-items:center; justify-content:center; font-size:.85rem; font-weight:800; }
 .tut-guide .tut-errors li::before { content:"✕"; counter-increment:none; background:color-mix(in srgb, var(--err) 16%, transparent); color:var(--err); }
 [data-theme="night"] .tut-guide .tut-errors li::before { color:var(--err); }
 .tut-card.errs h3 { color:var(--err); }

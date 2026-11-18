@@ -64,9 +64,9 @@
   var FLAG_BOARD = 1;             // el tablero inicial viaja empaquetado
   var FLAG_RESULT = 2;            // hay sección de resultado (tiempo, alias, fantasma); si no, invitación abierta
   var MODES = ['classic', 'killer', 'diagonal', 'antiknight'];            // código = índice
-  var DIFFS = ['facil', 'medio', 'dificil', 'experto'];                    // código = índice + 1
+  var DIFFS = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo']; // código = índice + 1 (los códigos 5 y 6 son nuevos)
   var MODE_LABELS = { classic: 'Clásico', killer: 'Killer', diagonal: 'Diagonal', antiknight: 'Anti-Caballo' };
-  var DIFF_LABELS = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto' };
+  var DIFF_LABELS = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto', maestro: 'Maestro', extremo: 'Extremo' };
 
   var HINT_PENALTY = 30;          // segundos que suma cada pista en un duelo
   var MAX_ALIAS_BYTES = 12;

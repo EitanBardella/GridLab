@@ -9,7 +9,7 @@
  * Convenciones:
  *   - Un tablero es un arreglo 9x9 de números: 0 = vacío, 1..9 = valor.
  *   - Las filas/columnas se indexan de 0 a 8.
- *   - Dificultades: 'facil' | 'medio' | 'dificil' | 'experto'.
+ *   - Dificultades: 'facil' | 'medio' | 'dificil' | 'experto' | 'maestro' | 'extremo'.
  *   - Variantes:    'classic' | 'diagonal' | 'antiknight'  (por defecto 'classic').
  *
  * Variantes (parámetro opcional `variant`):
@@ -36,8 +36,10 @@
  *   medio   -> requiere además Hidden Singles.
  *   dificil -> requiere Naked Pairs y/o Pointing Pairs / Box-Line Reduction
  *              (uso moderado: hasta ADVANCED_LIMIT pasos de descarte).
- *   experto -> exige muchos pasos de descarte avanzados, o las técnicas
- *              implementadas no bastan para resolverlo (requeriría probar y errar).
+ *   experto -> exige muchos pasos de descarte avanzados (pares / pointing / box-line).
+ *   maestro -> además exige al menos un X-Wing.
+ *   extremo -> las técnicas implementadas (incluido X-Wing) no bastan para resolverlo
+ *              (requeriría probar y errar): tableros con las menos pistas posibles.
  *   (En 'diagonal' las diagonales actúan como unidades extra para todas las técnicas;
  *    en 'antiknight' los saltos de caballo amplían los "vecinos" de cada celda.)
  */
@@ -55,19 +57,19 @@
    * ========================================================================= */
 
   var ALL = 511; // 0b111111111: los nueve candidatos 1..9 (bit d-1 representa el dígito d)
-  var DIFFICULTIES = ['facil', 'medio', 'dificil', 'experto'];
-  var RANK = { facil: 0, medio: 1, dificil: 2, experto: 3 };
+  var DIFFICULTIES = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo'];
+  var RANK = { facil: 0, medio: 1, dificil: 2, experto: 3, maestro: 4, extremo: 5 };
   var VARIANT_NAMES = ['classic', 'diagonal', 'antiknight'];
 
   // Nivel de cada técnica (para determinar la más difícil usada).
-  var TECHNIQUE_LEVEL = { nakedSingle: 1, hiddenSingle: 2, nakedPair: 3, pointing: 4, boxLine: 4 };
-  var TECHNIQUE_ORDER = ['nakedSingle', 'hiddenSingle', 'nakedPair', 'pointing', 'boxLine'];
+  var TECHNIQUE_LEVEL = { nakedSingle: 1, hiddenSingle: 2, nakedPair: 3, pointing: 4, boxLine: 4, xwing: 5 };
+  var TECHNIQUE_ORDER = ['nakedSingle', 'hiddenSingle', 'nakedPair', 'pointing', 'boxLine', 'xwing'];
 
   // Máximo de pasos de descarte avanzados (pares / pointing / box-line) para seguir siendo 'dificil'.
   var ADVANCED_LIMIT = 4;
 
   // Pistas mínimas por dificultad (evita tableros demasiado vacíos en niveles bajos).
-  var MIN_CLUES = { facil: 36, medio: 30, dificil: 0, experto: 0 };
+  var MIN_CLUES = { facil: 36, medio: 30, dificil: 0, experto: 0, maestro: 0, extremo: 0 };
 
   var BLOCK_NAMES = [
     'superior izquierdo', 'superior central', 'superior derecho',
@@ -637,8 +639,49 @@
     return null;
   }
 
+  /**
+   * X-Wing: un dígito que en dos filas (o dos columnas) solo cabe en las MISMAS dos columnas (filas) forma un
+   * rectángulo: el dígito irá en una diagonal del rectángulo, así que se descarta del resto de esas dos columnas
+   * (filas). Solo usa filas y columnas, por lo que es válido en todas las variantes.
+   */
+  function findXWing(st) {
+    for (var d = 0; d < 9; d++) {
+      var bit = 1 << d;
+      for (var mode = 0; mode < 2; mode++) {   // 0: filas base / columnas de cobertura; 1: al revés
+        var pos = [], a, b;
+        for (a = 0; a < 9; a++) {
+          var p = [];
+          for (b = 0; b < 9; b++) {
+            var cell = mode === 0 ? a * 9 + b : b * 9 + a;
+            if (st.grid[cell] === 0 && (st.cand[cell] & bit)) { p.push(b); }
+          }
+          pos.push(p);
+        }
+        for (a = 0; a < 8; a++) {
+          if (pos[a].length !== 2) { continue; }
+          for (var a2 = a + 1; a2 < 9; a2++) {
+            if (pos[a2].length !== 2 || pos[a2][0] !== pos[a][0] || pos[a2][1] !== pos[a][1]) { continue; }
+            var elims = [], cov, t;
+            for (t = 0; t < 2; t++) {
+              cov = pos[a][t];
+              for (b = 0; b < 9; b++) {
+                if (b === a || b === a2) { continue; }
+                var c2 = mode === 0 ? b * 9 + cov : cov * 9 + b;
+                if (st.grid[c2] === 0 && (st.cand[c2] & bit)) { elims.push([c2, bit]); }
+              }
+            }
+            if (elims.length) {
+              return { technique: 'xwing', digit: d + 1, byRows: mode === 0, lines: [a, a2], covers: [pos[a][0], pos[a][1]], elims: elims };
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   function findAdvancedStep(st) {
-    return findNakedPair(st) || findPointing(st) || findBoxLine(st);
+    return findNakedPair(st) || findPointing(st) || findBoxLine(st) || findXWing(st);
   }
 
   // Prioridad: siempre se usa la técnica más simple disponible.
@@ -650,7 +693,7 @@
   }
 
   function emptyCounts() {
-    return { nakedSingle: 0, hiddenSingle: 0, nakedPair: 0, pointing: 0, boxLine: 0 };
+    return { nakedSingle: 0, hiddenSingle: 0, nakedPair: 0, pointing: 0, boxLine: 0, xwing: 0 };
   }
 
   function hardestTechnique(counts) {
@@ -661,9 +704,10 @@
   }
 
   function classify(solved, maxLevel, counts) {
-    if (!solved) { return 'experto'; }
+    if (!solved) { return 'extremo'; }
     if (maxLevel <= 1) { return 'facil'; }
     if (maxLevel === 2) { return 'medio'; }
+    if (counts.xwing > 0) { return 'maestro'; }
     var advanced = counts.nakedPair + counts.pointing + counts.boxLine;
     return advanced > ADVANCED_LIMIT ? 'experto' : 'dificil';
   }
@@ -674,7 +718,7 @@
     var counts = emptyCounts();
     var st = createLogicState(flat, V);
     if (!st) {
-      return { valid: false, solved: false, maxLevel: 0, counts: counts, difficulty: 'experto', hardest: null };
+      return { valid: false, solved: false, maxLevel: 0, counts: counts, difficulty: 'extremo', hardest: null };
     }
     var maxLevel = 0;
     while (st.empties > 0) {
@@ -758,7 +802,7 @@
       for (i = 0; i < group.length; i++) { saved.push(puzzle[group[i]]); puzzle[group[i]] = 0; }
 
       var ok = search(puzzle, 2, null, V).count === 1; // unicidad por backtracking
-      if (ok && targetRank < RANK.experto) {
+      if (ok && targetRank < RANK.extremo) {
         var a = analyzeFlat(puzzle, V);
         ok = a.solved && RANK[a.difficulty] <= targetRank;
       }
@@ -780,9 +824,11 @@
     options = options || {};
     var V = getVariant(options.variant);
     var rng = createRng(options.seed);
-    var maxAttempts = options.maxAttempts > 0 ? options.maxAttempts : 60;
+    // Los niveles altos aciertan la dificultad exacta con menos frecuencia: más intentos (cada uno cuesta ~1 ms).
+    var maxAttempts = options.maxAttempts > 0 ? options.maxAttempts : (RANK[difficulty] >= RANK.experto ? 500 : 60);
     var budget = options.timeBudgetMs > 0 ? options.timeBudgetMs : 8000;
-    var symmetric = options.symmetric !== false;
+    // Extremo: sin simetría, para quitar más pistas (tableros con muy pocas pistas iniciales).
+    var symmetric = options.symmetric !== false && difficulty !== 'extremo';
     var start = Date.now();
     var attempts = 0;
     var best = null;
@@ -808,7 +854,7 @@
           clues: best.clues,
           techniques: {
             nakedSingle: c.nakedSingle, hiddenSingle: c.hiddenSingle, nakedPair: c.nakedPair,
-            pointing: c.pointing, boxLine: c.boxLine
+            pointing: c.pointing, boxLine: c.boxLine, xwing: c.xwing
           },
           hardestTechnique: best.analysis.hardest,
           attempts: attempts
@@ -819,7 +865,7 @@
 
   /**
    * Genera un tablero. Bloqueante (usar en un Web Worker o preferir generatePuzzleAsync).
-   * @param {string} difficulty 'facil' | 'medio' | 'dificil' | 'experto'
+   * @param {string} difficulty 'facil' | 'medio' | 'dificil' | 'experto' | 'maestro' | 'extremo'
    * @param {{variant?:string, seed?:number|string, maxAttempts?:number, timeBudgetMs?:number, symmetric?:boolean}} [options]
    *        `variant`: 'classic' (por defecto) | 'diagonal' | 'antiknight'.
    * @returns {{puzzle:number[][], solution:number[][], difficulty:string, requested:string, variant:string,
@@ -1017,6 +1063,11 @@
       return (step.cells.length === 3 ? 'un trío apuntador' : 'un par apuntador') +
         ' (el ' + step.digit + ' de ' + unitLabel(step.unit) + ' solo cabe en ' + unitLabel(step.line) + ')';
     }
+    if (step.technique === 'xwing') {
+      var fl = step.byRows ? 'filas' : 'columnas', cl = step.byRows ? 'columnas' : 'filas';
+      return 'un X-Wing del ' + step.digit + ' (en las ' + fl + ' ' + (step.lines[0] + 1) + ' y ' + (step.lines[1] + 1) +
+        ' solo cabe en las ' + cl + ' ' + (step.covers[0] + 1) + ' y ' + (step.covers[1] + 1) + ')';
+    }
     return 'una reducción bloque-línea (el ' + step.digit + ' de ' + unitLabel(step.unit) +
       ' solo cabe en ' + unitLabel(18 + step.box) + ')';
   }
@@ -1024,7 +1075,8 @@
   var TECHNIQUE_SHORT = {
     nakedPair: 'par desnudo',
     pointing: 'par apuntador',
-    boxLine: 'reducción bloque-línea'
+    boxLine: 'reducción bloque-línea',
+    xwing: 'X-Wing'
   };
 
   function describeEliminations(steps) {

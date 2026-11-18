@@ -9,7 +9,7 @@
  * Convenciones (idénticas a engine.js):
  *   - Un tablero es un arreglo 9x9 de números: 0 = vacío, 1..9 = valor.
  *   - Filas/columnas se indexan de 0 a 8.
- *   - Dificultades: 'facil' | 'medio' | 'dificil' | 'experto'.
+ *   - Dificultades: 'facil' | 'medio' | 'dificil' | 'experto' | 'maestro' | 'extremo'.
  *   - Una jaula es { id, sum, cells: [[r, c], ...], topLeft: [r, c] }.
  *     `topLeft` es la celda (primera en orden de lectura) que muestra la suma
  *     en su esquina superior izquierda.
@@ -42,7 +42,7 @@
    * ========================================================================= */
 
   var ALL = 511; // 0b111111111: dígitos 1..9 (bit d-1 representa el dígito d)
-  var DIFFICULTIES = ['facil', 'medio', 'dificil', 'experto'];
+  var DIFFICULTIES = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo'];
   var MAX_CAGE = 4;
 
   // givens: [mín, máx] de números iniciales. weights: probabilidad de jaulas de 2, 3 y 4 celdas.
@@ -50,7 +50,9 @@
     facil:   { givens: [12, 15], weights: [0.55, 0.35, 0.10] },
     medio:   { givens: [4, 6],   weights: [0.35, 0.45, 0.20] },
     dificil: { givens: [0, 0],   weights: [0.25, 0.45, 0.30] },
-    experto: { givens: [0, 0],   weights: [0.10, 0.35, 0.55] }
+    experto: { givens: [0, 0],   weights: [0.10, 0.35, 0.55] },
+    maestro: { givens: [0, 0],   weights: [0.05, 0.25, 0.70] },
+    extremo: { givens: [0, 0],   weights: [0.00, 0.08, 0.92] }
   };
 
   var BLOCK_NAMES = [
