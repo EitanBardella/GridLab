@@ -156,4 +156,13 @@ Puntos de diseño:
 
 ## Versionado de caché
 
-Al publicar cambios, subí `CACHE_NAME` en `sw.js` (por ejemplo `sudoku-v31`) y, si querés, los parámetros `?v=` de `index.html`, para que los dispositivos descarguen los archivos nuevos.
+Al publicar cambios, subí `CACHE_NAME` en `sw.js` (por ejemplo `sudoku-v35`) y, si querés, los parámetros `?v=` de `index.html`, para que los dispositivos descarguen los archivos nuevos.
+
+## Licencia y Uso
+
+El código fuente de GridLab es **público** para que puedas aprender de él, auditarlo y usarlo de forma **personal**, bajo la licencia [**PolyForm Noncommercial 1.0.0**](https://polyformproject.org/licenses/noncommercial/1.0.0/) (texto completo en el archivo [`LICENSE`](LICENSE)).
+
+- **Permitido:** leer y estudiar el código, auditarlo, ejecutarlo y modificarlo para uso personal, de estudio o hobby, y otros usos no comerciales que la licencia contempla.
+- **No permitido sin autorización expresa de Eitan Bardella:** redistribuirlo o publicarlo como una aplicación propia, y cualquier explotación comercial o monetización (venta, anuncios, suscripciones, compras dentro de la app, etc.).
+
+Esto es una explicación en lenguaje llano; ante cualquier diferencia, vale el texto de la licencia. © 2026 Eitan Bardella.
