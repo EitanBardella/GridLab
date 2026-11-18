@@ -668,7 +668,7 @@
     root.append(h('header', { class: 'tut-top' }, topBtn, topTitle, h('span', { class: 'tut-spacer' })), body);
   }
 
-  function setTop(title, backLabel) { topTitle.textContent = title; topBtn.textContent = backLabel; }
+  function setTop(title, backLabel) { topTitle.textContent = title; topBtn.textContent = '← ' + backLabel; }
 
   function runCleanup() { if (ui.cleanup) { const f = ui.cleanup; ui.cleanup = null; try { f(); } catch (e) { /* ignorar */ } } }
 
@@ -677,8 +677,10 @@
     switch (ui.screen) {
       case 'practice': showLesson(ui.ch, ui.ls); return;
       case 'lesson': showMap(); return;
-      case 'map':
-      case 'guide': showHub(); return;
+      case 'map': showMapList(); return;
+      case 'guide': showGuideList(); return;
+      case 'mapList':
+      case 'guideList': showHub(); return;
       default: exitTutorial();
     }
   }
@@ -692,44 +694,51 @@
     body.scrollTop = 0;
 
     const gs = guideStats(), ts = allTechStats();
-    const card = (cls, num, title, sub, desc, chips, pct, prog_, onclick) => h('button', { class: 'tut-hcard ' + cls, type: 'button', onclick: onclick },
-      h('span', { class: 'hnum', text: num }),
-      h('span', { class: 'hgo', 'aria-hidden': 'true', text: '›' }),
-      h('h2', { text: title }),
-      h('p', { class: 'hsub', text: sub }),
-      h('p', { class: 'hdesc', text: desc }),
-      h('div', { class: 'hchips', 'aria-hidden': 'true' }, chips.map(c => h('span', { text: c }))),
-      h('div', { class: 'hfoot' }, h('div', { class: 'hbar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + pct + '%' })), h('span', { class: 'hprog', text: prog_ })));
-
-    body.append(h('div', { class: 'tut-hub' },
+    body.append(h('div', { class: 'vlist tut-hub' },
       h('p', { class: 'tut-hub-intro', text: 'Elegí por dónde empezar.' }),
-      card('guide', 'Sección 01', 'Cómo jugar', 'Reglas y variantes',
-        'Aprendé las reglas base de cada modo, una rutina de pensamiento segura y los errores más comunes, con un ejemplo guiado y una mini-comprobación.',
-        ['Clásico', 'Killer', 'Diagonal', 'Anti-Caballo', 'Duelos / Co-op'], gs.pct,
-        gs.done + ' de ' + gs.n + ' guías completadas', () => showGuide()),
-      card('tech', 'Sección 02', 'Técnicas', 'Rutas de maestría',
-        'Mapas por niveles para dominar técnica por técnica: de los Únicos a las cadenas, y del Killer a las variantes. Cada lección trae teoría, ejemplo y práctica.',
-        ['Clásico · ' + varStats('classic').n + ' técnicas', 'Killer · ' + varStats('killer').n + ' técnicas', 'Diagonal · ' + varStats('diagonal').n + ' técnicas', 'Anti-Caballo · ' + varStats('antiknight').n + ' técnicas'], ts.pct,
-        ts.done + ' de ' + ts.n + ' técnicas completadas', () => showMap())));
+      vcard('Cómo jugar', 'Reglas, rutina segura y errores comunes', gs.done + ' / ' + gs.n + ' completadas',
+        gs.n > 0 && gs.done === gs.n, () => showGuideList(), gs.pct, true),
+      vcard('Técnicas', 'Rutas de maestría, técnica por técnica', ts.done + ' / ' + ts.n + ' técnicas',
+        ts.n > 0 && ts.done === ts.n, () => showMapList(), ts.pct, true)));
   }
 
   /* ---------- Cómo jugar ---------- */
-  function showGuide(v) {
+  const GUIDE_SUB = { classic: 'Filas, columnas y bloques', killer: 'Jaulas con suma', diagonal: 'Las dos diagonales',
+    antiknight: 'Sin saltos de caballo', duels: 'Duelos y Co-op con amigos' };
+
+  // Tarjeta vertical de ancho completo (mismo estilo que el submenú Jugar).
+  function vcard(title, sub, right, done, onclick, pct, big) {
+    const card = h('button', { class: 'vcard' + (done ? ' done' : '') + (big ? ' big' : ''), type: 'button', onclick: onclick },
+      h('span', { class: 'vc-main' }, h('b', { class: 'vc-t', text: title }), h('small', { class: 'vc-s', text: sub })),
+      h('span', { class: 'vc-r', text: right }));
+    if (typeof pct === 'number') card.append(h('span', { class: 'vc-bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + pct + '%' })));
+    return card;
+  }
+
+  function showGuideList() {
     runCleanup(); closeSheet(); closeCelebrate();
-    if (v && GUIDES[v]) { ui.gv = v; store.set(KEY_GVAR, v); }
-    ui.screen = 'guide'; ui.ch = null; ui.ls = null;
+    ui.screen = 'guideList'; ui.ch = null; ui.ls = null;
     setTop('Cómo jugar', 'Tutorial');
     clear(body); body.classList.remove('tut-fixed');
     body.scrollTop = 0;
-
-    const tabs = h('div', { class: 'tut-tabs', role: 'tablist', 'aria-label': 'Variante' });
+    const gs = guideStats();
+    const list = h('div', { class: 'vlist' }, h('p', { class: 'tut-hub-intro', text: gs.done + ' de ' + gs.n + ' guías completadas' }));
     GUIDE_VARIANTS.forEach(k => {
-      tabs.append(h('button', { class: 'tut-tab', type: 'button', role: 'tab', 'aria-selected': k === ui.gv ? 'true' : 'false',
-        onclick: () => showGuide(k) }, GUIDES[k].label, h('small', { text: gdone(k) ? '✓ completada' : 'guía' })));
+      const d = gdone(k);
+      list.append(vcard(GUIDES[k].label, GUIDE_SUB[k] || '', d ? 'Completada ✓' : 'Pendiente', d, () => showGuide(k)));
     });
-    body.append(tabs);
+    body.append(list);
+  }
+
+  function showGuide(v) {
+    runCleanup(); closeSheet(); closeCelebrate();
+    if (!(v && GUIDES[v])) v = ui.gv;
+    ui.gv = v; store.set(KEY_GVAR, v);
+    ui.screen = 'guide'; ui.ch = null; ui.ls = null;
+    setTop(GUIDES[v].label, 'Cómo jugar');
+    clear(body); body.classList.remove('tut-fixed');
+    body.scrollTop = 0;
     body.append(renderGuideBody(ui.gv));
-    centerTab(tabs);
   }
 
   function renderGuideBody(v) {
@@ -815,23 +824,30 @@
   /* ---------- Mapa de técnicas ---------- */
   function tierOf(i, n) { if (n <= 1) return 'beg'; const t = i / (n - 1); return t < 0.34 ? 'beg' : (t < 0.67 ? 'mid' : 'exp'); }
 
-  function showMap() {
+  function showMapList() {
     runCleanup(); closeSheet(); closeCelebrate();
-    ui.screen = 'map'; ui.ch = null; ui.ls = null;
+    ui.screen = 'mapList'; ui.ch = null; ui.ls = null; ui.selCh = null;
     setTop('Técnicas', 'Tutorial');
     clear(body); body.classList.remove('tut-fixed');
     body.scrollTop = 0;
-    if (VARIANTS.indexOf(ui.variant) < 0) ui.variant = 'classic';
-
-    // Pestañas
-    const tabs = h('div', { class: 'tut-tabs', role: 'tablist', 'aria-label': 'Ruta de aprendizaje' });
+    const ts = allTechStats();
+    const list = h('div', { class: 'vlist' }, h('p', { class: 'tut-hub-intro', text: ts.done + ' de ' + ts.n + ' técnicas completadas' }));
     VARIANTS.forEach(v => {
-      const vs = varStats(v);
-      const sub = vs.n ? vs.pct + '% · ' + vs.done + '/' + vs.n : META[v].chapters.length + ' capítulos';
-      tabs.append(h('button', { class: 'tut-tab', type: 'button', role: 'tab', 'aria-selected': v === ui.variant ? 'true' : 'false',
-        onclick: () => { ui.variant = v; store.set(KEY_VAR, v); showMap(); } }, META[v].label, h('small', { text: sub })));
+      const vs = varStats(v), nCh = getChapters(v).length;
+      list.append(vcard(META[v].label, nCh + (nCh === 1 ? ' capítulo' : ' capítulos'),
+        vs.n ? vs.done + '/' + vs.n + ' · ' + vs.pct + '%' : 'Próximamente', vs.n > 0 && vs.done === vs.n,
+        () => { ui.variant = v; store.set(KEY_VAR, v); ui.selCh = null; showMap(); }, vs.pct));
     });
-    body.append(tabs);
+    body.append(list);
+  }
+
+  function showMap() {
+    runCleanup(); closeSheet(); closeCelebrate();
+    ui.screen = 'map'; ui.ch = null; ui.ls = null;
+    if (VARIANTS.indexOf(ui.variant) < 0) ui.variant = 'classic';
+    setTop(META[ui.variant].label, 'Técnicas');
+    clear(body); body.classList.remove('tut-fixed');
+    body.scrollTop = 0;
 
     const chs = getChapters(ui.variant);
     const vs = varStats(ui.variant);
@@ -839,7 +855,6 @@
       h('b', { text: 'Ruta ' + META[ui.variant].label }), ' · ' + chs.length + ' capítulos · ',
       vs.n ? vs.done + ' de ' + vs.n + ' técnicas completadas' : 'técnicas por cargar'));
     body.append(buildMap(chs));
-    centerTab(tabs);
   }
 
   function buildMap(chs) {

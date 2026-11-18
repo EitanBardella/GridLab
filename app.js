@@ -77,7 +77,18 @@
   set.practice = !!set.practice;
   set.zen = !!set.zen;
   let stats = Object.assign({ won: {}, best: {}, daily: {}, surv: {} }, load(K_STATS, {}));
-  ['won', 'best', 'daily', 'surv', 'g'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
+  ['won', 'best', 'daily', 'surv', 'g', 'dd', 'sv'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
+  // stats.dd[fecha] = { e: errores con los que se completó ese desafío diario } (los días anteriores a este campo no lo tienen:
+  // se tratan como estrella de oro). stats.sv[rotación] = { a: intentos (rachas iniciadas), b: tableros superados en total }.
+  Object.keys(stats.dd).forEach(k => {
+    const v = stats.dd[k];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !v || !Number.isFinite(v.e) || v.e < 0) delete stats.dd[k]; else stats.dd[k] = { e: Math.floor(v.e) };
+  });
+  Object.keys(stats.sv).forEach(k => {
+    const v = stats.sv[k];
+    if (!SURV_MODES[k] || !v) delete stats.sv[k];
+    else stats.sv[k] = { a: Number.isFinite(v.a) && v.a > 0 ? Math.floor(v.a) : 0, b: Number.isFinite(v.b) && v.b > 0 ? Math.floor(v.b) : 0 };
+  });
   // stats.g['<modo|all>.<dificultad>'] = { s: iniciadas, w: ganadas, f: sin errores, bt: mejor tiempo, tt: suma de tiempos,
   //   tn: partidas con tiempo, cs: racha actual, ms: mejor racha }. Las partidas en Modo Zen suman a w/f/racha pero no a bt/tt/tn.
   const blankG = () => ({ s: 0, w: 0, f: 0, bt: 0, tt: 0, tn: 0, cs: 0, ms: 0 });
@@ -101,7 +112,7 @@
     if (!SURV_MODES[k] || !v || !Number.isInteger(v.n) || v.n < 1 || !Number.isFinite(v.t) || v.t < 0) delete stats.surv[k];
   });
   let G = null;          // partida: mode, puzzle, solution, board, notes, diff, req, seed, hist, secs, won, lost, lives, counted, rec, (duel), (daily), (surv), (cages), (coop, owners, hints)
-  let view = 'home';     // 'home' | 'game' | 'tutorial'
+  let view = 'home';     // 'home' | 'game' | 'stats' | 'daily' | 'tutorial'
   let sel = -1, pencil = false, hint = null, busy = false;
   let selMode = set.mode; // modo elegido en el panel "Jugar" del inicio
   let boardEl = null, keypad = null;
@@ -121,7 +132,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v2';
+  const BUILD = 'ui-v5';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   let pendingSfx = null;                    // sonido de la jugada en curso; afterChange decide el definitivo
@@ -782,9 +793,10 @@
 
   function showView(v) {
     view = v;
-    const h = $('#home-view'), g = $('#game-view');
-    if (h) h.hidden = v !== 'home';
-    if (g) g.hidden = v !== 'game';
+    // Una sola vista de página completa visible a la vez.
+    [['home', 'home-view'], ['game', 'game-view'], ['stats', 'stats-view'], ['daily', 'daily-view']].forEach(p => {
+      const el = $('#' + p[1]); if (el) { el.hidden = v !== p[0]; if (v === p[0] && p[0] !== 'game') el.scrollTop = 0; }
+    });
     const tu = $('#tutorial-view'); if (tu) tu.hidden = true;   // el tutorial nunca queda visible junto a otra vista
     if (v === 'home') updateHome();
     syncFocus();
@@ -826,6 +838,50 @@
   const MAX_BACK_MONTHS = 24;
   let calY = 0, calM = 0;
 
+  /* Estrellas por errores (oro 0 · plata 1–2 · bronce 3+) y copas mensuales. Los días sin dato de errores cuentan como oro. */
+  const TIERS = ['gold', 'silver', 'bronze'], TIER_ES = ['oro', 'plata', 'bronce'];
+  const STAR_SVG = '<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>';
+  const CUP_SVG = t => '<svg class="cup t-' + TIERS[t] + '" viewBox="0 0 24 24" role="img" aria-label="Copa de ' + TIER_ES[t] + '">' +
+    '<path d="M7 3h10v5a5 5 0 0 1-10 0V3z"/><path class="nf" d="M7 5H4v2.5A3.5 3.5 0 0 0 7.5 11M17 5h3v2.5a3.5 3.5 0 0 1-3.5 3.5"/>' +
+    '<path class="nf" d="M12 13v4M8.5 21h7M10 17h4v4h-4z"/></svg>';
+  const dayLevel = ds => { const e = stats.dd[ds] ? stats.dd[ds].e : 0; return e === 0 ? 0 : (e <= 2 ? 1 : 2); };
+  const addDay = (ds, n) => { const p = ds.split('-'); const d = new Date(+p[0], +p[1] - 1, +p[2] + n); return ymd(d.getFullYear(), d.getMonth(), d.getDate()); };
+  const CUP_WHY = ['todas las estrellas del mes son de oro (sin errores)', 'ninguna estrella de bronce en el mes', 'mes completo, con alguna estrella de bronce'];
+
+  // Mes completo = los días del mes están todos completados. La copa depende de la peor estrella: oro, plata o bronce.
+  function monthInfo(y, m) {
+    const days = new Date(y, m + 1, 0).getDate();
+    let done = 0, worst = 0;
+    for (let d = 1; d <= days; d++) { const ds = ymd(y, m, d); if (stats.daily[ds]) { done++; worst = Math.max(worst, dayLevel(ds)); } }
+    return { days: days, done: done, complete: done === days, tier: worst };
+  }
+
+  // Métricas de la pestaña "Desafíos diarios" de Estadísticas.
+  function dailySummary() {
+    const dates = Object.keys(stats.daily).filter(k => stats.daily[k]).sort();
+    const done = new Set(dates);
+    const r = { n: dates.length, best: 0, avg: 0, cur: 0, max: 0, flawless: 0, cups: [0, 0, 0] };
+    if (!r.n) return r;
+    let sum = 0, run = 0, prev = null;
+    dates.forEach(ds => {
+      const t = stats.daily[ds]; sum += t;
+      if (!r.best || t < r.best) r.best = t;
+      if (dayLevel(ds) === 0) r.flawless++;
+      run = (prev && addDay(prev, 1) === ds) ? run + 1 : 1;
+      if (run > r.max) r.max = run;
+      prev = ds;
+    });
+    r.avg = Math.round(sum / r.n);
+    let ds = todayStr(); if (!done.has(ds)) ds = addDay(ds, -1);   // la racha sigue viva si hoy todavía no se jugó
+    while (done.has(ds)) { r.cur++; ds = addDay(ds, -1); }
+    const f = dates[0].split('-'), now = new Date();
+    for (let i = (+f[0]) * 12 + (+f[1] - 1); i <= now.getFullYear() * 12 + now.getMonth(); i++) {
+      const mi = monthInfo(Math.floor(i / 12), i % 12);
+      if (mi.complete) r.cups[mi.tier]++;
+    }
+    return r;
+  }
+
   function renderCalendar() {
     const now = new Date(), curIdx = now.getFullYear() * 12 + now.getMonth(), viewIdx = calY * 12 + calM;
     const today = todayStr();
@@ -833,25 +889,40 @@
     const lead = (new Date(calY, calM, 1).getDay() + 6) % 7;   // semana que empieza en lunes
     let html = '', done = 0, total = 0, d;
     for (d = 0; d < lead; d++) html += '<span class="dday blank" aria-hidden="true"></span>';
+    const BLANK = '<span class="dday blank" aria-hidden="true"></span>';
     for (d = 1; d <= days; d++) {
       const ds = ymd(calY, calM, d);
       const completed = !!stats.daily[ds];
       const locked = ds > today;                                  // las fechas ISO se comparan como texto
       const cls = ['dday'];
       let label = 'Día ' + d;
+      let lvl = 0;
       if (locked) { cls.push('locked'); label += ', bloqueado'; }
       else {
         total++;
-        if (completed) { done++; cls.push('completed'); label += ', completado'; }
+        if (completed) {
+          done++; lvl = dayLevel(ds);
+          cls.push('completed', 't-' + TIERS[lvl]);
+          if (ds === justDone) cls.push('pop');
+          label += ', completado con estrella de ' + TIER_ES[lvl];
+        }
         else if (ds !== today) { cls.push('avail'); label += ', disponible'; }
         if (ds === today) { cls.push('today'); label += ', hoy'; }
       }
       html += '<button type="button" class="' + cls.join(' ') + '" data-date="' + ds + '" aria-label="' + label + '"' +
-        (locked ? ' disabled' : '') + '><span>' + d + '</span>' + (completed ? '<i aria-hidden="true">✓</i>' : '') + '</button>';
+        (locked ? ' disabled' : '') + '>' + (completed ? STAR_SVG : '') + '<span class="dn">' + d + '</span></button>';
     }
+    // Siempre 6 filas × 7 columnas (42 celdas): la altura de la vista no cambia de un mes a otro.
+    for (let n = lead + days; n < 42; n++) html += BLANK;
     const grid = $('#dailyGrid'); if (grid) grid.innerHTML = html;
-    setText('#dailyMonth', MONTHS[calM] + ' ' + calY);
+    if (justDone && justDone.slice(0, 7) === ymd(calY, calM, 1).slice(0, 7)) justDone = null;   // la animación se ve una sola vez
+    const mi = monthInfo(calY, calM), mEl = $('#dailyMonth');
+    if (mEl) {
+      mEl.innerHTML = (mi.complete ? CUP_SVG(mi.tier) : '') + MONTHS[calM] + ' ' + calY;
+      mEl.title = mi.complete ? 'Copa de ' + TIER_ES[mi.tier] + ': ' + CUP_WHY[mi.tier] : '';
+    }
     setText('#dailyCount', done + ' de ' + total + ' completados');
+    setText('#dailyCup', mi.complete ? 'Copa de ' + TIER_ES[mi.tier] + ' · ' + CUP_WHY[mi.tier] : '\u00A0');
     const prev = $('#dailyPrev'), next = $('#dailyNext');
     if (prev) prev.disabled = viewIdx <= curIdx - MAX_BACK_MONTHS;
     if (next) next.disabled = viewIdx >= curIdx;
@@ -868,7 +939,7 @@
     const n = new Date();
     calY = n.getFullYear(); calM = n.getMonth();
     renderCalendar();
-    const m = $('#mDaily'); if (m) m.hidden = false;
+    showView('daily');
   }
 
   function updateHome() {
@@ -1108,7 +1179,9 @@
   }
 
   /* ---------- Victoria y estadísticas ---------- */
+  let justDone = null;                       // fecha del diario recién completado (para animar su estrella)
   const gStat = key => stats.g[key] || (stats.g[key] = blankG());
+  const svStat = rot => stats.sv[rot] || (stats.sv[rot] = { a: 0, b: 0 });
   const statKeys = g => [g.mode + '.' + g.diff, 'all.' + g.diff];
   // Partida iniciada (nueva o reintento). Las partidas guardadas por versiones anteriores no la tienen: ganar sigue funcionando.
   function statStart(g) {
@@ -1142,7 +1215,11 @@
     });
     if (!G.zen) {
       if (!stats.best[key] || G.secs < stats.best[key]) stats.best[key] = G.secs;
-      if (G.daily && (!stats.daily[G.daily] || G.secs < stats.daily[G.daily])) stats.daily[G.daily] = G.secs;
+      if (G.daily) {
+        const ds = G.daily, first = !stats.daily[ds], e = G.rec ? G.rec.errors : 0, pe = stats.dd[ds] ? stats.dd[ds].e : 0;
+        if (first || G.secs < stats.daily[ds]) stats.daily[ds] = Math.max(1, G.secs);
+        if (first || e < pe) { stats.dd[ds] = { e: e }; justDone = ds; }   // estrella nueva (o mejorada): se anima en el calendario
+      }
     }
     saveStats();
   }
@@ -1290,6 +1367,7 @@
   function startSurvival(rot) {
     if (!SURV_MODES[rot]) return;
     const r0 = stats.surv[rot];
+    svStat(rot).a++; saveStats();
     startGame(survDiff(1), survPickMode(rot), {
       surv: { rot: rot, n: 1, prev: 0, rec0: r0 ? { n: r0.n, t: r0.t } : null }
     });
@@ -1299,6 +1377,7 @@
   function survWin() {
     const S = G.surv;
     const done = S.n, total = (S.prev | 0) + G.secs;
+    svStat(S.rot).b++; saveStats();
     if (survBetter({ n: done, t: total }, stats.surv[S.rot])) { stats.surv[S.rot] = { n: done, t: total }; saveStats(); }
     const nextN = done + 1, nextMode = survPickMode(S.rot), nextDiff = survDiff(nextN);
     setText('#snTitle', '¡Tablero ' + done + ' superado!');
@@ -1333,11 +1412,32 @@
     const m = $('#mSurvEnd'); if (m) m.hidden = false;
   }
 
-  // Pestañas por dificultad + filtro por modo; tarjetas con los números de esa combinación.
-  let statsDiff = 'facil', statsMode = 'all';
+  // Estadísticas en dos pasos: 1) elegir modo; 2) métricas por dificultad (o Supervivencia y diarios).
+  let statsDiff = 'facil', statsMode = 'all', statsView = 'home';
+  const STAT_MODES = [['all', 'Todos los modos'], ['classic', 'Clásico'], ['killer', 'Killer'], ['diagonal', 'Diagonal'],
+    ['antiknight', 'Anti-Caballo'], ['surv', 'Supervivencia (No-Hit)'], ['daily', 'Desafíos diarios']];
+  let statsRot = 'classic';
   const statCard = (label, value, sub, wide) =>
     '<div class="stat-card' + (wide ? ' wide' : '') + '"><span class="sl">' + label + '</span><b class="sv">' + value + '</b>' +
     (sub ? '<span class="ss">' + sub + '</span>' : '') + '</div>';
+  const winsOf = mode => DIFF_ORDER.reduce((n, d) => n + ((stats.g[mode + '.' + d] || {}).w | 0), 0);
+
+  function renderStatsHome() {
+    const box = $('#statsHome'); if (!box) return;
+    box.innerHTML = STAT_MODES.map(p => {
+      const k = p[0], w = (k === 'surv' || k === 'daily') ? 0 : winsOf(k), dn = Object.keys(stats.daily).length;
+      let right, sub;
+      if (k === 'surv') {
+        const best = Object.keys(stats.surv).reduce((n, r) => Math.max(n, stats.surv[r].n | 0), 0);
+        right = 'Racha máx. ' + best; sub = 'Una racha por rotación';
+      } else if (k === 'daily') {
+        right = dn + (dn === 1 ? ' completado' : ' completados'); sub = 'Estrellas, rachas y copas';
+      } else { right = w + (w === 1 ? ' victoria' : ' victorias'); sub = 'De Fácil a Extremo'; }
+      return '<button type="button" class="vcard" data-stat="' + k + '"><span class="vc-main"><b class="vc-t">' + p[1] + '</b>' +
+        '<small class="vc-s">' + sub + '</small></span>' +
+        '<span class="vc-r">' + right + '</span></button>';
+    }).join('');
+  }
 
   function renderStats() {
     const g = Object.assign(blankG(), stats.g[statsMode + '.' + statsDiff] || {});
@@ -1346,10 +1446,6 @@
     document.querySelectorAll('#statsTabs [data-sdiff]').forEach(b => {
       const on_ = b.dataset.sdiff === statsDiff;
       b.classList.toggle('on', on_); b.setAttribute('aria-selected', on_ ? 'true' : 'false');
-    });
-    document.querySelectorAll('#statsFilter [data-smode]').forEach(b => {
-      const on_ = b.dataset.smode === statsMode;
-      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
     });
     const body = $('#statsBody'); if (!body) return;
     const avg = g.tn ? Math.round(g.tt / g.tn) : 0;
@@ -1365,27 +1461,54 @@
       statCard('Racha actual', g.cs, g.cs === 1 ? 'victoria seguida' : 'victorias seguidas') +
       statCard('Mejor racha', g.ms, g.ms === 1 ? 'victoria' : 'victorias') +
       statCard('Victorias sin equivocarse', g.f, g.w ? Math.round(g.f * 100 / g.w) + '% de tus victorias' : '', true) +
+      '</div>' +
+      '<p class="stats-sum">Las victorias en Modo Zen suman a las ganadas, pero no a los tiempos.</p>';
+  }
+
+  function renderStatsSurv() {
+    document.querySelectorAll('#statsRots [data-srot]').forEach(b => {
+      const on_ = b.dataset.srot === statsRot;
+      b.classList.toggle('on', on_); b.setAttribute('aria-selected', on_ ? 'true' : 'false');
+    });
+    const body = $('#statsSurvBody'); if (!body) return;
+    const r = stats.surv[statsRot], sv = stats.sv[statsRot] || { a: 0, b: 0 };
+    body.innerHTML = '<div class="stat-grid">' +
+      statCard('Racha máxima', r ? r.n : 0, r ? (r.n === 1 ? 'tablero seguido' : 'tableros seguidos') : 'sin racha todavía') +
+      statCard('Tiempo de mejor racha', r ? fmt(r.t) : '—') +
+      statCard('Intentos totales', sv.a, sv.a === 1 ? 'racha iniciada' : 'rachas iniciadas') +
+      statCard('Tableros superados', Math.max(sv.b, r ? r.n : 0), 'en todas tus rachas') +
+      '</div><p class="stats-sum">Cada rotación guarda sus propios números. Un error y la racha termina.</p>';
+  }
+
+  function renderStatsDaily() {
+    const box = $('#statsDaily'); if (!box) return;
+    const s = dailySummary(), cups = s.cups[0] + s.cups[1] + s.cups[2];
+    box.innerHTML = '<div class="stat-grid">' +
+      statCard('Desafíos completados', s.n, s.n === 1 ? 'día resuelto' : 'días resueltos') +
+      statCard('Mejor tiempo', s.best ? fmt(s.best) : '—') +
+      statCard('Tiempo promedio', s.avg ? fmt(s.avg) : '—') +
+      statCard('Racha actual', s.cur, s.cur === 1 ? 'día seguido' : 'días seguidos') +
+      statCard('Mejor racha', s.max, s.max === 1 ? 'día' : 'días') +
+      statCard('Meses completados (Copas)', cups, s.cups[0] + ' oro · ' + s.cups[1] + ' plata · ' + s.cups[2] + ' bronce') +
+      statCard('Completados sin errores', s.flawless, s.n ? Math.round(s.flawless * 100 / s.n) + '% de tus desafíos (los días anteriores a las estrellas cuentan como oro)' : '', true) +
       '</div>';
   }
 
+  function setStatsView(v) {
+    statsView = v;
+    const vis = (id, on_) => { const e = $(id); if (e) e.hidden = !on_; };
+    vis('#statsHome', v === 'home'); vis('#statsDetail', v === 'mode'); vis('#statsSurv', v === 'surv'); vis('#statsDaily', v === 'daily');
+    vis('#statsTabs', v === 'mode');
+    setText('#statsBack', v === 'home' ? '← Inicio' : '← Estadísticas');
+    setText('#statsTitle', v === 'mode' ? (statsMode === 'all' ? 'Todos los modos' : MODE_NAMES[statsMode]) : (v === 'surv' ? 'Supervivencia (No-Hit)' : (v === 'daily' ? 'Desafíos diarios' : 'Estadísticas')));
+    const sv = $('#stats-view'); if (sv) sv.scrollTop = 0;
+    if (v === 'home') renderStatsHome(); else if (v === 'mode') renderStats(); else if (v === 'surv') renderStatsSurv(); else renderStatsDaily();
+  }
+
   function showStats() {
-    const ex = $('#statsExtra');
-    if (ex) {
-      let srows = '', total = 0;
-      Object.keys(SURV_MODES).forEach(k => {
-        const r = stats.surv[k];
-        srows += '<tr><th scope="row">' + SURV_MODES[k].label + '</th><td>' + (r ? r.n : '—') + '</td><td>' + (r ? fmt(r.t) : '—') + '</td></tr>';
-      });
-      MODES.forEach(m => { total += stats.won[m] | 0; });
-      ex.innerHTML =
-        '<table class="stats-tbl surv-tbl"><thead><tr><th>🔥 Supervivencia</th><th>Racha</th><th>Tiempo</th></tr></thead>' +
-        '<tbody>' + srows + '</tbody></table>' +
-        '<p class="stats-sum">Partidas ganadas: <b>' + total + '</b> · Desafíos diarios: <b>' + Object.keys(stats.daily).length + '</b></p>' +
-        '<p class="stats-sum">Las victorias en Modo Zen suman a las ganadas, pero no a los tiempos.</p>';
-    }
-    if (G && NAMES[G.diff] && !G.surv) statsDiff = G.diff;   // abre en la dificultad que se está jugando
-    renderStats();
-    const m = $('#mStats'); if (m) m.hidden = false;
+    if (G && NAMES[G.diff] && !G.surv) statsDiff = G.diff;   // la vista de modo abre en la dificultad que se está jugando
+    setStatsView('home');
+    showView('stats');
   }
 
   /* ---------- Duelos: invitación por enlace, desafiar y revancha ---------- */
@@ -2143,7 +2266,14 @@
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff, selMode, { zen: !!set.zen })));
     on('optZen', 'change', e => { set.zen = e.target.checked; saveSet(); });
     document.querySelectorAll('#statsTabs [data-sdiff]').forEach(b => b.addEventListener('click', () => { statsDiff = b.dataset.sdiff; renderStats(); }));
-    document.querySelectorAll('#statsFilter [data-smode]').forEach(b => b.addEventListener('click', () => { statsMode = b.dataset.smode; renderStats(); }));
+    on('statsHome', 'click', e => {
+      const b = e.target.closest('[data-stat]'); if (!b) return;
+      sfx('tap');
+      if (b.dataset.stat === 'surv' || b.dataset.stat === 'daily') setStatsView(b.dataset.stat); else { statsMode = b.dataset.stat; setStatsView('mode'); }
+    });
+    document.querySelectorAll('#statsRots [data-srot]').forEach(b => b.addEventListener('click', () => { statsRot = b.dataset.srot; renderStatsSurv(); }));
+    on('statsBack', 'click', () => { sfx('tap'); if (statsView === 'home') showView('home'); else setStatsView('home'); });
+    on('dailyBack', 'click', () => { sfx('tap'); showView('home'); });
 
     // Supervivencia (No-Hit) y derrota por vidas
     on('btnSurv', 'click', openSurv);
@@ -2221,6 +2351,10 @@
     on('optPractice', 'change', e => { set.practice = e.target.checked; saveSet(); render(); });
 
     document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !modalOpen()) {
+        if (view === 'daily') { showView('home'); return; }
+        if (view === 'stats') { if (statsView === 'home') showView('home'); else setStatsView('home'); return; }
+      }
       if (e.key === 'Escape' && modalOpen()) {
         const al = $('#mAlias');
         if (al && !al.hidden) hideAlias(); else closeModals();

@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v2">
-<link rel="stylesheet" href="tutorial.css?v=ui-v2">
+<link rel="stylesheet" href="style.css?v=ui-v6">
+<link rel="stylesheet" href="tutorial.css?v=ui-v6">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
 </head>
@@ -131,6 +131,70 @@
   </div>
 </div>
 
+<!-- ===================== ESTADÍSTICAS (página completa) ===================== -->
+<main class="app home" id="stats-view" hidden>
+  <div class="home-inner top">
+    <div class="home-screen">
+      <div class="sub-top"><button id="statsBack" class="chip back" type="button">← Inicio</button></div>
+      <h2 class="sub-title" id="statsTitle">Estadísticas</h2>
+      <div id="statsHome" class="vlist"></div>
+      <div id="statsDetail" hidden>
+        <div class="stat-diffs" id="statsTabs" role="tablist" aria-label="Dificultad">
+          <button type="button" role="tab" data-sdiff="facil">Fácil</button>
+          <button type="button" role="tab" data-sdiff="medio">Medio</button>
+          <button type="button" role="tab" data-sdiff="dificil">Difícil</button>
+          <button type="button" role="tab" data-sdiff="experto">Experto</button>
+          <button type="button" role="tab" data-sdiff="maestro">Maestro</button>
+          <button type="button" role="tab" data-sdiff="extremo">Extremo</button>
+        </div>
+        <div id="statsBody"></div>
+      </div>
+      <div id="statsSurv" hidden>
+        <div class="stat-diffs two" id="statsRots" role="tablist" aria-label="Rotación">
+          <button type="button" role="tab" data-srot="classic">Clásico</button>
+          <button type="button" role="tab" data-srot="diagonal">Diagonal</button>
+          <button type="button" role="tab" data-srot="antiknight">Anti-Caballo</button>
+          <button type="button" role="tab" data-srot="killer">Killer</button>
+          <button type="button" role="tab" data-srot="mixed">Mixto</button>
+          <button type="button" role="tab" data-srot="mixedk">Mixto + Killer</button>
+        </div>
+        <div id="statsSurvBody"></div>
+      </div>
+      <div id="statsDaily" hidden></div>
+    </div>
+  </div>
+</main>
+
+<!-- ===================== DESAFÍO DIARIO (página completa) ===================== -->
+<main class="app home" id="daily-view" hidden>
+  <div class="home-inner top">
+    <div class="home-screen">
+      <div class="sub-top"><button id="dailyBack" class="chip back" type="button">← Inicio</button></div>
+      <h2 class="sub-title">Desafío Diario</h2>
+      <div class="cal-nav">
+        <button type="button" id="dailyPrev" class="chip" aria-label="Mes anterior">&lt;</button>
+        <b id="dailyMonth" class="cal-month" aria-live="polite"></b>
+        <button type="button" id="dailyNext" class="chip" aria-label="Mes siguiente">&gt;</button>
+      </div>
+      <p class="sub cal-count" id="dailyCount"></p>
+      <p class="sub cal-cup" id="dailyCup"></p>
+      <div class="cal-dow" aria-hidden="true">
+        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+      </div>
+      <div id="dailyGrid" class="cal-grid" role="grid" aria-label="Días del mes"></div>
+      <div class="cal-legend" aria-label="Leyenda">
+        <span><svg class="lg-star t-gold" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>0 errores</span>
+        <span><svg class="lg-star t-silver" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>1–2 errores</span>
+        <span><svg class="lg-star t-bronze" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2.2 14.9,8.7 22,9.4 16.7,14.1 18.2,21 12,17.4 5.8,21 7.3,14.1 2,9.4 9.1,8.7"/></svg>3+ errores</span>
+        <span><b class="lg-today"></b>Hoy</span>
+        <span><b class="lg-avail"></b>Disponible</span>
+        <span><b class="lg-lock"></b>Bloqueado</span>
+      </div>
+      <p class="sub warn cal-warn" id="dailyWarn" hidden>Se perderá la partida en curso.</p>
+    </div>
+  </div>
+</main>
+
 <!-- ===================== PANTALLA DE JUEGO ===================== -->
 <main class="app game" id="game-view" hidden>
   <header class="top">
@@ -240,54 +304,6 @@
       <input type="checkbox" id="optPractice" class="switch">
     </label>
     <button class="chip wide" data-close>Listo</button>
-  </div>
-</div>
-
-<div class="modal" id="mStats" hidden>
-  <div class="sheet">
-    <h2>Estadísticas</h2>
-    <div class="stat-tabs" id="statsTabs" role="tablist" aria-label="Dificultad">
-      <button type="button" role="tab" data-sdiff="facil">Fácil</button>
-      <button type="button" role="tab" data-sdiff="medio">Medio</button>
-      <button type="button" role="tab" data-sdiff="dificil">Difícil</button>
-      <button type="button" role="tab" data-sdiff="experto">Experto</button>
-      <button type="button" role="tab" data-sdiff="maestro">Maestro</button>
-      <button type="button" role="tab" data-sdiff="extremo">Extremo</button>
-    </div>
-    <div class="stat-filter" id="statsFilter" role="radiogroup" aria-label="Modo">
-      <button type="button" role="radio" data-smode="all">Todos</button>
-      <button type="button" role="radio" data-smode="classic">Clásico</button>
-      <button type="button" role="radio" data-smode="killer">Killer</button>
-      <button type="button" role="radio" data-smode="diagonal">Diagonal</button>
-      <button type="button" role="radio" data-smode="antiknight">Anti-Caballo</button>
-    </div>
-    <div id="statsBody"></div>
-    <div id="statsExtra"></div>
-    <button class="chip wide" data-close>Cerrar</button>
-  </div>
-</div>
-
-<div class="modal" id="mDaily" hidden>
-  <div class="sheet">
-    <h2>Desafíos Diarios</h2>
-    <div class="cal-nav">
-      <button type="button" id="dailyPrev" class="chip" aria-label="Mes anterior">&lt;</button>
-      <b id="dailyMonth" class="cal-month" aria-live="polite"></b>
-      <button type="button" id="dailyNext" class="chip" aria-label="Mes siguiente">&gt;</button>
-    </div>
-    <p class="sub" id="dailyCount"></p>
-    <p class="sub warn" id="dailyWarn" hidden>Se perderá la partida en curso.</p>
-    <div class="cal-dow" aria-hidden="true">
-      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
-    </div>
-    <div id="dailyGrid" class="cal-grid" role="grid" aria-label="Días del mes"></div>
-    <div class="cal-legend" aria-label="Leyenda">
-      <span><b class="lg-done"></b>Completado</span>
-      <span><b class="lg-today"></b>Hoy</span>
-      <span><b class="lg-avail"></b>Disponible</span>
-      <span><b class="lg-lock"></b>Bloqueado</span>
-    </div>
-    <button class="chip wide" data-close>Cerrar</button>
   </div>
 </div>
 
@@ -453,18 +469,18 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v2"></script>
-<script src="engine.js?v=ui-v2"></script>
-<script src="killer-engine.js?v=ui-v2"></script>
-<script src="duel.js?v=ui-v2"></script>
+<script src="sound.js?v=ui-v6"></script>
+<script src="engine.js?v=ui-v6"></script>
+<script src="killer-engine.js?v=ui-v6"></script>
+<script src="duel.js?v=ui-v6"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v2"></script>
+<script src="coop.js?v=ui-v6"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
 <script src="tutorial.js?v=ui-v1"></script>
-<script src="app.js?v=ui-v2"></script>
+<script src="app.js?v=ui-v6"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>
