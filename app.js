@@ -20,7 +20,7 @@
 
   /* ---------- Vidas y pistas ---------- */
   // Vidas en solitario según la dificultad (0 = infinitas). Duelos y Co-op: 3 fijas. Supervivencia: 0 de margen (1 error = fin).
-  const LIVES_BY_DIFF = { facil: 0, medio: 3, dificil: 2, experto: 1, maestro: 1, extremo: 1 };
+  const LIVES_BY_DIFF = { facil: 0, medio: 5, dificil: 4, experto: 3, maestro: 2, extremo: 2 };
   const FRIEND_LIVES = 3;
   const HINTS_SOLO = 3, HINTS_DUEL = 2, HINTS_COOP = 3;
   const HEART_ON = '\u2764\uFE0F', HEART_OFF = '\uD83D\uDDA4';
@@ -71,10 +71,9 @@
 
   /* ---------- Estado ---------- */
   const THEMES = { paper: '#F7F4EB', night: '#0E0F12', swiss: '#FFFFFF', retro: '#CCD4A0' }; // tema → color de la barra del navegador
-  let set = Object.assign({ theme: 'paper', showErrors: true, mode: 'classic', practice: false }, load(K_SET, {}));
+  let set = Object.assign({ theme: 'paper', showErrors: true, mode: 'classic' }, load(K_SET, {}));
   if (!THEMES[set.theme]) set.theme = 'paper';
   set.mode = validMode(set.mode);
-  set.practice = !!set.practice;
   set.zen = !!set.zen;
   let stats = Object.assign({ won: {}, best: {}, daily: {}, surv: {} }, load(K_STATS, {}));
   ['won', 'best', 'daily', 'surv', 'g', 'dd', 'sv'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
@@ -183,9 +182,9 @@
   const isOver = () => !!(G && (G.won || G.lost));
 
   /* ---------- Vidas ---------- */
-  // Vidas infinitas: Fácil (maxLives 0) o "Modo práctica" activado. El modo práctica solo afecta a las partidas solitarias
-  // normales y diarias: duelos, Co-op y Supervivencia siguen con sus vidas.
-  const lifeInf = () => !G.maxLives || (set.practice && !G.duel && !G.coop && !G.surv);
+  // Vidas infinitas: Fácil (maxLives 0).
+  // Duelos, Co-op y Supervivencia siempre llevan sus vidas.
+  const lifeInf = () => !G.maxLives;
 
   // Reglas iniciales de vidas y pistas según el tipo de partida.
   function rulesFor(diff, o) {
@@ -2239,7 +2238,6 @@
     const os = $('#optSound'); if (os) os.checked = !!(window.Sound && window.Sound.enabled());
     const oz = $('#optZen'); if (oz) oz.checked = !!set.zen;
     const oe = $('#optErr'); if (oe) oe.checked = set.showErrors;
-    const op = $('#optPractice'); if (op) op.checked = set.practice;
   }
 
   /* ---------- Eventos ---------- */
@@ -2355,7 +2353,6 @@
     }));
     on('optSound', 'change', e => { if (window.Sound) window.Sound.setEnabled(e.target.checked); });
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
-    on('optPractice', 'change', e => { set.practice = e.target.checked; saveSet(); render(); });
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && !modalOpen()) {

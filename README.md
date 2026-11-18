@@ -25,16 +25,15 @@
 | Nivel | Vidas | Qué exige (modos estándar) |
 |---|---|---|
 | **Fácil** | ∞ | Solo *Naked Singles*. |
-| **Medio** | 3 | Suma *Hidden Singles*. |
-| **Difícil** | 2 | Pares desnudos y Pointing / Box-Line. |
-| **Experto** | 1 | Muchos descartes avanzados. |
-| **Maestro** | 1 | Además exige al menos un **X-Wing**. |
-| **Extremo** | 1 | Las técnicas del motor no alcanzan; tableros con muy pocas pistas. |
+| **Medio** | 5 | Suma *Hidden Singles*. |
+| **Difícil** | 4 | Pares desnudos y Pointing / Box-Line. |
+| **Experto** | 3 | Muchos descartes avanzados. |
+| **Maestro** | 2 | Además exige al menos un **X-Wing**. |
+| **Extremo** | 2 | Las técnicas del motor no alcanzan; tableros con muy pocas pistas. |
 
 En **Killer** la dificultad la dan el número de pistas iniciales y el tamaño de las jaulas (más largas = más difíciles, sin pistas desde Difícil).
 
 - **Pistas limitadas** (3 por partida) con explicación del razonamiento.
-- **Modo práctica:** vidas ilimitadas.
 - **Modo Zen:** interruptor en la hoja de dificultad. Sin cronómetro, sin vidas y con pistas de sobra, para jugar sin presión. Las victorias en Zen suman a las ganadas y a la racha, pero **no** a los tiempos ni a los récords.
 
 ### Supervivencia (No-Hit)

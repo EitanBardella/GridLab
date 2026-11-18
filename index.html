@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v8">
-<link rel="stylesheet" href="tutorial.css?v=ui-v8">
+<link rel="stylesheet" href="style.css?v=ui-v9">
+<link rel="stylesheet" href="tutorial.css?v=ui-v9">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
 </head>
@@ -74,9 +74,9 @@
       </div>
 
       <p class="sec-label">Más formas de jugar</p>
-      <div class="m-list">
-        <button id="btnSurv" class="m-row" type="button"><span class="m-t">Supervivencia (No-Hit)</span><small>Un error y se acaba la racha</small></button>
-        <button id="btnFriends" class="m-row" type="button"><span class="m-t">Jugar con amigos</span><small>Duelo o Co-op</small></button>
+      <div class="mode-list one">
+        <button id="btnSurv" type="button"><b>Supervivencia (No-Hit)</b><small>Un error y se acaba la racha</small></button>
+        <button id="btnFriends" type="button"><b>Jugar con amigos</b><small>Duelo o Co-op</small></button>
       </div>
     </div>
   </div>
@@ -100,15 +100,15 @@
       <button data-diff="facil">Fácil
         <small class="s-std">Solo Naked Singles • ∞ vidas</small><small class="s-killer">12–15 pistas • ∞ vidas</small></button>
       <button data-diff="medio">Medio
-        <small class="s-std">Con Hidden Singles • 3 vidas</small><small class="s-killer">4–6 pistas • 3 vidas</small></button>
+        <small class="s-std">Con Hidden Singles • 5 vidas</small><small class="s-killer">4–6 pistas • 5 vidas</small></button>
       <button data-diff="dificil">Difícil
-        <small class="s-std">Pares y Pointing • 2 vidas</small><small class="s-killer">Sin pistas, jaulas medias • 2 vidas</small></button>
+        <small class="s-std">Pares y Pointing • 4 vidas</small><small class="s-killer">Sin pistas, jaulas medias • 4 vidas</small></button>
       <button data-diff="experto">Experto
-        <small class="s-std">Técnicas avanzadas • 1 vida</small><small class="s-killer">Sin pistas, jaulas largas • 1 vida</small></button>
+        <small class="s-std">Técnicas avanzadas • 3 vidas</small><small class="s-killer">Sin pistas, jaulas largas • 3 vidas</small></button>
       <button data-diff="maestro">Maestro
-        <small class="s-std">Pares, Pointing y X-Wing • 1 vida</small><small class="s-killer">Sin pistas, jaulas muy largas • 1 vida</small></button>
+        <small class="s-std">Pares, Pointing y X-Wing • 2 vidas</small><small class="s-killer">Sin pistas, jaulas muy largas • 2 vidas</small></button>
       <button data-diff="extremo">Extremo
-        <small class="s-std">Mínimo de pistas, lógica al límite • 1 vida</small><small class="s-killer">Sin pistas, casi sin jaulas cortas • 1 vida</small></button>
+        <small class="s-std">Mínimo de pistas, lógica al límite • 2 vidas</small><small class="s-killer">Sin pistas, casi sin jaulas cortas • 2 vidas</small></button>
     </div>
     <button class="chip wide" data-close>Volver</button>
   </div>
@@ -303,9 +303,6 @@
     <label class="row"><span>Marcar errores al instante</span>
       <input type="checkbox" id="optErr" class="switch">
     </label>
-    <label class="row"><span>Modo práctica (vidas ilimitadas)</span>
-      <input type="checkbox" id="optPractice" class="switch">
-    </label>
     <button class="chip wide" data-close>Listo</button>
   </div>
 </div>
@@ -472,18 +469,18 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v8"></script>
-<script src="engine.js?v=ui-v8"></script>
-<script src="killer-engine.js?v=ui-v8"></script>
-<script src="duel.js?v=ui-v8"></script>
+<script src="sound.js?v=ui-v9"></script>
+<script src="engine.js?v=ui-v9"></script>
+<script src="killer-engine.js?v=ui-v9"></script>
+<script src="duel.js?v=ui-v9"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v8"></script>
+<script src="coop.js?v=ui-v9"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
 <script src="tutorial.js?v=ui-v1"></script>
-<script src="app.js?v=ui-v8"></script>
+<script src="app.js?v=ui-v9"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>
