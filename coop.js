@@ -37,7 +37,7 @@
  *     hint    {}                                    se usó una pista (el Host suma y difunde)
  *     again   {}                                    pide "Jugar otro juntos" (si ganaron) o reintentar (si perdieron)
  *   Host -> Invitado
- *     state   { alias, mode, diff, req, seed, puzzle, solution, cages?, board, notes, owners,
+ *     state   { alias, mode, diff, req, seed, puzzle, solution, cages?, regions?, board, notes, owners,
  *               secs, hints, lives, won, fresh }    estado completo (alta, reconexión, tablero nuevo)
  *     cells   { seq, by, ack, rej, changes:[{i,v,n,o}], hints?, secs?, lives? }
  *     clock   { secs, hints }                       corrección de reloj (cada pocos segundos)
@@ -70,7 +70,7 @@
   var CODE_LEN = 4;
   var CODE_RX = /^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{4}$/;
   var ID_PREFIX = 'sudoku-';
-  var MODES = ['classic', 'killer', 'diagonal', 'antiknight'];
+  var MODES = ['classic', 'killer', 'diagonal', 'antiknight', 'nonconsecutive', 'jigsaw'];
   var DIFFS = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo'];
   var OWNER = { GIVEN: 0, HOST: 1, GUEST: 2 };
   var ICE_SERVERS = [
@@ -299,6 +299,18 @@
   }
 
   // Las jaulas deben cubrir las 81 celdas exactamente una vez.
+  // Mapa de regiones del modo Jigsaw: 81 enteros 0..8, nueve de cada uno (la contigüidad la verifica la app).
+  function validRegions(rg) {
+    if (!Array.isArray(rg) || rg.length !== 81) { return null; }
+    var counts = [0, 0, 0, 0, 0, 0, 0, 0, 0], i;
+    for (i = 0; i < 81; i++) {
+      if (!isInt(rg[i], 0, 8)) { return null; }
+      counts[rg[i]]++;
+    }
+    for (i = 0; i < 9; i++) { if (counts[i] !== 9) { return null; } }
+    return rg.slice();
+  }
+
   function validCages(cs) {
     if (!Array.isArray(cs) || !cs.length || cs.length > 81) { return null; }
     var seen = new Array(81).fill(false), out = [], total = 0, g, q;
@@ -345,6 +357,11 @@
       cages = validCages(m.cages);
       if (!cages) { return null; }
     }
+    var regions = null;
+    if (mode === 'jigsaw') {
+      regions = validRegions(m.regions);
+      if (!regions) { return null; }
+    }
     var st = {
       mode: mode, diff: diff, req: req,
       seed: isInt(m.seed, 0, 4294967295) ? m.seed : 0,
@@ -355,6 +372,7 @@
       won: !!m.won
     };
     if (cages) { st.cages = cages; }
+    if (regions) { st.regions = regions; }
     return st;
   }
 
@@ -459,6 +477,7 @@
       won: !!src.won
     };
     if (src.mode === 'killer' && src.cages) { s.cages = JSON.parse(JSON.stringify(src.cages)); }
+    if (src.mode === 'jigsaw' && src.regions) { s.regions = Array.prototype.slice.call(src.regions); }
     return s;
   }
 

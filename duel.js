@@ -15,7 +15,7 @@
  * Formato binario del payload (big-endian), versión 2 (la que se escribe):
  *   offset  bytes  campo
  *   0       1      v        2
- *   1       1      m        modo: 0 clásico, 1 killer, 2 diagonal, 3 anti-caballo
+ *   1       1      m        modo: 0 clásico, 1 killer, 2 diagonal, 3 anti-caballo, 4 sin consecutivos, 5 jigsaw
  *   2       1      d        dificultad: 1 fácil, 2 medio, 3 difícil, 4 experto
  *   3       1      flags    bit0 = tablero empaquetado (41 bytes, nunca en Killer), bit1 = hay resultado
  *   4       4      s        semilla Uint32
@@ -26,7 +26,7 @@
  * Formato binario del payload (big-endian), versión 1 (solo lectura, enlaces viejos):
  *   offset  bytes  campo
  *   0       1      v        versión del protocolo (1)
- *   1       1      m        modo: 0 clásico, 1 killer, 2 diagonal, 3 anti-caballo
+ *   1       1      m        modo: 0 clásico, 1 killer, 2 diagonal, 3 anti-caballo, 4 sin consecutivos, 5 jigsaw
  *   2       1      d        dificultad: 1 fácil, 2 medio, 3 difícil, 4 experto
  *   3       4      s        semilla Uint32 (compatible con Mulberry32 de los motores)
  *   7       2      t        tiempo final del retador en segundos (con penalizaciones)
@@ -63,9 +63,9 @@
   var HEADER_V2 = 8;              // v m d flags seed(4)
   var FLAG_BOARD = 1;             // el tablero inicial viaja empaquetado
   var FLAG_RESULT = 2;            // hay sección de resultado (tiempo, alias, fantasma); si no, invitación abierta
-  var MODES = ['classic', 'killer', 'diagonal', 'antiknight'];            // código = índice
+  var MODES = ['classic', 'killer', 'diagonal', 'antiknight', 'nonconsecutive', 'jigsaw'];            // código = índice
   var DIFFS = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo']; // código = índice + 1 (los códigos 5 y 6 son nuevos)
-  var MODE_LABELS = { classic: 'Clásico', killer: 'Killer', diagonal: 'Diagonal', antiknight: 'Anti-Caballo' };
+  var MODE_LABELS = { classic: 'Clásico', killer: 'Killer', diagonal: 'Diagonal', antiknight: 'Anti-Caballo', nonconsecutive: 'Sin Consecutivos', jigsaw: 'Jigsaw' };
   var DIFF_LABELS = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto', maestro: 'Maestro', extremo: 'Extremo' };
 
   var HINT_PENALTY = 30;          // segundos que suma cada pista en un duelo
@@ -327,7 +327,7 @@
     seed = Math.floor(seed) >>> 0;
 
     var open = !!data.open;
-    var boardBytes = (data.board && m !== 1) ? packBoard(data.board) : null;
+    var boardBytes = (data.board && m !== 1 && m !== 5) ? packBoard(data.board) : null;
     var flags = (boardBytes ? FLAG_BOARD : 0) | (open ? 0 : FLAG_RESULT);
 
     var nameBytes = null, pairs = [], time = 0, errors = 0, hints = 0;
@@ -416,7 +416,7 @@
     if (d < 1 || d > DIFFS.length) { return fail('difficulty'); }
     if (flags & ~(FLAG_BOARD | FLAG_RESULT)) { return fail('flags'); }
     var hasBoard = (flags & FLAG_BOARD) !== 0, hasResult = (flags & FLAG_RESULT) !== 0;
-    if (hasBoard && m === 1) { return fail('board'); }            // Killer nunca empaqueta el tablero
+    if (hasBoard && (m === 1 || m === 5)) { return fail('board'); } // Killer y Jigsaw nunca empaquetan el tablero (van por semilla)
     var p = HEADER_V2, board = null;
     if (hasBoard) {
       if (bytes.length < p + BOARD_BYTES) { return fail('truncated'); }

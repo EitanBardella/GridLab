@@ -276,3 +276,12 @@
 .tut-lesson small, .tut-hcard .hprog, .tut-summary, .tut-sheet .tut-blurb, .tut-empty-note { font-size:.85rem; font-weight:500; line-height:1.35; }
 .tut-tab small { font-size:.7rem; font-weight:600; }
 [data-theme="retro"] :is(.tut-lesson small, .tut-hcard .hdesc, .tut-hcard .hprog, .tut-summary, .tut-hub-intro, .tut-blurb, .tut-lhead p, .tut-q > div) { color:#1e2912; font-weight:600; }
+
+/* ---------- Cabecera y botones de las guías (sin cortes ni superposiciones) ---------- */
+.tut-app .tut-top .tut-title { font-size:clamp(0.95rem, 3.8vw, 1.2rem); line-height:1.15; letter-spacing:.04em;
+  white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:break-word; }
+.tut-app .tut-top .tut-spacer { flex:0 0 8px; min-width:0; }
+.tut-app .tut-top .chip { flex:none; white-space:nowrap; }
+/* Los botones de abajo van siempre dentro del flujo: nunca fijos ni pegados encima del texto o del tablero */
+.tut-app .tut-cta { position:static; bottom:auto; margin-top:14px; padding:0; background:none; }
+.tut-app .tut-ctrl { position:static; }

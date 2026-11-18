@@ -1,14 +1,14 @@
 (function () {
   'use strict';
-  const E = window.SudokuEngine;   // clásico, diagonal, anti-caballo
+  const E = window.SudokuEngine;   // clásico, diagonal, anti-caballo, sin consecutivos, irregular
   const K = window.KillerEngine;   // killer
   const D = window.SudokuDuel || null; // duelos y fantasma (duel.js)
   const C = window.SudokuCoop || null; // modo cooperativo (coop.js + peerjs.min.js)
   const $ = s => document.querySelector(s);
   const NAMES = { facil: 'Fácil', medio: 'Medio', dificil: 'Difícil', experto: 'Experto', maestro: 'Maestro', extremo: 'Extremo' };
   const DIFF_ORDER = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo'];
-  const MODES = ['classic', 'killer', 'diagonal', 'antiknight'];
-  const MODE_NAMES = { classic: 'Clásico', killer: 'Killer', diagonal: 'Diagonal', antiknight: 'Anti-Caballo' };
+  const MODES = ['classic', 'killer', 'diagonal', 'antiknight', 'nonconsecutive', 'jigsaw'];
+  const MODE_NAMES = { classic: 'Clásico', killer: 'Killer', diagonal: 'Diagonal', antiknight: 'Anti-Caballo', nonconsecutive: 'Sin Consecutivos', jigsaw: 'Jigsaw' };
   const KN = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
   const RING = 'inset 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent)';
   const K_GAME = 'sudoku.game.v1', K_SET = 'sudoku.settings.v1', K_STATS = 'sudoku.stats.v1';
@@ -75,6 +75,7 @@
   if (!THEMES[set.theme]) set.theme = 'paper';
   set.mode = validMode(set.mode);
   set.zen = !!set.zen;
+  set.haptic = set.haptic !== false;
   let stats = Object.assign({ won: {}, best: {}, daily: {}, surv: {} }, load(K_STATS, {}));
   ['won', 'best', 'daily', 'surv', 'g', 'dd', 'sv'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
   // stats.dd[fecha] = { e: errores con los que se completó ese desafío diario } (los días anteriores a este campo no lo tienen:
@@ -131,9 +132,15 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v8';
+  const BUILD = 'ui-v18';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
-  const sfx = name => { try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
+  const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
+  // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
+  const HAPTIC = { tap: 10, note: 10, correct: 10, error: [25, 40, 25], line: [15, 30, 15, 30, 45],
+                   win: [30, 50, 30, 50, 30, 50, 140], lose: [70, 40, 110] };
+  const haptic = name => {
+    try { if (set.haptic !== false && navigator.vibrate && HAPTIC[name]) navigator.vibrate(HAPTIC[name]); } catch (e) { /* ignorar */ }
+  };
   let pendingSfx = null;                    // sonido de la jugada en curso; afterChange decide el definitivo
   let unitsMemo = { g: null, n: 0 };        // filas/columnas/cajas completas y correctas (para el sonido de "completaste")
   // Enlaza un evento a un id; si el id no existe lo avisa en consola (antes el ?. lo ocultaba).
@@ -226,14 +233,20 @@
   const peerCache = {};
   // Celdas que "ven" a cada celda: fila, columna, bloque + diagonal (diagonal) o salto de caballo (antiknight).
   function basePeers(mode) {
-    const key = mode === 'killer' ? 'classic' : mode;
+    const jig = mode === 'jigsaw' && G && Array.isArray(G.regions);
+    const key = mode === 'killer' ? 'classic' : (jig ? 'jigsaw:' + G.regions.join('') : mode);
     if (peerCache[key]) return peerCache[key];
+    if (jig) Object.keys(peerCache).forEach(k => { if (k.indexOf('jigsaw:') === 0) delete peerCache[k]; });
     const out = [];
     for (let i = 0; i < 81; i++) {
       const r = Math.floor(i / 9), c = i % 9, s = new Set();
       for (let j = 0; j < 9; j++) { s.add(r * 9 + j); s.add(j * 9 + c); }
-      const br = r - (r % 3), bc = c - (c % 3);
-      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) s.add((br + a) * 9 + bc + b);
+      if (jig) {
+        for (let j = 0; j < 81; j++) if (G.regions[j] === G.regions[i]) s.add(j);
+      } else {
+        const br = r - (r % 3), bc = c - (c % 3);
+        for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) s.add((br + a) * 9 + bc + b);
+      }
       if (key === 'diagonal') {
         if (r === c) for (let j = 0; j < 9; j++) s.add(j * 9 + j);
         if (r + c === 8) for (let j = 0; j < 9; j++) s.add(j * 9 + 8 - j);
@@ -255,6 +268,16 @@
     return out;
   }
 
+  // Celdas que comparten lado con la celda i (arriba, abajo, izquierda, derecha).
+  function adjOf(i) {
+    const r = Math.floor(i / 9), c = i % 9, out = [];
+    if (r > 0) out.push(i - 9);
+    if (r < 8) out.push(i + 9);
+    if (c > 0) out.push(i - 1);
+    if (c < 8) out.push(i + 1);
+    return out;
+  }
+
   function diagonalsOf(i) {
     const r = Math.floor(i / 9), c = i % 9, out = [];
     if (r === c) for (let j = 0; j < 9; j++) out.push(j * 9 + j);
@@ -268,6 +291,16 @@
     if (G.mode !== 'killer' || cageOf[i] < 0) return p;
     const mates = G.cages[cageOf[i]].cells.map(q => q[0] * 9 + q[1]).filter(j => j !== i && p.indexOf(j) < 0);
     return p.concat(mates);
+  }
+
+  // Pares [celda, dígito] cuyas notas se borran al colocar v en la celda i: el dígito v en las celdas relacionadas y,
+  // en Sin Consecutivos, también v - 1 y v + 1 en las celdas ortogonalmente adyacentes.
+  function noteClears(i, v) {
+    const out = notePeers(i).map(j => [j, v]);
+    if (G.mode === 'nonconsecutive') {
+      adjOf(i).forEach(j => { if (v > 1) out.push([j, v - 1]); if (v < 9) out.push([j, v + 1]); });
+    }
+    return out;
   }
 
   // Prepara los índices derivados (no se guardan en G): jaulas de Killer y cantidad de pistas iniciales.
@@ -290,13 +323,15 @@
   }
 
   /* ---------- Motor según el modo ---------- */
+  // Variante que se le pasa al motor: en Jigsaw lleva el mapa de regiones de la partida.
+  const eVar = () => (G.mode === 'jigsaw' ? { name: 'jigsaw', regions: G.regions } : G.mode);
   const wrongCells = () => (G.mode === 'killer' ? K : E).findWrongCells(G.board, G.solution);
   const isSolvedNow = () => (G.mode === 'killer'
     ? K.isKillerSolved(G.board, G.cages, G.solution)
     : E.isSolved(G.board, G.solution, G.mode));
   const computeHint = () => (G.mode === 'killer'
     ? K.getKillerHint(G.board, G.solution, G.cages, G.notes)
-    : E.getSmartHint(G.board, G.solution, G.notes, G.mode));
+    : E.getSmartHint(G.board, G.solution, G.notes, eVar()));
 
   /* ---------- Construcción del DOM ---------- */
   function buildDom() {
@@ -332,8 +367,8 @@
   function place(r, c, v, t) {
     t(r, c);
     G.board[r][c] = v; G.notes[r][c] = [];
-    notePeers(r * 9 + c).forEach(j => { // borra la nota v en todas las celdas relacionadas
-      const rr = Math.floor(j / 9), cc = j % 9, k = G.notes[rr][cc].indexOf(v);
+    noteClears(r * 9 + c, v).forEach(p => { // borra la nota v (y v±1 junto a vecinos ortogonales en Sin Consecutivos)
+      const rr = Math.floor(p[0] / 9), cc = p[0] % 9, k = G.notes[rr][cc].indexOf(p[1]);
       if (k >= 0) { t(rr, cc); G.notes[rr][cc].splice(k, 1); }
     });
   }
@@ -342,12 +377,20 @@
   function unitsDone() {
     const ok = (r, c) => G.board[r][c] && G.board[r][c] === G.solution[r][c];
     let n = 0;
+    let regCells = null;
+    if (G.mode === 'jigsaw' && Array.isArray(G.regions)) {
+      regCells = Array.from({ length: 9 }, () => []);
+      G.regions.forEach((g, i) => regCells[g].push(i));
+    }
     for (let a = 0; a < 9; a++) {
       let row = true, col = true, box = true;
       for (let b = 0; b < 9; b++) {
         if (!ok(a, b)) row = false;
         if (!ok(b, a)) col = false;
-        if (!ok(Math.floor(a / 3) * 3 + Math.floor(b / 3), (a % 3) * 3 + (b % 3))) box = false;
+        if (regCells) {
+          const q = regCells[a][b];
+          if (!ok(Math.floor(q / 9), q % 9)) box = false;
+        } else if (!ok(Math.floor(a / 3) * 3 + Math.floor(b / 3), (a % 3) * 3 + (b % 3))) box = false;
       }
       n += (row ? 1 : 0) + (col ? 1 : 0) + (box ? 1 : 0);
     }
@@ -491,7 +534,43 @@
     G.won = false; afterChange(); // las vidas perdidas no se recuperan al deshacer
   }
 
+
+  /* ---------- Rewind seguro: volver al último estado sin celdas erróneas ---------- */
+  // Recorre el historial hacia atrás (sin tocar nada) hasta que el tablero no tenga ningún número distinto de la solución.
+  function rewindSteps() {
+    const b = G.board.map(r => r.slice());
+    const wrong = () => { for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (b[r][c] && b[r][c] !== G.solution[r][c]) return true; return false; };
+    if (!wrong()) return 0;
+    for (let i = G.hist.length - 1, n = 1; i >= 0; i--, n++) {
+      G.hist[i].forEach(([r, c, v]) => { b[r][c] = v; });
+      if (!wrong()) return n;
+    }
+    return G.hist.length;
+  }
+  function rewind() {
+    if (!G || isOver() || inCoop()) return;
+    if (!G.hist.length) { toast('No hay movimientos para retroceder'); return; }
+    const n = rewindSteps();
+    if (!n) { toast('Tu tablero no tiene errores ✓'); return; }
+    if (n > 1 && !window.confirm('Se retrocederán ' + n + ' movimientos hasta el último tablero sin errores. ¿Continuar?')) return;
+    for (let k = 0; k < n; k++) G.hist.pop().forEach(([r, c, v, nt]) => { G.board[r][c] = v; G.notes[r][c] = nt; });
+    pendingSfx = 'tap';
+    G.won = false; afterChange(); // las vidas perdidas no se recuperan
+    toast('Tablero restaurado sin errores (' + n + (n === 1 ? ' movimiento' : ' movimientos') + ')');
+  }
   /* ---------- Pistas ---------- */
+  // Nombre legible de la técnica de una pista (para la tarjeta explicativa).
+  const TECH_NAMES = {
+    nakedSingle: 'Naked Single', hiddenSingle: 'Hidden Single', nakedPair: 'Naked Pair', pointing: 'Pointing Pair/Triple',
+    boxLine: 'Box-Line', xwing: 'X-Wing', singleCell: 'Celda única de jaula', cageLastCell: 'Última celda de la jaula', rule45: 'Regla del 45'
+  };
+  function hintTitle(h) {
+    if (h.type === 'error') return 'Hay un error en el tablero';
+    if (h.type === 'solution') return 'Técnica avanzada';
+    const t = h.technique ? (TECH_NAMES[h.technique] || '') : '';
+    const via = (h.via || []).map(v => TECH_NAMES[v]).filter(Boolean);
+    return via.length ? via.join(' + ') + ' → ' + t : t || 'Pista';
+  }
   function hideHint() {
     hint = null;
     const h = $('#hint'); if (h) h.hidden = true;
@@ -533,17 +612,21 @@
     if (box) box.hidden = false;
     if (h === undefined) {
       hint = null; if (apply) apply.hidden = true;
-      setText('#hintText', 'No se pudo calcular una pista para este tablero.');
+      setText('#hintTech', ''); setText('#hintText', 'No se pudo calcular una pista para este tablero.');
       return;
     }
     if (!h) {
       hint = null; if (apply) apply.hidden = true;
-      setText('#hintText', 'El tablero está completo y correcto.');
+      setText('#hintTech', ''); setText('#hintText', 'El tablero está completo y correcto.');
       return;
     }
     hint = h; sel = h.row * 9 + h.col;
     if (apply) apply.hidden = false;
-    setText('#hintText', h.reason + (G.duel ? ' (+' + HINT_PENALTY + ' s)' : ''));
+    let msg = h.reason;
+    if (h.type === 'error') msg += ' Corregilo, o usá «Rewind» para volver al último estado sin errores.';
+    else if (h.type === 'solution') msg = 'Este paso necesita técnicas más avanzadas que las que detecta la pista. ' + msg;
+    setText('#hintTech', hintTitle(h));
+    setText('#hintText', msg + (G.duel ? ' (+' + HINT_PENALTY + ' s)' : ''));
     render();
   }
 
@@ -679,6 +762,7 @@
     let extra = null; // celdas con anillo suave: diagonal(es) de la selección o saltos de caballo
     if (hasSel && mode === 'antiknight') extra = new Set(knightOf(sel));
     else if (hasSel && mode === 'diagonal') extra = new Set(diagonalsOf(sel));
+    else if (hasSel && mode === 'nonconsecutive') extra = new Set(adjOf(sel));
     const rel = new Set(hint ? hint.related.map(p => p.row * 9 + p.col) : []);
     const count = new Array(10).fill(0);
     const nowMs = Date.now();
@@ -706,7 +790,13 @@
 
     for (let i = 0; i < 81; i++) {
       const r = Math.floor(i / 9), c = i % 9, v = G.board[r][c], el = cells[i];
-      let cl = 'cell' + (c % 3 === 2 && c < 8 ? ' br' : '') + (r % 3 === 2 && r < 8 ? ' bb' : '');
+      let cl;
+      if (mode === 'jigsaw' && G.regions) { // bordes gruesos solo donde la celda vecina es de otra región
+        const rg = G.regions;
+        cl = 'cell' + (c < 8 && rg[i] !== rg[i + 1] ? ' br' : '') + (r < 8 && rg[i] !== rg[i + 9] ? ' bb' : '');
+      } else {
+        cl = 'cell' + (c % 3 === 2 && c < 8 ? ' br' : '') + (r % 3 === 2 && r < 8 ? ' bb' : '');
+      }
       if (G.puzzle[r][c]) cl += ' given'; else if (v) cl += ' user';
       if (mode === 'diagonal' && (r === c || r + c === 8)) cl += ' diagonal-cell';
       if (hasSel) {
@@ -777,6 +867,8 @@
       const tag = $('#hintTag');
       if (tag) { tag.textContent = String(left); tag.classList.toggle('zero', left <= 0); }
     }
+    const brw = document.querySelector('[data-act="rewind"]');
+    if (brw) brw.disabled = coop || !G.hist.length || G.lost || G.won;
     const bu = document.querySelector('[data-act="undo"]');
     if (bu) {
       if (coop) bu.disabled = G.lost || (co.role === 'host' ? !co.hist.some(e => e.by === 1) : !co.session.isConnected());
@@ -791,7 +883,7 @@
   const hasProgress = () => !!G && !G.won && !G.lost;
 
   function showView(v) {
-    view = v;
+    view = v; schedulePre();
     // Una sola vista de página completa visible a la vez.
     [['home', 'home-view'], ['game', 'game-view'], ['stats', 'stats-view'], ['daily', 'daily-view']].forEach(p => {
       const el = $('#' + p[1]); if (el) { el.hidden = v !== p[0]; if (v === p[0] && p[0] !== 'game') el.scrollTop = 0; }
@@ -1018,14 +1110,84 @@
   }
 
   // Genera un tablero nuevo del modo pedido. `fixed` = topes fijos (Killer y estándar deterministas por semilla).
-  function genPuzzle(diff, mode, seed, fixed) {
+  // Primero intenta el Web Worker (hilo secundario); si no existe (file://, navegador antiguo) o falla, usa el hilo principal.
+  const GenWorker = (function () {
+    let w = null, dead = !window.Worker || window.location.protocol === 'file:', nid = 0;
+    const pend = new Map();
+    function failAll() { pend.forEach(p => p.reject(new Error('worker'))); pend.clear(); }
+    function get() {
+      if (dead) return null;
+      if (w) return w;
+      try {
+        w = new Worker('worker.js?v=' + BUILD);
+        w.onmessage = ev => {
+          const m = ev.data || {}, p = pend.get(m.id); if (!p) return;
+          pend.delete(m.id);
+          if (m.ok) p.resolve(m.result); else p.reject(new Error(m.error || 'gen'));
+        };
+        w.onerror = () => { dead = true; try { w.terminate(); } catch (e) { /* ignorar */ } w = null; failAll(); };
+      } catch (e) { dead = true; w = null; }
+      return w;
+    }
+    return {
+      available: () => !dead,
+      request(diff, mode, seed, fixed) {
+        const wk = get();
+        if (!wk) return Promise.reject(new Error('no-worker'));
+        return new Promise((resolve, reject) => {
+          const id = ++nid; pend.set(id, { resolve: resolve, reject: reject });
+          try { wk.postMessage({ id: id, diff: diff, mode: mode, seed: seed, fixed: !!fixed }); } catch (e) { pend.delete(id); reject(e); }
+        });
+      }
+    };
+  }());
+
+  function genPuzzleMain(diff, mode, seed, fixed) {
     if (mode === 'killer') return K.generateKillerPuzzleAsync(diff, Object.assign({ seed: seed }, GEN_K));
     return E.generatePuzzleAsync(diff, Object.assign({ variant: mode, seed: seed }, fixed ? GEN_E : {}));
+  }
+  function genPuzzle(diff, mode, seed, fixed) {
+    return GenWorker.request(diff, mode, seed, fixed).catch(() => genPuzzleMain(diff, mode, seed, fixed));
+  }
+
+  /* ---------- Pre-generación en segundo plano ---------- */
+  // Tableros listos en memoria (clave modo:dificultad) para que empezar una partida normal sea instantáneo.
+  // Solo se usan en partidas con semilla aleatoria; Desafíos, duelos y enlaces generan o reconstruyen como siempre.
+  const pre = new Map(), PRE_MAX = 4;
+  const lastDiff = {};          // última dificultad jugada por modo
+  let preBusy = false, preTimer = 0;
+  const preKey = (mode, diff) => mode + ':' + diff;
+  function preWanted() {
+    const out = [], add = (m, d) => { if (!out.some(x => x[0] === m && x[1] === d)) out.push([m, d]); };
+    const m0 = validMode(set.mode);
+    add(m0, lastDiff[m0] || 'medio'); add(m0, 'facil'); add(m0, 'medio');
+    MODES.forEach(m => add(m, lastDiff[m] || 'medio'));
+    return out;
+  }
+  function takePre(diff, mode) {
+    const k = preKey(mode, diff), e = pre.get(k);
+    if (e) { pre.delete(k); schedulePre(); }
+    return e || null;
+  }
+  function schedulePre() {
+    if (preTimer || !GenWorker.available()) return;
+    const run = () => { preTimer = 0; fillPre(); };
+    preTimer = setTimeout(() => { if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 4000 }); else run(); }, 1200);
+  }
+  function fillPre() {
+    if (preBusy || busy || view === 'game' || document.hidden || pre.size >= PRE_MAX) return;
+    const want = preWanted().find(x => !pre.has(preKey(x[0], x[1])));
+    if (!want) return;
+    const mode = want[0], diff = want[1], seed = toSeed(), fixed = mode === 'killer' || mode === 'jigsaw';
+    preBusy = true;
+    GenWorker.request(diff, mode, seed, fixed).then(g => {
+      if (g && pre.size < PRE_MAX) pre.set(preKey(mode, diff), { seed: seed, g: g });
+    }).catch(() => { /* sin worker: se genera al pedir la partida */ }).then(() => { preBusy = false; schedulePre(); });
   }
 
   // Enlace de invitación abierta del tablero actual: solo tablero/semilla, sin tiempo ni fantasma. Killer va por semilla.
   const inviteEncoded = () => D.encodeDuelPayload({
-    mode: G.mode, diff: G.req, seed: G.seed, board: G.mode === 'killer' ? null : G.puzzle, open: true
+    mode: G.mode, diff: G.req, seed: G.seed, board: (G.mode === 'killer' || G.mode === 'jigsaw') ? null : G.puzzle, open: true
   });
 
   function shareInvite() {
@@ -1051,14 +1213,18 @@
     busy = true;
     if (!opts.transition) closeModals();
     if (!opts.daily && !opts.surv) selectMode(mode);
-    if (!opts.board && !opts.transition) showLoad('Generando tablero…', false); // con tablero empaquetado no hay espera
-    const seed = toSeed(opts.seed);
+    // Tablero ya generado en segundo plano (solo partidas con semilla aleatoria): arranque instantáneo.
+    const prebuilt = (opts.seed === undefined && !opts.board && !opts.daily && !opts.legacy && !opts.duel) ? takePre(diff, mode) : null;
+    if (!opts.board && !opts.transition && !prebuilt) showLoad('Generando tablero…', false); // con tablero empaquetado o ya generado no hay espera
+    const seed = prebuilt ? prebuilt.seed : toSeed(opts.seed);
+    lastDiff[mode] = diff;
     let ok = false, errMsg = '';
-    const fixedGen = mode === 'killer' || !!opts.daily || !!opts.legacy;
+    const fixedGen = mode === 'killer' || mode === 'jigsaw' || !!opts.daily || !!opts.legacy;
     // En la transición de una racha se espera un mínimo para que se vea el "tablero superado".
     const wait = opts.transition ? new Promise(res => setTimeout(res, SURV_TRANSITION_MS)) : null;
     Promise.resolve().then(() => {
       if (opts.board) return boardFromPacked(opts.board, mode, diff);
+      if (prebuilt) return prebuilt.g;
       return genPuzzle(diff, mode, seed, fixedGen);
     }).then(g => (wait ? wait.then(() => g) : g)).then(g => {
       const killer = mode === 'killer', puzzle = killer ? g.board : g.puzzle;
@@ -1078,6 +1244,7 @@
         maxLives: rules.maxLives, lives: rules.maxLives, hintsMax: rules.maxHints, hintsUsed: 0
       };
       if (killer) G.cages = g.cages;
+      if (mode === 'jigsaw') G.regions = g.regions;
       if (zen) G.zen = true;
       if (opts.daily) G.daily = opts.daily;
       if (opts.duel) G.duel = opts.duel;
@@ -1096,7 +1263,7 @@
       if (!opts.daily && !opts.surv) { set.mode = mode; saveSet(); }
       ok = true;
     }).catch(() => { if (!errMsg && opts.board) errMsg = 'El tablero del enlace no es válido.'; /* conserva la partida actual */ }).then(() => {
-      busy = false;
+      busy = false; schedulePre();
       hideLoad();
       if (opts.transition) closeModals();
       if (ok) {
@@ -1143,6 +1310,11 @@
         K.getKillerConflicts(s.board, s.cages); // lanza error si las jaulas son inválidas
       } else {
         delete s.cages;
+      }
+      if (mode === 'jigsaw') {
+        s.regions = E.validateRegions(s.regions); // lanza si el mapa no es válido
+      } else {
+        delete s.regions;
       }
       // La conexión de una sala Co-op no sobrevive a un reinicio: la partida sigue como partida normal.
       const coopHints = s.hints | 0;
@@ -1421,7 +1593,7 @@
   // Estadísticas en dos pasos: 1) elegir modo; 2) métricas por dificultad (o Supervivencia y diarios).
   let statsDiff = 'facil', statsMode = 'all', statsView = 'home';
   const STAT_MODES = [['all', 'Todos los modos'], ['classic', 'Clásico'], ['killer', 'Killer'], ['diagonal', 'Diagonal'],
-    ['antiknight', 'Anti-Caballo'], ['surv', 'Supervivencia (No-Hit)'], ['daily', 'Desafíos diarios']];
+    ['antiknight', 'Anti-Caballo'], ['nonconsecutive', 'Sin Consecutivos'], ['jigsaw', 'Jigsaw (Irregular)'], ['surv', 'Supervivencia (No-Hit)'], ['daily', 'Desafíos diarios']];
   let statsRot = 'classic';
   const statCard = (label, value, sub, wide) =>
     '<div class="stat-card' + (wide ? ' wide' : '') + '"><span class="sl">' + label + '</span><b class="sv">' + value + '</b>' +
@@ -1630,7 +1802,7 @@
     let enc;
     try {
       const payload = G.rec.toPayload({ mode: G.mode, diff: G.req, seed: G.seed, time: G.finalTime, alias: alias });
-      if (G.mode !== 'killer') payload.board = G.puzzle; // tablero empaquetado: el rival arranca al instante
+      if (G.mode !== 'killer' && G.mode !== 'jigsaw') payload.board = G.puzzle; // tablero empaquetado: el rival arranca al instante
       enc = D.encodeDuelPayload(payload);
     } catch (e) { toast('No se pudo crear el enlace.'); return; }
     const url = D.buildLink(enc);
@@ -1747,6 +1919,7 @@
       maxLives: FRIEND_LIVES, lives: FRIEND_LIVES, hintsMax: HINTS_COOP, hintsUsed: 0
     };
     if (killer) G.cages = g.cages;
+    if (mode === 'jigsaw') G.regions = g.regions;
     prepareGame();
     sel = -1; pencil = false; activeDigit = null; hideHint();
     ghostSeen = 0; flash.fill(0); lastHintKey = '';
@@ -1806,7 +1979,7 @@
     if (!inCoop() || co.role !== 'host') return false;
     return co.session.send(C.buildState({
       alias: co.myAlias, mode: G.mode, diff: G.diff, req: G.req, seed: G.seed,
-      puzzle: G.puzzle, solution: G.solution, cages: G.cages, board: G.board, notes: G.notes, owners: G.owners,
+      puzzle: G.puzzle, solution: G.solution, cages: G.cages, regions: G.regions, board: G.board, notes: G.notes, owners: G.owners,
       secs: G.secs, hints: G.hints | 0, lives: G.lives, won: G.won, fresh: !!fresh
     }));
   }
@@ -1857,8 +2030,8 @@
       G.board[r][c] = v; G.notes[r][c] = []; G.owners[i] = who;
       // Solo el Host descuenta vidas (el Invitado se corrige con `cells.lives`).
       if (co && co.role === 'host' && v !== G.solution[r][c]) { G.lives = Math.max(0, G.lives - 1); lifeLost = true; }
-      notePeers(i).forEach(j => { // auto-limpieza de notas en las celdas relacionadas
-        const rr = Math.floor(j / 9), cc = j % 9, k = G.notes[rr][cc].indexOf(v);
+      noteClears(i, v).forEach(p => { // auto-limpieza de notas en las celdas relacionadas
+        const j = p[0], rr = Math.floor(j / 9), cc = j % 9, k = G.notes[rr][cc].indexOf(p[1]);
         if (k >= 0) { snap(j); G.notes[rr][cc].splice(k, 1); }
       });
     } else if (op.kind === 'note') {
@@ -2043,6 +2216,7 @@
       maxLives: FRIEND_LIVES, lives: m.lives, hintsMax: HINTS_COOP, hintsUsed: 0
     };
     if (m.mode === 'killer') G.cages = m.cages;
+    if (m.mode === 'jigsaw') G.regions = m.regions;
     prepareGame();
     rt.hasState = true; rt.joining = false; rt.friendAlias = m.alias;
     rt.friendFocus = -1; rt.sentFocus = -2;
@@ -2238,8 +2412,50 @@
     const os = $('#optSound'); if (os) os.checked = !!(window.Sound && window.Sound.enabled());
     const oz = $('#optZen'); if (oz) oz.checked = !!set.zen;
     const oe = $('#optErr'); if (oe) oe.checked = set.showErrors;
+    const ov = $('#optHaptic'); if (ov) ov.checked = set.haptic;
   }
 
+
+  /* ---------- Respaldo de progreso (exportar / importar) ---------- */
+  // Todas las claves de GridLab empiezan con "sudoku" (partida, ajustes, estadísticas, Diario, tutorial, alias, historial...).
+  const BK_APP = 'gridlab-backup', BK_RE = /^sudoku[._]/;
+  function exportBackup() {
+    const data = {};
+    try {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (BK_RE.test(k)) data[k] = window.localStorage.getItem(k);
+      }
+    } catch (e) { /* almacenamiento restringido: se usa la copia en memoria */ }
+    Object.keys(store.mem).forEach(k => { if (BK_RE.test(k) && !(k in data)) data[k] = store.mem[k]; });
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const stamp = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    const blob = new Blob([JSON.stringify({ app: BK_APP, version: 1, exported: d.toISOString(), data: data }, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'gridlab-backup-' + stamp + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast('Progreso exportado (' + Object.keys(data).length + ' elementos)');
+  }
+  function importBackup(file) {
+    if (!file) return;
+    if (file.size > 5e6) { toast('Archivo demasiado grande'); return; }
+    const fr = new FileReader();
+    fr.onerror = () => toast('No se pudo leer el archivo');
+    fr.onload = () => {
+      let o = null;
+      try { o = JSON.parse(String(fr.result)); } catch (e) { /* inválido */ }
+      const ok = o && o.app === BK_APP && o.data && typeof o.data === 'object' && !Array.isArray(o.data) &&
+        Object.keys(o.data).length > 0 && Object.keys(o.data).every(k => BK_RE.test(k) && typeof o.data[k] === 'string');
+      if (!ok) { toast('Ese archivo no es un respaldo de GridLab'); return; }
+      const n = Object.keys(o.data).length;
+      if (!window.confirm('Se reemplazará tu progreso actual por el del respaldo (' + n + ' elementos). ¿Continuar?')) return;
+      Object.keys(o.data).forEach(k => store.set(k, o.data[k]));
+      toast('Progreso restaurado ✓');
+      setTimeout(() => { try { window.location.reload(); } catch (e) { /* ignorar */ } }, 1100);
+    };
+    fr.readAsText(file);
+  }
   /* ---------- Eventos ---------- */
   function bindEvents() {
     // Inicio
@@ -2316,7 +2532,7 @@
     document.querySelector('.tools')?.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b || b.disabled) return;
       const a = b.dataset.act;
-      if (a === 'undo') undo(); else if (a === 'erase') erase();
+      if (a === 'undo') undo(); else if (a === 'rewind') rewind(); else if (a === 'erase') erase();
       else if (a === 'pencil') { pencil = !pencil; render(); } else if (a === 'hint') showHint();
       else if (a === 'inputmode') toggleInputMode();
     });
@@ -2353,6 +2569,11 @@
     }));
     on('optSound', 'change', e => { if (window.Sound) window.Sound.setEnabled(e.target.checked); });
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
+    on('optHaptic', 'change', e => { set.haptic = e.target.checked; saveSet(); haptic('tap'); });
+    on('btnExport', 'click', () => { sfx('tap'); exportBackup(); });
+    on('btnImport', 'click', () => { sfx('tap'); $('#fileImport').click(); });
+    on('fileImport', 'change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; importBackup(f); });
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.cell')) haptic('tap'); });
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && !modalOpen()) {
@@ -2365,16 +2586,25 @@
         return;
       }
       if (!G || busy || modalOpen() || view !== 'game') return;
-      if (e.key >= '1' && e.key <= '9') pressDigit(+e.key);
-      else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') erase();
-      else if (e.key === 'n' || e.key === 'N') { pencil = !pencil; render(); }
-      else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') || e.key === 'u') { e.preventDefault(); undo(); }
-      else if (e.key.indexOf('Arrow') === 0) {
+      const tg = e.target, tag = tg && tg.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (tg && tg.isContentEditable)) return;
+      const k = e.key, kl = k.length === 1 ? k.toLowerCase() : k;
+      if ((e.ctrlKey || e.metaKey) && kl === 'z') { e.preventDefault(); undo(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;   // no pisar atajos del navegador (Ctrl+R, Alt+←, ...)
+      const dig = /^Numpad[1-9]$/.test(e.code) ? +e.code.slice(6) : (/^[1-9]$/.test(k) ? +k : 0);
+      const dir = { ArrowUp: 'u', ArrowDown: 'd', ArrowLeft: 'l', ArrowRight: 'r', w: 'u', s: 'd', a: 'l', d: 'r' }[kl];
+      if (dig) { e.preventDefault(); pressDigit(dig); }
+      else if (k === 'Backspace' || k === 'Delete' || k === '0' || e.code === 'Numpad0') { e.preventDefault(); erase(); }
+      else if (kl === 'n' || k === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) { pencil = !pencil; sfx('tap'); render(); } }
+      else if (kl === 'u') { e.preventDefault(); undo(); }
+      else if (kl === 'r') { e.preventDefault(); if (!e.repeat) rewind(); }
+      else if (kl === 'h') { e.preventDefault(); if (!e.repeat) showHint(); }
+      else if (dir) {
         e.preventDefault();
-        let r = sel < 0 ? 0 : Math.floor(sel / 9), c = sel < 0 ? 0 : sel % 9;
+        let r = sel < 0 ? 4 : Math.floor(sel / 9), c = sel < 0 ? 4 : sel % 9;
         if (sel >= 0) {
-          if (e.key === 'ArrowUp') r = Math.max(0, r - 1); else if (e.key === 'ArrowDown') r = Math.min(8, r + 1);
-          else if (e.key === 'ArrowLeft') c = Math.max(0, c - 1); else c = Math.min(8, c + 1);
+          if (dir === 'u') r = Math.max(0, r - 1); else if (dir === 'd') r = Math.min(8, r + 1);
+          else if (dir === 'l') c = Math.max(0, c - 1); else c = Math.min(8, c + 1);
         }
         sel = r * 9 + c; hideHint(); render();
       }
@@ -2427,7 +2657,7 @@
     }
     console.info('[Sudoku] app.js ' + BUILD);
     buildDom();
-    bindEvents();
+    bindEvents(); schedulePre();
     applyTheme();
     selectMode(set.mode);
     restore();            // si hay partida guardada, queda en G (sin mostrarla)

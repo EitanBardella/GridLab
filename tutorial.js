@@ -6,7 +6,7 @@
                 1. Cómo jugar (reglas, rutina segura y errores comunes)
                 2. Técnicas (rutas de maestría con mapa SVG)
      guide    Cómo jugar: selector Clásico / Killer / Diagonal / Anti-Caballo /
-              Duelos y Co-op. Cada guía: encabezado, ejemplo guiado paso a paso,
+              Sin Consecutivos / Jigsaw / Duelos y Co-op. Cada guía: encabezado, ejemplo guiado paso a paso,
               "3 reglas", "rutina segura", "errores comunes" y mini-comprobación.
      map      Técnicas: mapa SVG por variante (classic, killer, diagonal, antiknight)
      lesson   Lección (teoría + ejemplo paso a paso)
@@ -159,7 +159,7 @@
         Clásico: 2+4+6+7+9+10 = 38 · Killer: 2+3+4+3 = 12.
      ===================================================================== */
   const VARIANTS = ['classic', 'killer', 'diagonal', 'antiknight'];           // mapas de técnicas
-  const GUIDE_VARIANTS = ['classic', 'killer', 'diagonal', 'antiknight', 'duels']; // guías "Cómo jugar"
+  const GUIDE_VARIANTS = ['classic', 'killer', 'diagonal', 'antiknight', 'nonconsecutive', 'jigsaw', 'duels']; // guías "Cómo jugar"
   const META = {
     classic: { label: 'Clásico', mode: 'classic', chapters: [
       { id: 'c1', title: 'Fundamentos', blurb: 'Último libre y Único desnudo.', planned: 2 },
@@ -255,6 +255,56 @@
       { text: 'Tachamos el 7. Solo sobrevive el 2: Único desnudo, gracias al salto de caballo.', hl: [40],
         show: { 40: A9 }, strike: { 40: [1, 3, 4, 5, 6, 7, 8, 9] }, keep: { 40: [2] } },
       { text: 'Colocamos el 2 en F5C5.', hl: [40], place: { 40: 2 } }
+    ]
+  };
+
+  // --- Sin Consecutivos: una celda se resuelve con la regla de los vecinos ortogonales ---
+  // Datos: F5C1=1, F5C2=3, F5C4=8 (fila) · F2C5=4, F4C5=6 (columna). Arriba de F5C5 hay un 6 y a la izquierda un 8.
+  const gridLate = fn => { const g = new Array(81).fill(0); fn(g); return g.join(''); };
+  const NC_EX = {
+    mode: 'nonconsecutive',
+    grid: gridLate(g => { g[36] = 1; g[37] = 3; g[39] = 8; g[13] = 4; g[31] = 6; }),
+    steps: [
+      { text: 'Tomemos la celda central (F5C5). En Sin Consecutivos, además de las reglas del clásico, las celdas que comparten lado con ella (arriba, abajo, izquierda y derecha) no pueden llevar un número consecutivo: ni uno más ni uno menos.',
+        hl: [40], rel: [31, 49, 39, 41] },
+      { text: 'Primero lo de siempre. Fila 5: ya están el 1, el 3 y el 8. Los tachamos.', hl: [40], rel: rowCells(4), src: [36, 37, 39],
+        show: { 40: A9 }, strike: { 40: [1, 3, 8] } },
+      { text: 'Columna 5: ya están el 4 y el 6. Los tachamos.', hl: [40], rel: colCells(4), src: [13, 31],
+        show: { 40: A9 }, strike: { 40: [1, 3, 4, 6, 8] } },
+      { text: 'Bloque central: solo están el 6 y el 8, que ya estaban tachados. No cambia nada.', hl: [40], rel: boxCells(4), src: [31, 39],
+        show: { 40: A9 }, strike: { 40: [1, 3, 4, 6, 8] } },
+      { text: 'Quedan el 2, el 5, el 7 y el 9. Con las reglas del clásico todavía no alcanza para decidir.', hl: [40],
+        show: { 40: A9 }, strike: { 40: [1, 3, 4, 6, 8] }, keep: { 40: [2, 5, 7, 9] } },
+      { text: 'Ahora los vecinos. Justo arriba hay un 6 (F4C5): al compartir lado, esta celda no puede ser 5 ni 7. Tachamos los dos.', hl: [40], rel: [31], src: [31], same: [31],
+        show: { 40: A9 }, strike: { 40: [1, 3, 4, 5, 6, 7, 8] }, keep: { 40: [2, 9] } },
+      { text: 'A la izquierda hay un 8 (F5C4): tampoco puede ser 7 ni 9. Tachamos el 9.', hl: [40], rel: [39], src: [39], same: [39],
+        show: { 40: A9 }, strike: { 40: [1, 3, 4, 5, 6, 7, 8, 9] }, keep: { 40: [2] } },
+      { text: 'Solo sobrevive el 2: es un Único desnudo que sin la regla de los consecutivos no habríamos podido ver. Y respeta todo: 2 y 6 no son consecutivos, 2 y 8 tampoco.', hl: [40],
+        show: { 40: A9 }, strike: { 40: [1, 3, 4, 5, 6, 7, 8, 9] }, keep: { 40: [2] } },
+      { text: 'Colocamos el 2 en F5C5.', hl: [40], place: { 40: 2 } }
+    ]
+  };
+
+  // --- Jigsaw (Irregular): mapa de 9 regiones de forma libre y un Único oculto dentro de una región ---
+  const JIG_MAP = '000111222' + '000111332' + '040111332' + '045555322' + '645455332' + '644455332' + '644677777' + '666688877' + '688888877';
+  const JIG_REGIONS = JIG_MAP.split('').map(Number);
+  const JIG_R5 = [29, 30, 31, 32, 38, 40, 41, 49, 50];   // región 6: F4C3, F4C4, F4C5, F4C6, F5C3, F5C5, F5C6, F6C5, F6C6
+  const JIG_EX = {
+    mode: 'jigsaw',
+    regions: JIG_REGIONS,
+    grid: '000400030' + '000800097' + '506302000' + '902030000' + '075908320' + '000090806' + '000504908' + '840006000' + '090003000',
+    steps: [
+      { text: 'En Jigsaw no hay cuadros de 3×3: el tablero se divide en 9 regiones de forma libre, marcadas con bordes gruesos. Cada región tiene 9 celdas y debe llevar del 1 al 9, igual que un cuadro. Miremos la que tiene el centro del tablero.',
+        hl: [40], rel: JIG_R5 },
+      { text: 'Busquemos el 4 en esta región. Todavía no está, y las celdas vacías son F4C4, F4C6, F5C5 y F6C6. ¿En cuál puede ir? Las demás casas siguen valiendo: fila y columna.',
+        hl: [30, 32, 40, 50], rel: JIG_R5 },
+      { text: 'Hay un 4 en F1C4: está en la columna 4, así que F4C4 no puede ser 4. La marcamos con ✕.',
+        hl: [30], rel: colCells(3), src: [3], same: [3], no: [30] },
+      { text: 'Hay otro 4 en F7C6, en la columna 6: bloquea F4C6 y F6C6, las dos celdas de esa columna dentro de la región.',
+        hl: [32, 50], rel: colCells(5), src: [59], same: [59], no: [30, 32, 50] },
+      { text: 'De las cuatro celdas libres de la región, solo queda F5C5 sin bloquear: el 4 de esta región tiene un único lugar. Es un Único oculto, ¡pero dentro de una región irregular!',
+        hl: [40], rel: JIG_R5, no: [30, 32, 50] },
+      { text: 'Colocamos el 4 en F5C5.', hl: [40], place: { 40: 4 } }
     ]
   };
 
@@ -407,6 +457,70 @@
         options: ['F3C7', 'F3C6', 'F2C6', 'F7C7'], answer: 1,
         wrong: ['F3C7 está 2 filas arriba y 2 columnas al costado: eso no es un salto de caballo.', null, 'F2C6 está 3 filas arriba y 1 al costado: demasiado lejos para el caballo.', 'F7C7 está 2 filas abajo y 2 al costado: tampoco es una L.'],
         why: 'F3C6 está 2 filas arriba y 1 columna al costado: un salto de caballo. Por eso ve al 5 central.'
+      }
+    },
+    nonconsecutive: {
+      label: 'Sin Consecutivos', map: null,
+      title: 'Sudoku Sin Consecutivos',
+      tagline: 'Vecinos sin números seguidos • Un 4 nunca pega con un 3 ni con un 5',
+      intro: 'Las reglas del clásico, más una: dos celdas que comparten lado (arriba, abajo, izquierda o derecha) no pueden llevar números consecutivos. Cada celda mira a sus vecinos y descarta los números que quedarían pegados a ellos.',
+      exTitle: 'Ejemplo guiado: descartar con los vecinos',
+      example: NC_EX,
+      rules: [
+        'Se mantienen las reglas del clásico: filas, columnas y cuadros llevan del 1 al 9.',
+        'Dos celdas que comparten lado no pueden tener números consecutivos (4 y 5, 7 y 8…).',
+        'Las celdas pegadas en diagonal no cuentan, y el 9 y el 1 no son consecutivos: pueden ir juntos.'
+      ],
+      routine: [
+        { t: 'Mirá a los cuatro vecinos', d: 'Para cada celda, fijate qué hay arriba, abajo, a la izquierda y a la derecha.' },
+        { t: 'Tachá el anterior y el siguiente', d: 'Si un vecino tiene un 5, esta celda no puede ser 4 ni 5 (ni 6). Anotalo en las Notas; la app también lo borra al colocar un número.' },
+        { t: 'Combiná con lo clásico', d: 'Sumá los descartes de fila, columna y cuadro. Los números del medio (3 a 7) tienen dos consecutivos que bloquear: son los más fáciles de descartar.' }
+      ],
+      errors: [
+        'Olvidar que el vecino bloquea dos números (el anterior y el siguiente), no solo uno.',
+        'Contar también las celdas en diagonal: solo cuentan las que comparten lado.',
+        'Pensar que el 9 y el 1 son consecutivos: no lo son.',
+        'Tachar solo el consecutivo y olvidar que el mismo número tampoco puede repetirse en la fila, columna o cuadro.'
+      ],
+      check: {
+        mode: 'nonconsecutive', hl: [40],
+        grid: gridOf(g => { g[31] = 5; }),
+        q: 'La celda marcada está justo debajo de un 5. ¿Cuál de estos números puede ir ahí?',
+        options: ['4', '5', '6', '8'], answer: 3,
+        wrong: ['El 4 es consecutivo del 5 y comparten lado: no puede ser.', 'El 5 se repetiría en la misma columna.', 'El 6 es consecutivo del 5 y comparten lado: no puede ser.', null],
+        why: 'Pegado a un 5 no pueden ir el 4 ni el 6 (consecutivos) ni otro 5. El 8 no es vecino numérico del 5, así que sí puede ir.'
+      }
+    },
+    jigsaw: {
+      label: 'Jigsaw (Irregular)', map: null,
+      title: 'Sudoku Jigsaw (Irregular)',
+      tagline: 'Regiones de forma libre • 9 celdas cada una • Sin cuadros de 3×3',
+      intro: 'Las filas y las columnas funcionan igual que siempre, pero los cuadros de 3×3 se reemplazan por 9 regiones irregulares de 9 celdas cada una (los bordes gruesos las separan). Cada región debe llevar del 1 al 9 sin repetir, aunque su forma sea una escalera, una L o una serpiente.',
+      exTitle: 'Ejemplo guiado: Único oculto en una región',
+      example: JIG_EX,
+      rules: [
+        'Cada fila lleva los números del 1 al 9, sin repetir; y cada columna también.',
+        'Cada región irregular (la limitan los bordes gruesos) tiene 9 celdas y lleva del 1 al 9, sin repetir.',
+        'Las regiones no tienen por qué coincidir con los cuadros de 3×3: una región puede cruzar varias filas y columnas, y una celda solo pertenece a una región.'
+      ],
+      routine: [
+        { t: 'Reconocé la región', d: 'Seguí con la vista los bordes gruesos y fijate qué 9 celdas forman la región de la celda que analizás. Al elegir una celda, la app resalta su región.' },
+        { t: 'Descartá en fila, columna y región', d: 'Tachá lo que ya aparece en la fila, la columna y la región de la celda. Usá Notas: las formas raras hacen fácil olvidarse de una celda.' },
+        { t: 'Buscá también por números', d: 'Elegí una región y un dígito que falte: si en todas las celdas libres menos una ya hay ese dígito en su fila o columna, ahí va (Único oculto).' }
+      ],
+      errors: [
+        'Seguir mirando el cuadro de 3×3 de siempre: en Jigsaw no cuenta, lo que vale es la región.',
+        'Perder de vista una celda lejana de la misma región (las formas largas se estiran por todo el tablero).',
+        'Dar por sentado que una región tiene tres celdas por fila: puede tener una sola en una fila y cinco en otra.',
+        'No contar la región al tachar candidatos: es la casa que más descartes extra da.'
+      ],
+      check: {
+        mode: 'jigsaw', regions: JIG_REGIONS, hl: [39],
+        grid: gridOf(g => { g[19] = 1; g[28] = 2; g[37] = 3; g[46] = 4; g[47] = 5; g[48] = 6; g[55] = 7; g[56] = 8; }),
+        q: 'La región irregular de la celda marcada (F5C4) ya tiene del 1 al 8 en sus otras celdas. ¿Qué número va en la marcada?',
+        options: ['8', '9', '4', '6'], answer: 1,
+        wrong: ['El 8 ya está en la región (F7C3), aunque esa celda quede en otro cuadro de 3×3.', null, 'El 4 ya está en la región (F6C2).', 'El 6 ya está en la región (F6C4).'],
+        why: 'La región tiene 9 celdas y ya están el 1 al 8: solo falta el 9, aunque la celda quede en un cuadro de 3×3 distinto al de las demás.'
       }
     },
     duels: {
@@ -609,15 +723,20 @@
   /* =====================================================================
      6. TABLERO REUTILIZABLE (usa las clases .board/.cell/.nt de la app)
      ===================================================================== */
-  function makeBoard(mode, cages) {
+  function makeBoard(mode, cages, regions) {
     const el = h('div', { class: 'board tut-board', 'data-mode': mode || 'classic', role: 'grid', 'aria-label': 'Mini tablero de Sudoku' });
     const cageOf = new Array(81).fill(-1);
     (cages || []).forEach((cg, k) => (cg.cells || []).forEach(i => { cageOf[i] = k; }));
     const cells = [];
     for (let i = 0; i < 81; i++) {
       const r = Math.floor(i / 9), c = i % 9, cls = ['cell'];
-      if (c % 3 === 2 && c < 8) cls.push('br');
-      if (r % 3 === 2 && r < 8) cls.push('bb');
+      if (mode === 'jigsaw' && regions) {   // bordes gruesos solo entre celdas de distinta región
+        if (c < 8 && regions[i] !== regions[i + 1]) cls.push('br');
+        if (r < 8 && regions[i] !== regions[i + 9]) cls.push('bb');
+      } else {
+        if (c % 3 === 2 && c < 8) cls.push('br');
+        if (r % 3 === 2 && r < 8) cls.push('bb');
+      }
       if (mode === 'diagonal' && (r === c || r + c === 8)) cls.push('diagonal-cell');
       const cg = cageOf[i];
       if (cg >= 0) {
@@ -704,7 +823,7 @@
 
   /* ---------- Cómo jugar ---------- */
   const GUIDE_SUB = { classic: 'Filas, columnas y bloques', killer: 'Jaulas con suma', diagonal: 'Las dos diagonales',
-    antiknight: 'Sin saltos de caballo', duels: 'Duelos y Co-op con amigos' };
+    antiknight: 'Sin saltos de caballo', nonconsecutive: 'Sin números seguidos pegados', jigsaw: 'Regiones irregulares de 9 celdas', duels: 'Duelos y Co-op con amigos' };
 
   // Tarjeta vertical de ancho completo (mismo estilo que el submenú Jugar).
   function vcard(title, sub, right, done, onclick, pct, big) {
@@ -787,7 +906,7 @@
   function renderCheck(variant, chk) {
     const sec = h('section', { class: 'tut-check' }, h('h3', { text: 'Mini-comprobación' }));
     if (chk.grid) {
-      const bd = makeBoard(chk.mode || 'classic', chk.cages);
+      const bd = makeBoard(chk.mode || 'classic', chk.cages, chk.regions);
       const given = digits81(chk.grid), hl = new Set(chk.hl || []);
       for (let i = 0; i < 81; i++) paintCell(bd.cells[i], { v: given[i], cls: (given[i] ? 'given' : '') + (hl.has(i) ? ' tut-hl' : '') });
       sec.append(h('div', { class: 'tut-cwrap' }, bd.el));
@@ -981,7 +1100,7 @@
   /* ---------- Ejemplo paso a paso ---------- */
   function renderExample(ex, title) {
     const mode = ex.mode || 'classic';
-    const b = makeBoard(mode, ex.cages);
+    const b = makeBoard(mode, ex.cages, ex.regions);
     const given = digits81(ex.grid);
     const steps = ex.steps, total = steps.length;
     let k = 0;

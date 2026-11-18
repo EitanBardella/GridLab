@@ -10,7 +10,7 @@
  *   - Un tablero es un arreglo 9x9 de números: 0 = vacío, 1..9 = valor.
  *   - Las filas/columnas se indexan de 0 a 8.
  *   - Dificultades: 'facil' | 'medio' | 'dificil' | 'experto' | 'maestro' | 'extremo'.
- *   - Variantes:    'classic' | 'diagonal' | 'antiknight'  (por defecto 'classic').
+ *   - Variantes:    'classic' | 'diagonal' | 'antiknight' | 'nonconsecutive' | 'jigsaw'  (por defecto 'classic').
  *
  * Variantes (parámetro opcional `variant`):
  *   - 'classic'    Sudoku clásico (filas, columnas y bloques).
@@ -18,6 +18,12 @@
  *                  r + c === 8) contienen los dígitos 1..9 sin repetirse.
  *   - 'antiknight' Anti-Caballo: además, ninguna celda repite el número de otra
  *                  ubicada a un salto de caballo de ajedrez ([±1,±2] y [±2,±1]).
+ *   - 'nonconsecutive' Sin Consecutivos: además, dos celdas que comparten lado (arriba, abajo,
+ *                  izquierda, derecha) no pueden contener números consecutivos (|a - b| !== 1).
+ *   - 'jigsaw'     Irregular: en lugar de los bloques de 3x3 hay 9 regiones contiguas de 9 celdas
+ *                  con forma libre. El mapa de regiones (81 números 0..8) lo genera el motor a partir de
+ *                  la semilla y viaja en el resultado (`regions`). Para las demás funciones se pasa como
+ *                  variante un objeto: { name: 'jigsaw', regions: number[81] | number[9][9] }.
  *
  *   Dónde se pasa `variant`:
  *     generatePuzzle(difficulty, { variant })       generatePuzzleAsync(difficulty, { variant })
@@ -59,7 +65,7 @@
   var ALL = 511; // 0b111111111: los nueve candidatos 1..9 (bit d-1 representa el dígito d)
   var DIFFICULTIES = ['facil', 'medio', 'dificil', 'experto', 'maestro', 'extremo'];
   var RANK = { facil: 0, medio: 1, dificil: 2, experto: 3, maestro: 4, extremo: 5 };
-  var VARIANT_NAMES = ['classic', 'diagonal', 'antiknight'];
+  var VARIANT_NAMES = ['classic', 'diagonal', 'antiknight', 'nonconsecutive', 'jigsaw'];
 
   // Nivel de cada técnica (para determinar la más difícil usada).
   var TECHNIQUE_LEVEL = { nakedSingle: 1, hiddenSingle: 2, nakedPair: 3, pointing: 4, boxLine: 4, xwing: 5 };
@@ -88,6 +94,7 @@
   var PEERS = new Array(81);       // vecinos del Sudoku clásico
   var DG = new Array(81);          // bit0: diagonal principal (r===c), bit1: diagonal secundaria (r+c===8)
   var KNIGHT = new Array(81);      // celdas a un salto de caballo
+  var ADJ = new Array(81);         // celdas ortogonalmente adyacentes (comparten lado)
   var UNITS_ALL = [];    // UNITS + 27: diagonal principal, 28: diagonal secundaria
   var MEMBER = [];       // MEMBER[u][celda] = 1 si la celda pertenece a la unidad u (u = 0..28)
   var VARIANTS = {};     // datos precalculados por variante
@@ -144,6 +151,12 @@
         if (rr >= 0 && rr < 9 && cc >= 0 && cc < 9) { kn.push(rr * 9 + cc); }
       }
       KNIGHT[i] = kn;
+      var ad = [];
+      if (ROW[i] > 0) { ad.push(i - 9); }
+      if (ROW[i] < 8) { ad.push(i + 9); }
+      if (COL[i] > 0) { ad.push(i - 1); }
+      if (COL[i] < 8) { ad.push(i + 1); }
+      ADJ[i] = ad;
     }
 
     for (u = 0; u < UNITS_ALL.length; u++) {
@@ -171,11 +184,11 @@
     for (q2 = 0; q2 < 18; q2++) { lines.push(q2); }
 
     VARIANTS.classic = {
-      name: 'classic', diag: false, knight: false,
+      name: 'classic', diag: false, knight: false, nonc: false,
       units: UNITS, peers: PEERS, lineUnits: lines.slice(), extraUnits: []
     };
     VARIANTS.diagonal = {
-      name: 'diagonal', diag: true, knight: false,
+      name: 'diagonal', diag: true, knight: false, nonc: false,
       units: UNITS.concat([diagMain, diagAnti]),
       peers: extendPeers(function (x) {
         var e = [];
@@ -187,16 +200,171 @@
       extraUnits: [27, 28]
     };
     VARIANTS.antiknight = {
-      name: 'antiknight', diag: false, knight: true,
+      name: 'antiknight', diag: false, knight: true, nonc: false,
       units: UNITS,
       peers: extendPeers(function (x) { return KNIGHT[x]; }),
       lineUnits: lines.slice(), extraUnits: []
     };
+    // Sin Consecutivos: los vecinos "iguales" son los del clásico; la regla extra (|a-b| !== 1) se aplica por ADJ.
+    VARIANTS.nonconsecutive = {
+      name: 'nonconsecutive', diag: false, knight: false, nonc: true,
+      units: UNITS, peers: PEERS, lineUnits: lines.slice(), extraUnits: []
+    };
+    // Datos de "bloque" por variante (en Irregular el bloque es la región).
+    for (var vn in VARIANTS) {
+      if (Object.prototype.hasOwnProperty.call(VARIANTS, vn)) {
+        VARIANTS[vn].box = BOX; VARIANTS[vn].member = MEMBER; VARIANTS[vn].jig = false;
+      }
+    }
   }());
+
+  /* ---------- Regiones irregulares (Jigsaw) ---------- */
+  var ORTHO = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+  function regionConnected(reg, id) {
+    var first = -1, total = 0, i;
+    for (i = 0; i < 81; i++) { if (reg[i] === id) { total++; if (first < 0) { first = i; } } }
+    if (first < 0) { return false; }
+    var seen = {}, stack = [first], n = 0;
+    seen[first] = true;
+    while (stack.length) {
+      var x = stack.pop();
+      n++;
+      for (var d = 0; d < 4; d++) {
+        var rr = ROW[x] + ORTHO[d][0], cc = COL[x] + ORTHO[d][1];
+        if (rr < 0 || rr > 8 || cc < 0 || cc > 8) { continue; }
+        var y = rr * 9 + cc;
+        if (reg[y] === id && !seen[y]) { seen[y] = true; stack.push(y); }
+      }
+    }
+    return n === total;
+  }
+
+  /** Normaliza un mapa de regiones (plano o 9x9) a un arreglo plano de 81 enteros 0..8; lanza si no es válido. */
+  function normalizeRegions(regions) {
+    var flat = [], i, r;
+    if (regions && regions.length === 9 && regions[0] && typeof regions[0] === 'object') {
+      for (r = 0; r < 9; r++) {
+        if (!regions[r] || regions[r].length !== 9) { throw new TypeError('Mapa de regiones inválido.'); }
+        for (i = 0; i < 9; i++) { flat.push(regions[r][i]); }
+      }
+    } else if (regions && regions.length === 81) {
+      flat = Array.prototype.slice.call(regions);
+    } else {
+      throw new TypeError('Mapa de regiones inválido.');
+    }
+    var counts = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (i = 0; i < 81; i++) {
+      var g = flat[i];
+      if (g !== (g | 0) || g < 0 || g > 8) { throw new TypeError('Mapa de regiones inválido.'); }
+      counts[g]++;
+    }
+    for (i = 0; i < 9; i++) {
+      if (counts[i] !== 9 || !regionConnected(flat, i)) { throw new TypeError('Cada región debe ser contigua y tener 9 celdas.'); }
+    }
+    return flat;
+  }
+
+  var JIG_CACHE = {};
+
+  /** Construye (con caché) los datos de variante para un mapa de regiones. */
+  function makeJigsawVariant(regions) {
+    var flat = normalizeRegions(regions);
+    var key = flat.join('');
+    if (JIG_CACHE[key]) { return JIG_CACHE[key]; }
+    var units = UNITS.slice(0, 18), i, b, k, j;
+    for (b = 0; b < 9; b++) {
+      var u = [];
+      for (i = 0; i < 81; i++) { if (flat[i] === b) { u.push(i); } }
+      units.push(u);
+    }
+    var peers = new Array(81);
+    for (i = 0; i < 81; i++) {
+      var seen = {}, list = [], rel = [units[ROW[i]], units[9 + COL[i]], units[18 + flat[i]]];
+      for (j = 0; j < 3; j++) {
+        for (k = 0; k < 9; k++) {
+          var q = rel[j][k];
+          if (q !== i && !seen[q]) { seen[q] = true; list.push(q); }
+        }
+      }
+      peers[i] = list;
+    }
+    var member = [];
+    for (b = 0; b < units.length; b++) {
+      var mem = new Uint8Array(81);
+      for (j = 0; j < units[b].length; j++) { mem[units[b][j]] = 1; }
+      member.push(mem);
+    }
+    var lines = [];
+    for (k = 0; k < 18; k++) { lines.push(k); }
+    var V = {
+      name: 'jigsaw', diag: false, knight: false, nonc: false, jig: true,
+      units: units, peers: peers, lineUnits: lines, extraUnits: [],
+      box: flat, member: member, regions: flat
+    };
+    JIG_CACHE[key] = V;
+    return V;
+  }
+
+  /**
+   * Mapa aleatorio de 9 regiones contiguas de 9 celdas: parte de los bloques de 3x3 y los deforma
+   * intercambiando pares de celdas vecinas de regiones distintas (sin romper la contigüidad).
+   */
+  function randomRegions(rng) {
+    var reg = BOX.slice(), n = 0, tries = 0, i, k;
+    var target = 90 + Math.floor(rng() * 40);
+    function touches(c, id) {
+      for (var d = 0; d < 4; d++) {
+        var rr = ROW[c] + ORTHO[d][0], cc = COL[c] + ORTHO[d][1];
+        if (rr >= 0 && rr <= 8 && cc >= 0 && cc <= 8 && reg[rr * 9 + cc] === id) { return true; }
+      }
+      return false;
+    }
+    while (n < target && tries < 6000) {
+      tries++;
+      var a = Math.floor(rng() * 81), dd = ORTHO[Math.floor(rng() * 4)];
+      var r2 = ROW[a] + dd[0], c2 = COL[a] + dd[1];
+      if (r2 < 0 || r2 > 8 || c2 < 0 || c2 > 8) { continue; }
+      var bb = r2 * 9 + c2;
+      if (reg[a] === reg[bb]) { continue; }
+      var A = reg[a], B = reg[bb];
+      reg[a] = B;                                   // a pasa de A a B (A queda con 8 y B con 10)
+      if (!regionConnected(reg, A)) { reg[a] = A; continue; }
+      var cand = [];
+      for (i = 0; i < 81; i++) { if (reg[i] === B && i !== a && touches(i, A)) { cand.push(i); } }
+      shuffle(cand, rng);
+      var done = false;
+      for (k = 0; k < cand.length && !done; k++) {  // un vecino de B pasa a A para recuperar los 9 y 9
+        reg[cand[k]] = A;
+        if (regionConnected(reg, A) && regionConnected(reg, B)) { done = true; } else { reg[cand[k]] = B; }
+      }
+      if (done) { n++; } else { reg[a] = A; }
+    }
+    // Numeración canónica: por orden de aparición (fila a fila).
+    var map = {}, next = 0, out = new Array(81);
+    for (var i = 0; i < 81; i++) {
+      if (map[reg[i]] === undefined) { map[reg[i]] = next++; }
+      out[i] = map[reg[i]];
+    }
+    return out;
+  }
+
+  // Dígitos prohibidos (máscara) en una celda adyacente a otra que contiene `v`: v - 1 y v + 1.
+  function consecMask(v) {
+    var m = 0;
+    if (v > 1) { m |= 1 << (v - 2); }
+    if (v < 9) { m |= 1 << v; }
+    return m;
+  }
 
   /** Normaliza el parámetro `variant` (undefined/null -> 'classic'). */
   function getVariant(v) {
     if (v === undefined || v === null || v === '') { return VARIANTS.classic; }
+    if (typeof v === 'object' && v.name === 'jigsaw') {
+      if (!v.regions) { throw new RangeError("La variante 'jigsaw' necesita { name: 'jigsaw', regions }."); }
+      return makeJigsawVariant(v.regions);
+    }
+    if (v === 'jigsaw') { throw new RangeError("La variante 'jigsaw' necesita { name: 'jigsaw', regions }."); }
     if (typeof v === 'string' && Object.prototype.hasOwnProperty.call(VARIANTS, v)) { return VARIANTS[v]; }
     throw new RangeError("Variante inválida: '" + v + "'. Use: " + VARIANT_NAMES.join(', ') + '.');
   }
@@ -314,19 +482,22 @@
    */
   function search(flat, limit, rng, V, nodeLimit) {
     V = V || VARIANTS.classic;
+    var BX = V.box;
     var grid = flat.slice();
     var rm = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     var cm = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     var bm = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     var dm = [0, 0];                                       // dígitos usados en cada diagonal
-    var useDiag = V.diag, useKnight = V.knight;
+    var useDiag = V.diag, useKnight = V.knight, useNonc = V.nonc;
+    var nx = useNonc ? new Array(81).fill(0) : null;       // máscara de dígitos prohibidos por vecino ortogonal consecutivo
+    var nc = useNonc ? new Uint8Array(729) : null;         // contadores por (celda, dígito)
     var kx = useKnight ? new Array(81).fill(0) : null;     // máscara de dígitos prohibidos por salto de caballo
     var kc = useKnight ? new Uint8Array(729) : null;       // contadores por (celda, dígito)
     var count = 0, first = null, nodes = 0, aborted = false;
     var i;
 
     function candOf(k) {
-      var m = ALL & ~(rm[ROW[k]] | cm[COL[k]] | bm[BOX[k]]);
+      var m = ALL & ~(rm[ROW[k]] | cm[COL[k]] | bm[BX[k]]);
       if (useDiag) {
         var g = DG[k];
         if (g) {
@@ -335,13 +506,14 @@
         }
       }
       if (useKnight) { m &= ~kx[k]; }
+      if (useNonc) { m &= ~nx[k]; }
       return m;
     }
 
     function put(k, d) {
       var bt = 1 << (d - 1), j;
       grid[k] = d;
-      rm[ROW[k]] |= bt; cm[COL[k]] |= bt; bm[BOX[k]] |= bt;
+      rm[ROW[k]] |= bt; cm[COL[k]] |= bt; bm[BX[k]] |= bt;
       if (useDiag) {
         var g = DG[k];
         if (g & 1) { dm[0] |= bt; }
@@ -353,12 +525,20 @@
           if (kc[kn[j] * 9 + d - 1]++ === 0) { kx[kn[j]] |= bt; }
         }
       }
+      if (useNonc) {
+        var ad = ADJ[k], e;
+        for (j = 0; j < ad.length; j++) {
+          for (e = d - 1; e <= d + 1; e += 2) {
+            if (e >= 1 && e <= 9 && nc[ad[j] * 9 + e - 1]++ === 0) { nx[ad[j]] |= 1 << (e - 1); }
+          }
+        }
+      }
     }
 
     function take(k, d) {
       var bt = 1 << (d - 1), j;
       grid[k] = 0;
-      rm[ROW[k]] &= ~bt; cm[COL[k]] &= ~bt; bm[BOX[k]] &= ~bt;
+      rm[ROW[k]] &= ~bt; cm[COL[k]] &= ~bt; bm[BX[k]] &= ~bt;
       if (useDiag) {
         var g = DG[k];
         if (g & 1) { dm[0] &= ~bt; }
@@ -368,6 +548,14 @@
         var kn = KNIGHT[k];
         for (j = 0; j < kn.length; j++) {
           if (--kc[kn[j] * 9 + d - 1] === 0) { kx[kn[j]] &= ~bt; }
+        }
+      }
+      if (useNonc) {
+        var ad = ADJ[k], e;
+        for (j = 0; j < ad.length; j++) {
+          for (e = d - 1; e <= d + 1; e += 2) {
+            if (e >= 1 && e <= 9 && --nc[ad[j] * 9 + e - 1] === 0) { nx[ad[j]] &= ~(1 << (e - 1)); }
+          }
         }
       }
     }
@@ -434,6 +622,13 @@
   function generateSolvedFlat(rng, V) {
     var empty = new Array(81).fill(0), t, res;
     if (V.name === 'classic') { return search(empty, 1, rng, V).first; }
+    if (V.jig) {   // algunos mapas de regiones no admiten solución: se limita la búsqueda y quien llama prueba otro mapa
+      for (t = 0; t < 6; t++) {
+        res = search(empty, 1, rng, V, 4000 * (t + 1));
+        if (res.first) { return res.first; }
+      }
+      return null;
+    }
     // Variantes: se reintenta con tope de nodos creciente para evitar búsquedas patológicas.
     for (t = 0; t < 30; t++) {
       res = search(empty, 1, rng, V, 10000 * (t + 1));
@@ -461,6 +656,12 @@
         for (k = 0; k < peers.length; k++) {
           if (grid[peers[k]] === v) { return null; }
         }
+        if (V.nonc) {
+          var ad0 = ADJ[i];
+          for (k = 0; k < ad0.length; k++) {
+            if (grid[ad0[k]] && Math.abs(grid[ad0[k]] - v) === 1) { return null; }
+          }
+        }
       }
     }
     for (i = 0; i < 81; i++) {
@@ -469,6 +670,10 @@
         peers = V.peers[i];
         for (k = 0; k < peers.length; k++) {
           if (grid[peers[k]]) { used |= 1 << (grid[peers[k]] - 1); }
+        }
+        if (V.nonc) {
+          var ad1 = ADJ[i];
+          for (k = 0; k < ad1.length; k++) { if (grid[ad1[k]]) { used |= consecMask(grid[ad1[k]]); } }
         }
         cand[i] = ALL & ~used;
         empties++;
@@ -490,6 +695,10 @@
     st.empties--;
     var peers = st.V.peers[idx];
     for (var k = 0; k < peers.length; k++) { st.cand[peers[k]] &= ~bit; }
+    if (st.V.nonc) {
+      var cm = consecMask(value), ad = ADJ[idx];
+      for (k = 0; k < ad.length; k++) { st.cand[ad[k]] &= ~cm; }
+    }
   }
 
   function applyStep(st, step) {
@@ -582,7 +791,7 @@
   function findPointing(st) {
     var V = st.V, lines = V.lineUnits;
     for (var b = 0; b < 9; b++) {
-      var cells = UNITS[18 + b];
+      var cells = V.units[18 + b];
       for (var d = 0; d < 9; d++) {
         var bit = 1 << d;
         var hit = [], k;
@@ -590,14 +799,14 @@
         if (hit.length < 2 || hit.length > 3) { continue; }
 
         for (var li = 0; li < lines.length; li++) {
-          var lineUnit = lines[li], mem = MEMBER[lineUnit], inAll = true, q;
+          var lineUnit = lines[li], mem = V.member[lineUnit], inAll = true, q;
           for (q = 0; q < hit.length; q++) { if (!mem[hit[q]]) { inAll = false; break; } }
           if (!inAll) { continue; }
 
           var line = V.units[lineUnit];
           var elims = [];
           for (k = 0; k < 9; k++) {
-            if (BOX[line[k]] !== b && (st.cand[line[k]] & bit)) { elims.push([line[k], bit]); }
+            if (V.box[line[k]] !== b && (st.cand[line[k]] & bit)) { elims.push([line[k], bit]); }
           }
           if (elims.length) {
             return { technique: 'pointing', unit: 18 + b, line: lineUnit, digit: d + 1, cells: hit, elims: elims };
@@ -617,15 +826,15 @@
     for (var li = 0; li < lines.length; li++) {
       var u = lines[li];
       var cells = V.units[u];
-      var mem = MEMBER[u];
+      var mem = V.member[u];
       for (var d = 0; d < 9; d++) {
         var bit = 1 << d;
         var hit = [], k;
         for (k = 0; k < 9; k++) { if (st.cand[cells[k]] & bit) { hit.push(cells[k]); } }
-        if (hit.length < 2 || hit.length > 3 || !allSame(hit, BOX)) { continue; }
+        if (hit.length < 2 || hit.length > 3 || !allSame(hit, V.box)) { continue; }
 
-        var box = BOX[hit[0]];
-        var boxCells = UNITS[18 + box];
+        var box = V.box[hit[0]];
+        var boxCells = V.units[18 + box];
         var elims = [];
         for (k = 0; k < 9; k++) {
           var cell = boxCells[k];
@@ -742,7 +951,7 @@
   /**
    * Analiza un tablero: unicidad, técnicas necesarias y dificultad real.
    * @param {number[][]} board
-   * @param {string} [variant] 'classic' (por defecto) | 'diagonal' | 'antiknight'
+   * @param {string} [variant] 'classic' (por defecto) | 'diagonal' | 'antiknight' | 'nonconsecutive'
    * @returns {{valid:boolean, unique:boolean, difficulty:string|null, solvedByLogic:boolean,
    *            techniques:Object, hardestTechnique:string|null, clues:number, variant:string}}
    */
@@ -778,10 +987,19 @@
    * por rotación de 180° si `symmetric`), conservando siempre solución única (backtracking)
    * y sin superar la dificultad objetivo (solucionador lógico). Respeta la variante.
    */
-  function buildPuzzleAttempt(difficulty, rng, symmetric, V) {
+  function buildPuzzleAttempt(difficulty, rng, symmetric, V, jigGen) {
     var targetRank = RANK[difficulty];
     var floor = MIN_CLUES[difficulty];
-    var solution = generateSolvedFlat(rng, V);
+    var solution = null;
+    if (jigGen) {
+      for (var q = 0; q < 60 && !solution; q++) {
+        V = makeJigsawVariant(randomRegions(rng));
+        solution = generateSolvedFlat(rng, V);
+      }
+      if (!solution) { throw new Error('No se pudo generar un mapa de regiones válido.'); }
+    } else {
+      solution = generateSolvedFlat(rng, V);
+    }
     var puzzle = solution.slice();
     var groups = [];
     var i;
@@ -813,7 +1031,7 @@
       }
     }
 
-    return { puzzle: puzzle, solution: solution, clues: clues, analysis: analyzeFlat(puzzle, V) };
+    return { puzzle: puzzle, solution: solution, clues: clues, analysis: analyzeFlat(puzzle, V), V: V };
   }
 
   function createGenerator(difficulty, options) {
@@ -822,7 +1040,13 @@
     }
     if (typeof options === 'string') { options = { variant: options }; } // atajo: generatePuzzle('facil', 'diagonal')
     options = options || {};
-    var V = getVariant(options.variant);
+    var jigGen = false, V;
+    if (options.variant === 'jigsaw' || (options.variant && typeof options.variant === 'object' && options.variant.name === 'jigsaw')) {
+      var given = options.regions || (options.variant && options.variant.regions);
+      if (given) { V = makeJigsawVariant(given); } else { jigGen = true; V = VARIANTS.classic; }
+    } else {
+      V = getVariant(options.variant);
+    }
     var rng = createRng(options.seed);
     // Los niveles altos aciertan la dificultad exacta con menos frecuencia: más intentos (cada uno cuesta ~1 ms).
     var maxAttempts = options.maxAttempts > 0 ? options.maxAttempts : (RANK[difficulty] >= RANK.experto ? 500 : 60);
@@ -836,7 +1060,7 @@
     return {
       // Ejecuta un intento. Devuelve true cuando ya no hay que seguir.
       step: function () {
-        var a = buildPuzzleAttempt(difficulty, rng, symmetric, V);
+        var a = buildPuzzleAttempt(difficulty, rng, symmetric, V, jigGen);
         attempts++;
         a.distance = Math.abs(RANK[a.analysis.difficulty] - RANK[difficulty]);
         if (!best || a.distance < best.distance) { best = a; }
@@ -849,7 +1073,8 @@
           solution: unflatten(best.solution),
           difficulty: best.analysis.difficulty,
           requested: difficulty,
-          variant: V.name,
+          variant: best.V.name,
+          regions: best.V.jig ? best.V.regions.slice() : undefined,
           exact: best.analysis.difficulty === difficulty,
           clues: best.clues,
           techniques: {
@@ -867,7 +1092,7 @@
    * Genera un tablero. Bloqueante (usar en un Web Worker o preferir generatePuzzleAsync).
    * @param {string} difficulty 'facil' | 'medio' | 'dificil' | 'experto' | 'maestro' | 'extremo'
    * @param {{variant?:string, seed?:number|string, maxAttempts?:number, timeBudgetMs?:number, symmetric?:boolean}} [options]
-   *        `variant`: 'classic' (por defecto) | 'diagonal' | 'antiknight'.
+   *        `variant`: 'classic' (por defecto) | 'diagonal' | 'antiknight' | 'nonconsecutive'.
    * @returns {{puzzle:number[][], solution:number[][], difficulty:string, requested:string, variant:string,
    *            exact:boolean, clues:number, techniques:Object, hardestTechnique:string|null, attempts:number}}
    */
@@ -899,6 +1124,12 @@
     if (!value) { return out; }
     var peers = (V || VARIANTS.classic).peers[idx];
     for (var k = 0; k < peers.length; k++) { if (flat[peers[k]] === value) { out.push(peers[k]); } }
+    if (V && V.nonc) {
+      var ad = ADJ[idx];
+      for (k = 0; k < ad.length; k++) {
+        if (flat[ad[k]] && Math.abs(flat[ad[k]] - value) === 1) { out.push(ad[k]); }
+      }
+    }
     return out;
   }
 
@@ -996,6 +1227,10 @@
     for (var k = 0; k < peers.length; k++) {
       if (flat[peers[k]]) { used |= 1 << (flat[peers[k]] - 1); }
     }
+    if (V && V.nonc) {
+      var ad = ADJ[idx];
+      for (k = 0; k < ad.length; k++) { if (flat[ad[k]]) { used |= consecMask(flat[ad[k]]); } }
+    }
     return ALL & ~used;
   }
 
@@ -1003,24 +1238,26 @@
    * Pistas inteligentes
    * ========================================================================= */
 
-  function unitLabel(u) {
+  function unitLabel(u, V) {
     if (u < 9) { return 'la fila ' + (u + 1); }
     if (u < 18) { return 'la columna ' + (u - 8); }
-    if (u < 27) { return 'el bloque ' + BLOCK_NAMES[u - 18]; }
+    if (u < 27) { return (V && V.jig) ? 'la región ' + (u - 17) : 'el bloque ' + BLOCK_NAMES[u - 18]; }
     return u === 27 ? 'la diagonal principal' : 'la diagonal secundaria';
   }
 
-  function unitDemonstrative(u) {
+  function unitDemonstrative(u, V) {
     if (u < 9) { return 'esta fila'; }
     if (u < 18) { return 'esta columna'; }
-    if (u < 27) { return 'este bloque'; }
+    if (u < 27) { return (V && V.jig) ? 'esta región' : 'este bloque'; }
     return 'esta diagonal';
   }
 
   // Dónde "ve" una celda otros números (texto de las pistas de Naked Single).
   function seenWhere(V, idx) {
     if (V.diag && DG[idx]) { return 'su fila, columna, bloque o diagonal'; }
+    if (V.jig) { return 'su fila, columna o región'; }
     if (V.knight) { return 'su fila, columna o bloque, o a un salto de caballo'; }
+    if (V.nonc) { return 'su fila, columna o bloque, o son consecutivos de una celda vecina'; }
     return 'su fila, columna o bloque';
   }
 
@@ -1029,12 +1266,12 @@
     return list.slice(0, -1).join(', ') + ' y ' + list[list.length - 1];
   }
 
-  function cellsOfUnit(u) {
-    return UNITS_ALL[u].map(function (p) { return { row: ROW[p], col: COL[p] }; });
+  function cellsOfUnit(V, u) {
+    return V.units[u].map(function (p) { return { row: ROW[p], col: COL[p] }; });
   }
 
   function emptyCountInUnit(st, u) {
-    var n = 0, cells = UNITS_ALL[u];
+    var n = 0, cells = st.V.units[u];
     for (var k = 0; k < 9; k++) { if (st.grid[cells[k]] === 0) { n++; } }
     return n;
   }
@@ -1055,21 +1292,21 @@
     return Math.max(0, 5 - list.length);
   }
 
-  function describeElimination(step) {
+  function describeElimination(step, V) {
     if (step.technique === 'nakedPair') {
-      return 'un par desnudo de ' + joinList(maskDigits(step.mask)) + ' en ' + unitLabel(step.unit);
+      return 'un par desnudo de ' + joinList(maskDigits(step.mask)) + ' en ' + unitLabel(step.unit, V);
     }
     if (step.technique === 'pointing') {
       return (step.cells.length === 3 ? 'un trío apuntador' : 'un par apuntador') +
-        ' (el ' + step.digit + ' de ' + unitLabel(step.unit) + ' solo cabe en ' + unitLabel(step.line) + ')';
+        ' (el ' + step.digit + ' de ' + unitLabel(step.unit, V) + ' solo cabe en ' + unitLabel(step.line, V) + ')';
     }
     if (step.technique === 'xwing') {
       var fl = step.byRows ? 'filas' : 'columnas', cl = step.byRows ? 'columnas' : 'filas';
       return 'un X-Wing del ' + step.digit + ' (en las ' + fl + ' ' + (step.lines[0] + 1) + ' y ' + (step.lines[1] + 1) +
         ' solo cabe en las ' + cl + ' ' + (step.covers[0] + 1) + ' y ' + (step.covers[1] + 1) + ')';
     }
-    return 'una reducción bloque-línea (el ' + step.digit + ' de ' + unitLabel(step.unit) +
-      ' solo cabe en ' + unitLabel(18 + step.box) + ')';
+    return 'una reducción bloque-línea (el ' + step.digit + ' de ' + unitLabel(step.unit, V) +
+      ' solo cabe en ' + unitLabel(18 + step.box, V) + ')';
   }
 
   var TECHNIQUE_SHORT = {
@@ -1079,8 +1316,8 @@
     xwing: 'X-Wing'
   };
 
-  function describeEliminations(steps) {
-    if (steps.length === 1) { return describeElimination(steps[0]); }
+  function describeEliminations(steps, V) {
+    if (steps.length === 1) { return describeElimination(steps[0], V); }
     var names = [];
     steps.forEach(function (s) {
       var n = TECHNIQUE_SHORT[s.technique];
@@ -1091,15 +1328,15 @@
 
   function scoreNakedSingle(st, s) {
     var idx = s.idx, V = st.V;
-    var units = [18 + BOX[idx], ROW[idx], 9 + COL[idx]]; // preferencia: bloque, fila, columna
+    var units = [18 + V.box[idx], ROW[idx], 9 + COL[idx]]; // preferencia: bloque, fila, columna
     for (var e = 0; e < V.extraUnits.length; e++) {      // luego diagonales (solo en 'diagonal')
-      if (MEMBER[V.extraUnits[e]][idx]) { units.push(V.extraUnits[e]); }
+      if (V.member[V.extraUnits[e]][idx]) { units.push(V.extraUnits[e]); }
     }
     for (var k = 0; k < units.length; k++) {
       if (emptyCountInUnit(st, units[k]) === 1) {
         return {
           score: 200 + (2 - k),
-          core: 'Última celda vacía de ' + unitDemonstrative(units[k]) + ': solo falta el ' + s.value,
+          core: 'Última celda vacía de ' + unitDemonstrative(units[k], V) + ': solo falta el ' + s.value,
           unit: units[k]
         };
       }
@@ -1119,7 +1356,7 @@
     var typeBonus = kind === 2 ? 2 : (kind === 0 ? 1 : 0);
     return {
       score: 50 + filled * 3 + typeBonus,
-      core: 'Único lugar posible para el ' + s.value + ' en ' + unitDemonstrative(s.unit),
+      core: 'Único lugar posible para el ' + s.value + ' en ' + unitDemonstrative(s.unit, st.V),
       unit: s.unit
     };
   }
@@ -1176,20 +1413,27 @@
     var reason;
     if (conflicts.length) {
       var where = [];
-      var inRow = false, inCol = false, inBox = false, inDiag = false, inKnight = false;
+      var inRow = false, inCol = false, inBox = false, inDiag = false, inKnight = false, inConsec = false;
       conflicts.forEach(function (p) {
+        if (flat[p] !== wrong) { inConsec = true; return; }
         if (ROW[p] === ROW[idx]) { inRow = true; }
         if (COL[p] === COL[idx]) { inCol = true; }
-        if (BOX[p] === BOX[idx]) { inBox = true; }
+        if (V.box[p] === V.box[idx]) { inBox = true; }
         if (V.diag && (DG[p] & DG[idx])) { inDiag = true; }
         if (V.knight && isKnightApart(p, idx)) { inKnight = true; }
       });
       if (inRow) { where.push('su fila'); }
       if (inCol) { where.push('su columna'); }
-      if (inBox) { where.push('su bloque'); }
+      if (inBox) { where.push(V.jig ? 'su región' : 'su bloque'); }
       if (inDiag) { where.push('su diagonal'); }
       if (inKnight) { where.push('una celda a salto de caballo'); }
-      reason = 'Hay un error: el ' + wrong + ' está repetido en ' + joinList(where) +
+      var parts = [];
+      if (where.length) { parts.push('está repetido en ' + joinList(where)); }
+      if (inConsec) {
+        var lo = wrong > 1 ? String(wrong - 1) : '', hi = wrong < 9 ? String(wrong + 1) : '';
+        parts.push('queda pegado a un número consecutivo (' + (lo && hi ? lo + ' o ' + hi : lo + hi) + ') en una celda vecina');
+      }
+      reason = 'Hay un error: el ' + wrong + ' ' + parts.join(' y ') +
         '. En esta celda debe ir el ' + correct + '.';
     } else {
       reason = 'Hay un error: el ' + wrong + ' no es correcto aquí (aunque no choque con otro número). ' +
@@ -1212,7 +1456,7 @@
    * @param {number[][]} board    Estado actual (0 = vacío).
    * @param {number[][]} solution Solución completa del tablero.
    * @param {Array<Array<number[]|Set<number>>>} [notes] Notas 9x9 del usuario por celda.
-   * @param {string} [variant] 'classic' (por defecto) | 'diagonal' | 'antiknight'
+   * @param {string} [variant] 'classic' (por defecto) | 'diagonal' | 'antiknight' | 'nonconsecutive'
    * @returns {{row:number, col:number, value:number, reason:string, type:string,
    *            technique:string|null, via:string[], related:{row:number,col:number}[]}|null}
    *          null si el tablero ya está completo y correcto.
@@ -1253,7 +1497,7 @@
           var reason = pick.core + '.';
           var via = [];
           if (applied.length) {
-            reason = 'Tras aplicar ' + describeEliminations(applied) + ': ' +
+            reason = 'Tras aplicar ' + describeEliminations(applied, V) + ': ' +
               pick.core.charAt(0).toLowerCase() + pick.core.slice(1) + '.';
             applied.forEach(function (s) { if (via.indexOf(s.technique) === -1) { via.push(s.technique); } });
           }
@@ -1261,7 +1505,7 @@
             pick.idx, pick.value, reason,
             applied.length ? 'advanced' : 'single',
             pick.technique, via,
-            pick.unit >= 0 ? cellsOfUnit(pick.unit) : []
+            pick.unit >= 0 ? cellsOfUnit(V, pick.unit) : []
           );
         }
         var adv = findAdvancedStep(st);
@@ -1299,6 +1543,8 @@
     DIFFICULTIES: DIFFICULTIES.slice(),
     VARIANTS: VARIANT_NAMES.slice(),
     DEFAULT_VARIANT: 'classic',
+    randomRegions: randomRegions,
+    validateRegions: normalizeRegions,
 
     // Generación y análisis
     generatePuzzle: generatePuzzle,

@@ -19,8 +19,10 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v13">
-<link rel="stylesheet" href="tutorial.css?v=ui-v13">
+<link rel="stylesheet" href="style.css?v=ui-v18">
+<link rel="stylesheet" href="tutorial.css?v=ui-v18">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
 </head>
@@ -36,7 +38,7 @@
         <div class="mast-mark" aria-hidden="true"><i>5</i><i>3</i><i>8</i><i>1</i><i class="on">9</i><i>4</i><i>7</i><i>2</i><i>6</i></div>
         <p class="mast-kicker">GridLab</p>
         <h1 class="home-title">Sudoku</h1>
-        <p class="home-sub">Cuatro modos. Cuatro niveles.</p>
+        <p class="home-sub">Seis modos. Seis niveles.</p>
       </header>
       <nav class="menu" aria-label="Menú principal">
         <button id="btnPlay" class="m-primary" type="button">
@@ -71,6 +73,8 @@
         <button type="button" data-play-mode="killer"><b>Killer</b><small>Jaulas con suma</small></button>
         <button type="button" data-play-mode="diagonal"><b>Diagonal</b><small>Las dos diagonales</small></button>
         <button type="button" data-play-mode="antiknight"><b>Anti-Caballo</b><small>Sin saltos de caballo</small></button>
+        <button type="button" data-play-mode="nonconsecutive"><b>Sin Consecutivos</b><small>Sin números seguidos pegados</small></button>
+        <button type="button" data-play-mode="jigsaw"><b>Jigsaw (Irregular)</b><small>Regiones irregulares de 9 celdas</small></button>
       </div>
 
       <p class="sec-label">Más formas de jugar</p>
@@ -91,6 +95,8 @@
       <span data-m="killer">Además, cada jaula punteada suma el número indicado y no repite dígitos.</span>
       <span data-m="diagonal">Las dos diagonales principales también llevan del 1 al 9 sin repetir.</span>
       <span data-m="antiknight">Ningún número se repite a un salto de caballo de ajedrez.</span>
+      <span data-m="nonconsecutive">Dos celdas que comparten lado no pueden tener números consecutivos.</span>
+      <span data-m="jigsaw">En lugar de bloques de 3×3 hay 9 regiones irregulares de 9 celdas: cada una lleva del 1 al 9.</span>
     </p>
     <p class="sub warn" id="playWarn" hidden>Se perderá la partida en curso.</p>
     <label class="row zen-row"><span>Modo Zen<small>Sin cronómetro ni vidas: jugá sin presión</small></span>
@@ -201,7 +207,7 @@
 <!-- ===================== PANTALLA DE JUEGO ===================== -->
 <main class="app game" id="game-view" hidden>
   <header class="top">
-    <button id="btnHome" class="chip" aria-label="Volver al inicio">Inicio</button>
+    <button id="btnHome" class="chip" aria-label="Volver al inicio">INICIO</button>
     <div class="title">
       <b id="gameLabel"><span id="modeLabel">Clásico</span><span class="sep" aria-hidden="true">•</span><span id="diffLabel">Fácil</span></b>
       <div class="subline">
@@ -211,11 +217,11 @@
         <span id="zenTag" class="zen-tag" hidden>Modo Zen</span>
       </div>
     </div>
-    <button id="btnSet" class="chip" aria-label="Ajustes">⚙</button>
+    <button id="btnSet" class="chip" aria-label="Ajustes"><svg class="gear" viewBox="0 0 24 24" aria-hidden="true"><path class="g-smooth" fill-rule="evenodd" d="M10.52,4.55L11.94,4.40L13.20,1.87L14.77,2.18L14.96,5.00L16.22,5.68L16.22,5.68L17.33,6.58L20.01,5.69L20.90,7.02L19.04,9.15L19.45,10.52L19.45,10.52L19.60,11.94L22.13,13.20L21.82,14.77L19.00,14.96L18.32,16.22L18.32,16.22L17.42,17.33L18.31,20.01L16.98,20.90L14.85,19.04L13.48,19.45L13.48,19.45L12.06,19.60L10.80,22.13L9.23,21.82L9.04,19.00L7.78,18.32L7.78,18.32L6.67,17.42L3.99,18.31L3.10,16.98L4.96,14.85L4.55,13.48L4.55,13.48L4.40,12.06L1.87,10.80L2.18,9.23L5.00,9.04L5.68,7.78L5.68,7.78L6.58,6.67L5.69,3.99L7.02,3.10L9.15,4.96L10.52,4.55Z M12 8.6a3.4 3.4 0 1 0 0 6.8a3.4 3.4 0 1 0 0-6.8z"/><path class="g-pixel" transform="translate(1 1) scale(2)" d="M4 0h3v1h-3zM1 1h1v1h-1zM3 1h5v1h-5zM9 1h1v1h-1zM2 2h7v1h-7zM1 3h4v1h-4zM6 3h4v1h-4zM0 4h4v1h-4zM7 4h4v1h-4zM0 5h3v1h-3zM8 5h3v1h-3zM0 6h4v1h-4zM7 6h4v1h-4zM1 7h4v1h-4zM6 7h4v1h-4zM2 8h7v1h-7zM1 9h1v1h-1zM3 9h5v1h-5zM9 9h1v1h-1zM4 10h3v1h-3z"/></svg></button>
   </header>
 
   <section id="hint" class="hint" hidden role="status" aria-live="polite">
-    <p id="hintText"></p>
+    <div class="hint-body"><b id="hintTech" class="hint-tech"></b><p id="hintText"></p></div>
     <div class="hbtns">
       <button id="hintApply" class="chip primary">Aplicar</button>
       <button id="hintClose" class="chip" aria-label="Cerrar pista">✕</button>
@@ -270,6 +276,7 @@
 
   <nav class="tools" aria-label="Herramientas">
     <button data-act="undo"><span class="ic">↶</span>Deshacer</button>
+    <button data-act="rewind" id="btnRewind" title="Volver al último estado sin errores" aria-label="Rewind: volver al último estado sin errores"><span class="ic">⏪</span>Rewind</button>
     <button data-act="erase"><span class="ic">⌫</span>Borrar</button>
     <button data-act="pencil" id="btnPencil" aria-pressed="false"><span class="ic">✎</span>Notas<em id="pencilTag">OFF</em></button>
     <button data-act="hint" id="btnHint"><span class="ic">✦</span>Pista<em id="hintTag" class="badge">3</em></button>
@@ -303,6 +310,39 @@
     <label class="row"><span>Marcar errores al instante</span>
       <input type="checkbox" id="optErr" class="switch">
     </label>
+    <label class="row"><span>Vibración<small>Respuesta háptica al jugar (si tu dispositivo lo permite)</small></span>
+      <input type="checkbox" id="optHaptic" class="switch">
+    </label>
+    <details class="ctrl-acc" id="ctrlAcc">
+      <summary>CONTROLES Y ATAJOS</summary>
+      <div class="ctrl-body">
+        <p class="ctrl-h">Herramientas del tablero</p>
+        <ul class="ctrl-tools">
+          <li><span class="ci" aria-hidden="true">↶</span><span><b>Deshacer</b> revierte tu última jugada, con sus notas.</span></li>
+          <li><span class="ci" aria-hidden="true">⏪</span><span><b>Rewind</b> vuelve al último tablero sin errores y quita todo lo que pusiste después.</span></li>
+          <li><span class="ci" aria-hidden="true">⌫</span><span><b>Borrar</b> limpia el número o las notas de la celda elegida.</span></li>
+          <li><span class="ci" aria-hidden="true">✎</span><span><b>Notas</b> activa el lápiz: los números que toques quedan como candidatos pequeños en la celda.</span></li>
+          <li><span class="ci" aria-hidden="true">✦</span><span><b>Pista</b> muestra el próximo paso con la deducción explicada paso a paso (cada una gasta una de tus pistas disponibles).</span></li>
+          <li><span class="ci" aria-hidden="true">⇄</span><span><b>Celda→Nº / Nº→Celda</b> cambia el orden: elegir primero la celda o primero el número.</span></li>
+        </ul>
+        <p class="ctrl-h">Atajos de teclado (PC y tablet)</p>
+        <dl class="ctrl-keys">
+          <div><dt><kbd>Flechas</kbd> / <kbd>WASD</kbd></dt><dd>Mover la selección</dd></div>
+          <div><dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Poner número o nota</dd></div>
+          <div><dt><kbd>N</kbd> / <kbd>Espacio</kbd></dt><dd>Alternar Notas</dd></div>
+          <div><dt><kbd>Backspace</kbd> / <kbd>Supr</kbd> / <kbd>0</kbd></dt><dd>Borrar</dd></div>
+          <div><dt><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>U</kbd></dt><dd>Deshacer</dd></div>
+          <div><dt><kbd>R</kbd></dt><dd>Rewind</dd></div>
+          <div><dt><kbd>H</kbd></dt><dd>Pista</dd></div>
+        </dl>
+      </div>
+    </details>
+    <p class="sec-label backup-label">Respaldo de progreso</p>
+    <div class="backup-btns">
+      <button class="chip" id="btnExport" type="button">Exportar progreso</button>
+      <button class="chip" id="btnImport" type="button">Importar progreso</button>
+    </div>
+    <input type="file" id="fileImport" accept=".json,application/json" hidden>
     <button class="chip wide" data-close>Listo</button>
   </div>
 </div>
@@ -393,11 +433,13 @@
     <p class="sub">Elegí el tablero: vos y tu amigo juegan el mismo, a la vez, y comparan tiempos al terminar. 3 vidas y 2 pistas (+30 s cada una).</p>
     <p class="sub warn" id="friendWarn" hidden>Se perderá la partida en curso.</p>
     <p class="friend-label">Modo</p>
-    <div class="modes" id="friendModes" role="radiogroup" aria-label="Modo del duelo">
+    <div class="modes six" id="friendModes" role="radiogroup" aria-label="Modo del duelo">
       <button type="button" role="radio" class="on" aria-checked="true" data-fmode="classic">Clásico</button>
       <button type="button" role="radio" aria-checked="false" data-fmode="killer">Killer</button>
       <button type="button" role="radio" aria-checked="false" data-fmode="diagonal">Diagonal</button>
       <button type="button" role="radio" aria-checked="false" data-fmode="antiknight">Anti-Caballo</button>
+      <button type="button" role="radio" aria-checked="false" data-fmode="nonconsecutive">Sin Consec.</button>
+      <button type="button" role="radio" aria-checked="false" data-fmode="jigsaw">Jigsaw</button>
     </div>
     <p class="friend-label">Dificultad</p>
     <div class="diffs" id="friendDiffs" role="radiogroup" aria-label="Dificultad del duelo">
@@ -420,11 +462,13 @@
     <p class="sub">Vos y tu amigo resuelven el mismo tablero, a la vez y en equipo. Cada uno ve lo que escribe el otro al instante. Comparten 3 vidas y 3 pistas.</p>
     <p class="sub warn" id="coopWarn" hidden>Se perderá la partida en curso.</p>
     <p class="friend-label">Modo</p>
-    <div class="modes" id="coopModes" role="radiogroup" aria-label="Modo de la sala">
+    <div class="modes six" id="coopModes" role="radiogroup" aria-label="Modo de la sala">
       <button type="button" role="radio" class="on" aria-checked="true" data-cmode="classic">Clásico</button>
       <button type="button" role="radio" aria-checked="false" data-cmode="killer">Killer</button>
       <button type="button" role="radio" aria-checked="false" data-cmode="diagonal">Diagonal</button>
       <button type="button" role="radio" aria-checked="false" data-cmode="antiknight">Anti-Caballo</button>
+      <button type="button" role="radio" aria-checked="false" data-cmode="nonconsecutive">Sin Consec.</button>
+      <button type="button" role="radio" aria-checked="false" data-cmode="jigsaw">Jigsaw</button>
     </div>
     <p class="friend-label">Dificultad</p>
     <div class="diffs" id="coopDiffs" role="radiogroup" aria-label="Dificultad de la sala">
@@ -469,18 +513,18 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v13"></script>
-<script src="engine.js?v=ui-v13"></script>
-<script src="killer-engine.js?v=ui-v13"></script>
-<script src="duel.js?v=ui-v13"></script>
+<script src="sound.js?v=ui-v18"></script>
+<script src="engine.js?v=ui-v18"></script>
+<script src="killer-engine.js?v=ui-v18"></script>
+<script src="duel.js?v=ui-v18"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v13"></script>
+<script src="coop.js?v=ui-v18"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
-<script src="tutorial.js?v=ui-v1"></script>
-<script src="app.js?v=ui-v13"></script>
+<script src="tutorial.js?v=ui-v3"></script>
+<script src="app.js?v=ui-v18"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

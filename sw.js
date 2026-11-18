@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sudoku-v25';
+const CACHE_NAME = 'sudoku-v30';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [
@@ -7,13 +7,18 @@ const ASSETS = [
   './style.css',
   './engine.js',
   './killer-engine.js',
+  './worker.js',
   './duel.js',
   './coop.js',
   './app.js',
   './sound.js',
   './tutorial.css',
   './tutorial.js',
-  './manifest.json'
+  './manifest.json',
+  './favicon.svg',
+  './favicon.png',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 // Solo el modo Co-op depende de PeerJS: si falta el archivo, el resto de la app se instala igual.

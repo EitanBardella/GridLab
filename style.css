@@ -240,7 +240,7 @@ button:disabled { cursor:default; }
 .board[data-mode="killer"] .nt { inset:3cqw 2px 2px 2px; }
 
 /* ---------- Herramientas y teclado ---------- */
-.tools { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
+.tools { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; }
 .tools button { position:relative; min-height:56px; display:flex; flex-direction:column; align-items:center;
   justify-content:center; gap:2px; font-size:.78rem; border:1px solid var(--thin); border-radius:12px; background:var(--panel); }
 .tools .ic { font-size:1.3rem; line-height:1; }
@@ -316,7 +316,9 @@ button:disabled { cursor:default; }
 .mode-panel[data-mode="classic"] .mode-desc [data-m="classic"],
 .mode-panel[data-mode="killer"] .mode-desc [data-m="killer"],
 .mode-panel[data-mode="diagonal"] .mode-desc [data-m="diagonal"],
-.mode-panel[data-mode="antiknight"] .mode-desc [data-m="antiknight"] { display:inline; }
+.mode-panel[data-mode="antiknight"] .mode-desc [data-m="antiknight"],
+.mode-panel[data-mode="nonconsecutive"] .mode-desc [data-m="nonconsecutive"],
+.mode-panel[data-mode="jigsaw"] .mode-desc [data-m="jigsaw"] { display:inline; }
 
 .diffs { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .diffs button { min-height:64px; border:1px solid var(--thin); border-radius:12px; background:var(--panel); font-weight:700; display:flex; flex-direction:column; align-items:center; justify-content:center; }
@@ -547,12 +549,12 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 
 /* Botones secundarios y de navegación: misma identidad que las tarjetas (borde definido, sombra sólida desplazada y hundimiento al pulsar).
    Minimalista deja la sombra en none (--sh2) y Retro tiene sus propias reglas más abajo. */
-:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button) {
+:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip) {
   border:2px solid var(--edge); border-radius:6px; background:var(--panel); box-shadow:var(--sh2);
   transition:transform .07s, box-shadow .07s; }
 :is(.chip.primary.wide, .tut-cta .chip.primary) { background:var(--user); border-color:var(--edge); color:var(--on-user); }
 .diffs button.on { background:var(--user); color:var(--on-user); }
-:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button):active:not(:disabled) {
+:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip):active:not(:disabled) {
   transform:var(--press-tf); box-shadow:var(--sh-press); }
 .mode-list.one { grid-template-columns:1fr; }
 .mode-list.one button { min-height:72px; }
@@ -852,3 +854,139 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 
 /* ∞ con el mismo peso visual que los números (sobre todo en fuentes monoespaciadas) */
 .inf-symbol { display:inline-block; font-size:1.35em; line-height:.7; vertical-align:-.06em; }
+
+/* ---------- Teclado físico: foco visible de la celda seleccionada ---------- */
+.cell.sel:not(.hint):not(.rel) { box-shadow:inset 0 0 0 3px var(--user); }
+
+/* ---------- Respaldo de progreso ---------- */
+.backup-label { margin:16px 0 8px; text-align:left; }
+.backup-btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.backup-btns .chip { min-height:48px; padding:0 8px; font-weight:700; font-size:.9rem;
+  border:2px solid var(--edge); border-radius:6px; background:var(--panel); box-shadow:var(--sh2); transition:transform .07s, box-shadow .07s; }
+.backup-btns .chip:active:not(:disabled) { transform:var(--press-tf); box-shadow:var(--sh-press); }
+[data-theme="retro"] .backup-btns .chip { border-radius:0; }
+[data-theme="swiss"] .backup-btns .chip { border-radius:0; border-width:1px; border-color:#000; }
+
+/* ---------- Pistas inteligentes: tarjeta explicativa ---------- */
+.hint-body { flex:1; min-width:0; }
+.hint-body p { font-size:.9rem; line-height:1.35; }
+.hint-tech { display:block; margin-bottom:2px; font-size:.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); }
+.hint-tech:empty { display:none; }
+.hint { border-width:2px; border-left-width:6px; box-shadow:var(--sh2); }
+[data-theme="night"] .hint { border-color:var(--accent); }
+[data-theme="retro"] .hint { border-color:var(--ink); border-left-width:6px; }
+[data-theme="swiss"] .hint { border-color:#000; border-width:1px; border-left-width:6px; box-shadow:none; }
+.tools button[data-act="rewind"] .ic { font-size:1.15rem; }
+@media (max-width:380px) { .tools button { font-size:.66rem; } }
+
+/* ======================================================================
+   Sin Consecutivos · barra superior de la partida · Controles y atajos
+   ====================================================================== */
+
+/* 5ª tarjeta del submenú Jugar: ocupa todo el ancho para que los 5 modos queden equilibrados en cualquier tema */
+.mode-list:not(.one) > button:last-child:nth-child(odd) { grid-column:1 / -1; min-height:76px; }
+
+/* Duelos / Co-op: 6 modos en dos filas de 3 */
+.modes.six { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.modes.six button:nth-child(3n) { border-right:0; }
+.modes.six button:nth-child(n+4) { border-top:1px solid var(--thin); }
+[data-theme="swiss"] .modes.six button:nth-child(n+4) { border-top-color:#000; }
+[data-theme="retro"] .modes.six button:nth-child(n+4) { border-top:2px solid var(--ink); }
+
+/* Barra superior de la partida: INICIO y Ajustes con la identidad de los botones del tema (borde + sombra sólida) */
+.top > .chip { min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
+#btnHome { font-size:.8rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+#btnSet { min-width:52px; padding:0 10px; }
+.gear { width:24px; height:24px; display:block; flex:none; }
+.gear .g-pixel { display:none; }
+/* Papel: engranaje editorial, relleno de tinta translúcido y trazo fino */
+.gear .g-smooth { fill:var(--ink); fill-opacity:.18; stroke:var(--ink); stroke-width:1.1; stroke-linejoin:round; }
+/* Noche: luminoso y nítido */
+[data-theme="night"] .gear .g-smooth { fill:var(--accent); fill-opacity:.28; stroke:var(--accent); stroke-width:1.2;
+  filter:drop-shadow(0 0 2px var(--accent)) drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent)); }
+/* Minimalista: trazo geométrico de 1.5px, sin relleno */
+[data-theme="swiss"] .gear .g-smooth { fill:none; stroke:#000; stroke-width:1.5; stroke-linejoin:miter; }
+/* Retro: engranaje pixel-art / 8-bit */
+[data-theme="retro"] .gear .g-smooth { display:none; }
+[data-theme="retro"] .gear .g-pixel { display:inline; fill:var(--ink); stroke:none; }
+[data-theme="retro"] .gear { shape-rendering:crispEdges; }
+[data-theme="retro"] #btnHome { letter-spacing:.06em; }
+
+/* Ajustes → CONTROLES Y ATAJOS (acordeón) */
+.ctrl-acc { margin:16px 0 0; border:2px solid var(--edge); border-radius:6px; background:var(--panel); box-shadow:var(--sh2); }
+.ctrl-acc summary { list-style:none; cursor:pointer; min-height:48px; padding:0 14px; display:flex; align-items:center; justify-content:space-between;
+  font-size:.74rem; font-weight:800; letter-spacing:.22em; user-select:none; -webkit-user-select:none; }
+.ctrl-acc summary::-webkit-details-marker { display:none; }
+.ctrl-acc summary::after { content:"+"; font-size:1.25rem; font-weight:700; letter-spacing:0; line-height:1; }
+.ctrl-acc[open] summary::after { content:"\2212"; }
+.ctrl-acc[open] summary { border-bottom:1px solid var(--thin); }
+.ctrl-acc summary:focus-visible { outline:2px solid var(--accent); outline-offset:-4px; }
+.ctrl-body { padding:2px 14px 14px; }
+.ctrl-h { margin:14px 0 8px; font-size:.68rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+.ctrl-tools { list-style:none; margin:0; padding:0; display:grid; gap:9px; }
+.ctrl-tools li { display:grid; grid-template-columns:30px minmax(0,1fr); gap:10px; align-items:start; font-size:.84rem; line-height:1.32; }
+.ctrl-tools .ci { width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--thin); border-radius:6px; background:var(--bg); font-size:1rem; line-height:1; }
+.ctrl-tools b { font-weight:800; }
+.ctrl-keys { margin:0; display:grid; border:1px solid var(--thin); border-radius:6px; overflow:hidden; background:var(--bg); }
+.ctrl-keys > div { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:10px; align-items:center; padding:8px 10px; border-bottom:1px solid var(--thin); font-size:.82rem; }
+.ctrl-keys > div:last-child { border-bottom:0; }
+.ctrl-keys dt, .ctrl-keys dd { margin:0; }
+.ctrl-keys dd { color:var(--muted); }
+.ctrl-keys kbd { display:inline-block; margin:1px 0; padding:1px 6px; border:1px solid var(--edge); border-bottom-width:2px; border-radius:4px;
+  background:var(--panel); font-family:var(--font-num); font-size:.74rem; font-weight:700; line-height:1.35; }
+[data-theme="swiss"] .ctrl-acc { border-width:1px; border-color:#000; border-radius:0; box-shadow:none; }
+[data-theme="swiss"] :is(.ctrl-tools .ci, .ctrl-keys, .ctrl-keys kbd) { border-radius:0; border-color:#000; }
+[data-theme="retro"] .ctrl-acc { border-color:var(--ink); border-radius:0; box-shadow:2px 2px 0 var(--ink); }
+[data-theme="retro"] :is(.ctrl-tools .ci, .ctrl-keys, .ctrl-keys kbd) { border-radius:0; border-color:var(--ink); }
+[data-theme="retro"] .ctrl-acc summary { text-transform:uppercase; }
+
+/* Las 6 herramientas del tablero en pantallas muy angostas: una sola fila, sin apretarse ni desbordar */
+@media (max-width:420px) {
+  .tools { gap:3px; }
+  .tools button { min-width:0; padding:0 1px; font-size:.64rem; letter-spacing:0; overflow:hidden; }
+  .tools .ic { font-size:1.15rem; }
+  .tools button[data-act="rewind"] .ic { font-size:1.05rem; }
+  .tools em { right:3px; font-size:.56rem; }
+  .tools em.badge { right:2px; min-width:15px; height:15px; padding:0 3px; line-height:15px; font-size:.6rem; }
+}
+@media (max-width:350px) { .tools button { font-size:.58rem; } .tools { gap:2px; } }
+@media (max-width:380px) { .top .chip#btnHome { min-width:0; padding:0 9px; font-size:.74rem; } #btnSet { min-width:46px; padding:0 8px; } }
+
+/* ======================================================================
+   Jigsaw (Irregular): bordes de región · Minimalista: botones activos
+   ====================================================================== */
+
+/* Las líneas gruesas ya salen solo entre celdas de distinta región (clases .br / .bb las asigna app.js); un poco más gruesas en Jigsaw */
+.board[data-mode="jigsaw"] .cell.br { border-right-width:2.5px; }
+.board[data-mode="jigsaw"] .cell.bb { border-bottom-width:2.5px; }
+[data-theme="retro"] .board[data-mode="jigsaw"] .cell.br { border-right-width:3px; }
+[data-theme="retro"] .board[data-mode="jigsaw"] .cell.bb { border-bottom-width:3px; }
+
+/* Minimalista: un botón activo/seleccionado invierte el contraste (fondo #111, texto e ícono #fff), también con hover.
+   Antes el fondo blanco del tema pisaba el color de acento y el texto blanco desaparecía. */
+[data-theme="swiss"] :is(.tools button.on, .tools button.dfirst, .tools button.active, .tools button.is-active, .tools button[aria-pressed="true"],
+  .keypad button.active, .keypad button[aria-pressed="true"], .chip.active, .chip.is-active, .chip[aria-pressed="true"],
+  .seg button.on, .seg button[aria-selected="true"], .modes button.on, .modes button[aria-checked="true"], .diffs button.on,
+  .surv-grid button.on, button.active, button.is-active, button[aria-pressed="true"]),
+[data-theme="swiss"] :is(.tools button.on, .tools button.dfirst, .tools button.active, .tools button.is-active, .tools button[aria-pressed="true"],
+  .keypad button.active, .keypad button[aria-pressed="true"], .chip.active, .chip.is-active, .chip[aria-pressed="true"],
+  .seg button.on, .seg button[aria-selected="true"], .modes button.on, .modes button[aria-checked="true"], .diffs button.on,
+  .surv-grid button.on, button.active, button.is-active, button[aria-pressed="true"]):hover {
+  background:#111111; border-color:#111111; color:#ffffff; }
+[data-theme="swiss"] :is(.tools button.on, .tools button.dfirst, .tools button.active, .tools button.is-active, .tools button[aria-pressed="true"],
+  .keypad button.active, .keypad button[aria-pressed="true"], .chip.active, .chip.is-active, .chip[aria-pressed="true"],
+  .seg button.on, .seg button[aria-selected="true"], .modes button.on, .modes button[aria-checked="true"], .diffs button.on,
+  .surv-grid button.on, button.active, button.is-active, button[aria-pressed="true"]) :is(.ic, .lbl, span, small, b, em:not(.badge), .rem) { color:#ffffff; }
+[data-theme="swiss"] :is(.tools button.on, .tools button[aria-pressed="true"]) em:not(.badge) { color:#ffffff; }
+
+/* ---------- Bajadas unificadas: misma tipografía, tamaño (.88rem) y peso (600) en Inicio, Jugar y Tutorial ---------- */
+.home-sub, .m-main small, .m-row small, .m-daily small, .m-continue small, .mode-list small, .home-btn small, .vc-s,
+[data-theme] .m-primary .m-main small, [data-theme] .m-primary small {
+  font-family:var(--font-body); font-size:.88rem; font-weight:600; line-height:1.3; letter-spacing:normal; }
+/* Retro: sobre el botón marrón de JUGAR se mantiene el color claro de alto contraste */
+[data-theme="retro"] .m-primary small, [data-theme="retro"] .m-primary .m-main small { color:#f4f7dc; opacity:1; }
+/* Papel, Noche y Minimalista: el peso 600 se lee mejor con un gris más oscuro / claro que el atenuado */
+[data-theme="paper"] :is(.m-daily small, .m-continue small, .m-row small, .mode-list small, .vc-s, .home-sub),
+:root:not([data-theme]) :is(.m-daily small, .m-continue small, .m-row small, .mode-list small, .vc-s, .home-sub) { color:#3b475a; }
+[data-theme="night"] :is(.m-daily small, .m-continue small, .m-row small, .mode-list small, .vc-s, .home-sub) { color:#d5dbe6; }
+[data-theme="swiss"] :is(.m-daily small, .m-continue small, .m-row small, .mode-list small, .vc-s, .home-sub) { color:#333333; }
