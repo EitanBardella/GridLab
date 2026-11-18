@@ -271,3 +271,8 @@
   .tut-hcard { transition:none; }
   .tut-body { scroll-behavior:auto; }
 }
+
+/* ---------- Legibilidad de la letra chica ---------- */
+.tut-lesson small, .tut-hcard .hprog, .tut-summary, .tut-sheet .tut-blurb, .tut-empty-note { font-size:.85rem; font-weight:500; line-height:1.35; }
+.tut-tab small { font-size:.7rem; font-weight:600; }
+[data-theme="retro"] :is(.tut-lesson small, .tut-hcard .hdesc, .tut-hcard .hprog, .tut-summary, .tut-hub-intro, .tut-blurb, .tut-lhead p, .tut-q > div) { color:#1e2912; font-weight:600; }

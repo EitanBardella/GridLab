@@ -6,7 +6,7 @@
    --sh1 / --sh2 / --sh-press: sombra dura (sin difuminado) de botones grandes, medianos y pulsados.
    ===================================================================== */
 :root, [data-theme="paper"] {
-  --bg:#F7F4EB; --panel:#EFEADA; --ink:#1B2A41; --user:#1F4FBF; --muted:#596378;
+  --bg:#F7F4EB; --panel:#EFEADA; --ink:#1B2A41; --user:#1F4FBF; --muted:#475569;
   --thin:#D3CCB4; --thick:#1B2A41; --peer:#EEE8D2; --same:#F2DC9A; --sel:#C9D6F7;
   --err:#B3261E; --errbg:#F5D6CF; --accent:#B45309; --shadow:rgba(27,42,65,.22);
   --diag:#E4E9D2; --cage:#7A7059; --cage-ink:#5A5240;
@@ -19,7 +19,7 @@
   --font-num:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;
 }
 [data-theme="night"] {
-  --bg:#0E0F12; --panel:#181A1F; --ink:#E8E8EC; --user:#7FA6FF; --muted:#8F95A3;
+  --bg:#0E0F12; --panel:#181A1F; --ink:#E8E8EC; --user:#7FA6FF; --muted:#cbd5e1;
   --thin:#2A2D35; --thick:#7C8190; --peer:#14171E; --same:#1F2A47; --sel:#2B468C;
   --err:#FF7B72; --errbg:#4A1F22; --accent:#5B8CFF; --shadow:rgba(0,0,0,.7);
   --diag:#12182A; --cage:#98A3BF; --cage-ink:#B5BED4;
@@ -45,7 +45,7 @@
   --font-num:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
 }
 [data-theme="retro"] {
-  --bg:#CCD4A0; --panel:#B9C38A; --ink:#232B12; --user:#4A3410; --muted:#47522A;
+  --bg:#CCD4A0; --panel:#B9C38A; --ink:#232B12; --user:#4A3410; --muted:#243016;
   --thin:#97A268; --thick:#232B12; --peer:#B3BE80; --same:#E2E89C; --sel:#A5B66B;
   --err:#8E1B10; --errbg:#D8A88B; --accent:#7A4A0B; --shadow:rgba(35,43,18,.4);
   --diag:#BEC891; --cage:#47522A; --cage-ink:#323B1A;
@@ -816,3 +816,39 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 [data-theme="paper"] .cal-mark .cup, [data-theme="night"] .cal-mark .cup { fill-opacity:1; }
 [data-theme="night"] .cal-mark .cup { filter:drop-shadow(0 0 6px var(--star)); }
 .cal-mark { opacity:.36; }
+
+/* ---------- Legibilidad de la letra chica: tamaño, peso e interlineado mínimos ---------- */
+.m-main small, .m-row small, .mode-list small, .home-btn small, .diffs small, .row span small, .surv-grid button small,
+.vc-s, .stat-card .ss, .dtime, .cal-legend, .cal-cup, .cr-note, .friend-label, .mode-desc, .stats-sum, .dr-score, .home-sub, .hero-txt span {
+  font-size:.84rem; font-weight:500; line-height:1.35; }
+.stat-card .sl, .cal-dow, .stats-tbl thead th, .dr-tbl thead th { font-size:.78rem; }
+[data-theme="retro"] :is(.m-main small, .m-row small, .mode-list small, .home-btn small, .diffs small, .row span small, .surv-grid button small,
+  .vc-s, .stat-card .ss, .dtime, .cal-legend, .cal-cup, .cr-note, .friend-label, .mode-desc, .sub) { color:#1e2912; font-weight:600; }
+
+/* ---------- Jerarquía tipográfica: títulos de tarjetas y dificultades ---------- */
+.mode-panel .sheet { max-width:540px; }
+.diffs { grid-template-columns:1fr; gap:10px; }
+.diffs button { align-items:stretch; justify-content:center; gap:4px; min-height:68px; padding:12px 18px; text-align:left; }
+.diffs .d-top { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.diffs .d-top b { font-size:1.02rem; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+.diffs .d-top em { font-style:normal; font-size:.76rem; font-weight:500; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+.diffs button small { font-size:.76rem; font-weight:400; line-height:1.3; color:var(--muted); }
+.diffs button.on em, .diffs button.on small { color:inherit; opacity:.85; }
+.mode-list b, .m-main .m-t, .home-btn { font-weight:800; }
+.mode-list b { font-size:1.05rem; letter-spacing:.07em; }
+.mode-list small, .m-main small, .home-btn small { font-size:.76rem; font-weight:400; }
+
+/* ---------- Ajuste de escala en dificultades y contraste del botón JUGAR ---------- */
+.diffs { gap:8px; }
+.diffs button { padding:11px 16px; gap:8px; min-height:0; }
+.diffs .d-top b { font-size:1.1rem; font-weight:800; }
+.diffs .d-top em { font-size:.84rem; font-weight:700; padding:2px 9px; border-radius:999px;
+  background:color-mix(in srgb, var(--ink) 9%, transparent); }
+.diffs button small { font-size:.86rem; font-weight:500; }
+[data-theme="swiss"] .diffs .d-top em, [data-theme="retro"] .diffs .d-top em { border-radius:0; }
+/* Subtítulo del botón primario: siempre el color del texto del botón (sobre fondo --user) */
+.m-primary small, [data-theme] .m-primary .m-main small { color:var(--on-user); opacity:.92; font-weight:500; }
+[data-theme="retro"] .m-primary small, [data-theme="retro"] .m-primary .m-main small { color:#e8ecc8; opacity:.95; }
+
+/* ∞ con el mismo peso visual que los números (sobre todo en fuentes monoespaciadas) */
+.inf-symbol { display:inline-block; font-size:1.35em; line-height:.7; vertical-align:-.06em; }

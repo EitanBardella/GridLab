@@ -208,7 +208,7 @@
     if (!show) return;
     const inf = lifeInf();
     el.classList.toggle('inf', inf);
-    el.textContent = livesText();
+    if (inf) el.innerHTML = '<span class="inf-symbol">&#8734;</span>'; else el.textContent = livesText();
     el.setAttribute('aria-label', inf ? 'Vidas ilimitadas' : 'Vidas: ' + G.lives + ' de ' + G.maxLives);
   }
 
