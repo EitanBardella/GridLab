@@ -80,7 +80,7 @@
     if (!SURV_MODES[k] || !v || !Number.isInteger(v.n) || v.n < 1 || !Number.isFinite(v.t) || v.t < 0) delete stats.surv[k];
   });
   let G = null;          // partida: mode, puzzle, solution, board, notes, diff, req, seed, hist, secs, won, lost, lives, counted, rec, (duel), (daily), (surv), (cages), (coop, owners, hints)
-  let view = 'home';     // 'home' | 'game'
+  let view = 'home';     // 'home' | 'game' | 'tutorial'
   let sel = -1, pencil = false, hint = null, busy = false;
   let selMode = set.mode; // modo elegido en el panel "Jugar" del inicio
   let boardEl = null, keypad = null;
@@ -712,8 +712,22 @@
     const h = $('#home-view'), g = $('#game-view');
     if (h) h.hidden = v !== 'home';
     if (g) g.hidden = v !== 'game';
+    const tu = $('#tutorial-view'); if (tu) tu.hidden = true;   // el tutorial nunca queda visible junto a otra vista
     if (v === 'home') updateHome();
     syncFocus();
+  }
+
+  /* ---------- Tutorial: solo abre y cierra #tutorial-view (toda la lógica vive en tutorial.js) ---------- */
+  function openTutorial() {
+    const t = $('#tutorial-view'); if (!t) return;
+    const h = $('#home-view'); if (h) h.hidden = true;
+    view = 'tutorial';   // el cronómetro y los atajos de teclado solo actúan con view === 'game'
+    t.hidden = false;
+    if (window.Tutorial) window.Tutorial.open(t);
+  }
+  function closeTutorial() {
+    if (window.Tutorial) window.Tutorial.close();
+    showView('home');    // oculta el tutorial y vuelve al inicio
   }
 
   // Despliega o pliega el selector de modo + dificultad del inicio.
@@ -1957,6 +1971,8 @@
       if (b && !b.disabled && b.dataset.date) playDay(b.dataset.date);
     });
     on('btnStats', 'click', showStats);
+    on('btnTutorial', 'click', openTutorial);
+    on('tutorial-view', 'tutorial:exit', closeTutorial);
     on('btnHomeSet', 'click', openSettings);
     document.querySelectorAll('.modes [data-mode]').forEach(b => b.addEventListener('click', () => selectMode(b.dataset.mode)));
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff, selMode)));

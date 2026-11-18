@@ -7,6 +7,7 @@
 <meta name="color-scheme" content="light dark">
 <title>Sudoku</title>
 <link rel="stylesheet" href="style.css?v=lives-v1">
+<link rel="stylesheet" href="tutorial.css?v=tut-v4">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
 </head>
@@ -68,6 +69,10 @@
     <button id="btnDaily" class="chip home-btn">
       Desafíos Diarios
       <small id="dailyInfo"></small>
+    </button>
+    <button id="btnTutorial" class="chip home-btn">
+      Tutorial
+      <small>Rutas de aprendizaje, técnica por técnica</small>
     </button>
     <button id="btnStats" class="chip home-btn">Estadísticas</button>
     <button id="btnHomeSet" class="chip home-btn">Ajustes / Tema</button>
@@ -155,6 +160,10 @@
 
   </div><!-- /.play -->
 </main>
+
+<!-- ===================== TUTORIAL Y RUTAS DE APRENDIZAJE ===================== -->
+<!-- Lo rellena tutorial.js (le agrega la clase tut-app). app.js solo lo abre y lo cierra. -->
+<main id="tutorial-view" hidden></main>
 
 <!-- ===================== MODALES ===================== -->
 <div class="modal" id="mSet" hidden>
@@ -369,6 +378,11 @@
 <script src="duel.js?v=lives-v1"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
 <script src="coop.js?v=lives-v1"></script>
+<!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
+<script src="tutorial-data-classic.js?v=tut-v4"></script>
+<script src="tutorial-data-killer.js?v=tut-v4"></script>
+<script src="tutorial-data-variants.js?v=tut-v4"></script>
+<script src="tutorial.js?v=tut-v4"></script>
 <script src="app.js?v=lives-v1"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

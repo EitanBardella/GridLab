@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sudoku-v6';
+const CACHE_NAME = 'sudoku-v12';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [
@@ -10,12 +10,18 @@ const ASSETS = [
   './duel.js',
   './coop.js',
   './app.js',
+  './tutorial.css',
+  './tutorial.js',
   './manifest.json'
 ];
 
 // Solo el modo Co-op depende de PeerJS: si falta el archivo, el resto de la app se instala igual.
+// Los archivos de datos del tutorial también son opcionales: se cachean en cuanto existan.
 const OPTIONAL_ASSETS = [
-  './peerjs.min.js'
+  './peerjs.min.js',
+  './tutorial-data-classic.js',
+  './tutorial-data-killer.js',
+  './tutorial-data-variants.js'
 ];
 
 self.addEventListener('install', (event) => {
