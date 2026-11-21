@@ -1256,3 +1256,21 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
 .news-ver h3 { margin:0 0 6px; font-family:var(--font-head); font-size:1rem; text-transform:uppercase; letter-spacing:.07em; }
 .news-items { margin:0; padding-left:1.1em; font-size:.88rem; line-height:1.4; }
 .news-items li { margin:0 0 5px; }
+
+/* ---------- "Novedades de la versión": mismo botón enmarcado que "CONTROLES Y ATAJOS" (borde, sombra desplazada y tracking por tema) ---------- */
+.news-btn { width:100%; margin:12px 0 0; min-height:56px; padding:6px 14px; display:flex; align-items:center; gap:10px; text-align:left; font:inherit; color:inherit;
+  border:2px solid var(--edge); border-radius:6px; background:var(--panel); box-shadow:var(--sh2); cursor:pointer;
+  transition:transform .07s, box-shadow .07s, background-color .18s ease; -webkit-user-select:none; user-select:none; }
+.nb-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.nb-t { font-size:.74rem; font-weight:800; letter-spacing:.22em; text-transform:uppercase; }
+.nb-main small { font-size:.72rem; font-weight:400; letter-spacing:normal; text-transform:none; color:var(--muted); }
+.news-btn .row-go { font-size:1.15rem; font-weight:700; color:var(--ink); }
+.news-btn:active { transform:var(--press-tf); box-shadow:var(--sh-press); }
+.news-btn:focus-visible { outline:2px solid var(--accent); outline-offset:-4px; }
+@media (hover:hover) { .news-btn:hover { background:color-mix(in srgb, var(--panel) 80%, var(--ink) 8%); } }
+[data-theme="swiss"] .news-btn { border-width:1px; border-color:#000; border-radius:0; box-shadow:none; }
+[data-theme="swiss"] .news-btn:active { transform:none; }
+[data-theme="retro"] .news-btn { border-color:var(--ink); border-radius:0; box-shadow:2px 2px 0 var(--ink); }
+[data-theme="retro"] .news-btn:active { transform:translate(2px, 2px); box-shadow:none; }
+/* Espaciado limpio entre CONTROLES Y ATAJOS, NOVEDADES y RESPALDO: las sombras no se tocan */
+#mSet .backup-label { margin-top:14px; }

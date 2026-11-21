@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v47';
+  const BUILD = 'ui-v48';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3656,6 +3656,12 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v48', title: 'Ajustes unificados y carrera más estable', items: [
+      'Nuevo diseño unificado en Ajustes: "Novedades de la versión" tiene el mismo botón enmarcado que "Controles y atajos" en los cuatro temas.',
+      'Alertas flotantes (errores y hitos de la carrera) que no mueven el tablero ni el teclado.',
+      'Carrera grupal: lobby más limpio (nombres repetidos se renombran, quien se va libera su lugar) y reconexión mejorada si se pierde la señal o se cierra la app.',
+      'Actualización automática con barra de progreso: la app se reinicia sola al terminar de descargar.'
+    ] },
     { v: 'ui-v47', title: 'Carrera grupal y actualizaciones', items: [
       'Carrera grupal de 3 a 8 jugadores, todos contra todos: tabla en vivo, eliminación a los 3 errores, avisos del 50 % y 80 % y podio final por tema.',
       'Duelo 1v1 en vivo por sala, junto al Duelo fantasma asíncrono y el Co-op: "Jugar con amigos" ahora tiene cuatro opciones.',
