@@ -158,7 +158,7 @@
         `planned` = técnicas reservadas en cada capítulo (slots).
         Clásico: 2+4+6+7+9+10 = 38 · Killer: 2+3+4+3 = 12.
      ===================================================================== */
-  const VARIANTS = ['classic', 'killer', 'diagonal', 'antiknight'];           // mapas de técnicas
+  const VARIANTS = ['classic', 'killer', 'diagonal', 'antiknight', 'nonconsecutive', 'jigsaw'];           // mapas de técnicas
   const GUIDE_VARIANTS = ['classic', 'killer', 'diagonal', 'antiknight', 'nonconsecutive', 'jigsaw', 'duels']; // guías "Cómo jugar"
   const META = {
     classic: { label: 'Clásico', mode: 'classic', chapters: [
@@ -182,6 +182,12 @@
     antiknight: { label: 'Anti-Caballo', mode: 'antiknight', chapters: [
       { id: 'a1', title: 'El salto del caballo', blurb: 'Qué celdas se "ven" entre sí.' },
       { id: 'a2', title: 'Eliminaciones a distancia', blurb: 'Candidatos que el caballo descarta.' }
+    ] },
+    nonconsecutive: { label: 'Sin Consecutivos', mode: 'nonconsecutive', chapters: [
+      { id: 'n1', title: 'Vecinos que no se tocan', blurb: 'El 1 y el 9 aislados y los pares consecutivos.' }
+    ] },
+    jigsaw: { label: 'Jigsaw', mode: 'jigsaw', chapters: [
+      { id: 'j1', title: 'Regiones irregulares', blurb: 'Región–línea y la Regla del 45 con formas libres.' }
     ] }
   };
 
@@ -623,14 +629,29 @@
       s.delete(i); PEERS.push(s);
     }
   }());
-  function peersFor(mode) {
+  function peersFor(mode, regions) {
     const P = PEERS.map(s => new Set(s));
-    if (mode === 'diagonal') {
+    if (mode === 'jigsaw' && regions) {   // en Jigsaw la región reemplaza al bloque 3×3
+      for (let i = 0; i < 81; i++) {
+        const r = Math.floor(i / 9), c = i % 9, s = new Set();
+        for (let k = 0; k < 9; k++) { s.add(r * 9 + k); s.add(k * 9 + c); }
+        for (let j = 0; j < 81; j++) if (regions[j] === regions[i]) s.add(j);
+        s.delete(i); P[i] = s;
+      }
+    } else if (mode === 'diagonal') {
       [DIAG1, DIAG2].forEach(d => d.forEach(a => d.forEach(b => { if (a !== b) P[a].add(b); })));
     } else if (mode === 'antiknight') {
       for (let i = 0; i < 81; i++) knightCells(i).forEach(q => P[i].add(q));
     }
     return P;
+  }
+
+  // Sin Consecutivos: ¿algún vecino ortogonal de la celda i vale d−1 o d+1?
+  function ncBlocked(vals, i, d) {
+    const r = Math.floor(i / 9), c = i % 9;
+    const n = [];
+    if (r > 0) n.push(i - 9); if (r < 8) n.push(i + 9); if (c > 0) n.push(i - 1); if (c < 8) n.push(i + 1);
+    return n.some(p => vals[p] && Math.abs(vals[p] - d) === 1);
   }
 
   // Centra la pestaña activa dentro de su fila desplazable.
@@ -1177,20 +1198,21 @@
     const mode = pr.mode || 'classic';
     const given = digits81(pr.grid);
     const sol = pr.solution ? digits81(pr.solution) : null;
-    const peers = peersFor(mode);
+    const peers = peersFor(mode, pr.regions);
+    const isNC = mode === 'nonconsecutive';
     const P = {
       val: given.slice(), notes: [], hist: [], sel: -1, digit: null, pencil: false, won: false, hintOn: false,
       inputMode: store.get(KEY_INPUT) === 'cell-first' ? 'cell-first' : 'digit-first'
     };
     for (let i = 0; i < 81; i++) {
       const s = new Set();
-      if (pr.notes === 'auto' && !given[i]) for (let d = 1; d <= 9; d++) { let ok = true; peers[i].forEach(p => { if (given[p] === d) ok = false; }); if (ok) s.add(d); }
+      if (pr.notes === 'auto' && !given[i]) for (let d = 1; d <= 9; d++) { let ok = true; peers[i].forEach(p => { if (given[p] === d) ok = false; }); if (ok && isNC && ncBlocked(given, i, d)) ok = false; if (ok) s.add(d); }
       P.notes.push(s);
     }
     const goal = pr.goal || {};
     const hintCells = new Set(pr.hintCells || []);
 
-    const b = makeBoard(mode, pr.cages);
+    const b = makeBoard(mode, pr.cages, pr.regions);
     const goalTxt = h('span', { text: goal.text || 'Aplicá la técnica de esta lección.' });
     const progTxt = h('span', { class: 'tut-prog', hidden: true });
     const hintTxt = h('span', { class: 'tut-hint-txt', hidden: true, text: pr.hint || '' });
@@ -1278,7 +1300,7 @@
         if (P.val[i] === d) return;
         let ok;
         if (sol) ok = sol[i] === d;
-        else { ok = true; peers[i].forEach(p => { if (P.val[p] === d) ok = false; }); }
+        else { ok = true; peers[i].forEach(p => { if (P.val[p] === d) ok = false; }); if (ok && isNC && ncBlocked(P.val, i, d)) ok = false; }
         if (!ok) { flash(i, 'Ese número no encaja ahí. Probá otra deducción.'); return; }
         pushHist(i);
         sfx('correct');

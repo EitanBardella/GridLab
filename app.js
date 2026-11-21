@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v51';
+  const BUILD = 'ui-v52';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3677,6 +3677,11 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v52', title: 'Más técnicas en las variantes', items: [
+      'Técnicas ahora incluye Sin Consecutivos y Jigsaw, cada una con sus capítulos, ejemplos paso a paso y práctica.',
+      'Nuevas lecciones: Par en diagonal (Diagonal), Esquina que ataca al bloque vecino (Anti-Caballo), Aislamiento del 1 y el 9 y Par consecutivo (Sin Consecutivos), e Intersección región–línea y Regla del 45 (Jigsaw).',
+      'La práctica de Jigsaw y Sin Consecutivos ya calcula las notas automáticas con las reglas de cada variante.'
+    ] },
     { v: 'ui-v51', title: 'Vibración consistente', items: [
       'Vibración unificada: toque suave en el teclado, borrar, deshacer, rewind, notas y pistas; pulso doble al equivocarte; pulso especial al agotar un número, en los hitos de la carrera y al ganar.',
       'Navegar por el tablero, abrir menús y modales, elegir modos o dificultades y cambiar de tema ya no vibran.'

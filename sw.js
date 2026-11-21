@@ -1,6 +1,6 @@
-const CACHE_NAME = 'sudoku-v63';
+const CACHE_NAME = 'sudoku-v64';
 // Versión que ve el jugador en el aviso de actualización. Mantenerla igual que BUILD en app.js.
-const BUILD = 'ui-v51';
+const BUILD = 'ui-v52';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [
@@ -30,7 +30,8 @@ const OPTIONAL_ASSETS = [
   './peerjs.min.js',
   './tutorial-data-classic.js',
   './tutorial-data-killer.js',
-  './tutorial-data-variants.js'
+  './tutorial-data-variants.js',
+  './tutorial-data-variants2.js'
 ];
 
 // Avisa a todas las ventanas abiertas (incluso las que todavía no controla este worker).
