@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v48';
+  const BUILD = 'ui-v50';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -491,8 +491,15 @@
     if (inCoop()) {
       if (pencil) { if (!G.board[r][c]) { sfx('note'); coopDo('note', sel, n); } }
       else if (G.board[r][c] !== n) {
-        sfx(G.solution && G.solution[r][c] && n !== G.solution[r][c] ? 'error' : 'correct');
+        const bad = !!(G.solution && G.solution[r][c] && n !== G.solution[r][c]);
+        sfx(bad ? 'error' : 'correct');
+        // Error en Co-op: el banner con el motivo sale en ambos dispositivos (aquí y en el del compañero)
+        const why = bad && set.showErrors ? explainWrong(r, c, n) : '';
         coopDo('set', sel, n);
+        if (why && !isOver()) {
+          showErrExplain(why);
+          try { co.session.send({ type: 'coop-mistake-alert', reason: why, playerName: (co.session.info() || {}).alias || 'Tu amigo' }); } catch (e) { /* sin conexión */ }
+        }
       }
       return;
     }
@@ -3091,6 +3098,9 @@
       case 'focus':
         rt.friendFocus = m.index; render();
         break;
+      case 'coop-mistake-alert':
+        showErrExplain(m.playerName + ': ' + m.reason);
+        break;
       case 'op':
         coopAfter(coopApply(2, m, m.kind !== 'undo'), 2, m.id);
         break;
@@ -3218,6 +3228,9 @@
         break;
       case 'focus':
         rt.friendFocus = m.index; render();
+        break;
+      case 'coop-mistake-alert':
+        showErrExplain(m.playerName + ': ' + m.reason);
         break;
       case 'won':
         G.won = true; sel = -1; G.secs = m.secs; G.hints = m.hints;
@@ -3656,6 +3669,16 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v50', title: 'Co-op más claro y selector de modo completo', items: [
+      'Co-op: el aviso con el motivo del error aparece en las seis dificultades, para los dos jugadores.',
+      'El selector de modo se ve completo (las dos filas) en Co-op, Duelo 1v1, Duelo fantasma y Carrera grupal, en los cuatro temas.',
+      'Novedades: línea divisoria bajo el título para separar el encabezado del listado.'
+    ] },
+    { v: 'ui-v49', title: 'Instalación y errores en Co-op', items: [
+      'Nuevo botón "Instalar aplicación" en Ajustes (solo si todavía no está instalada). Si tu navegador no permite instalar con un toque, te explica cómo añadirla a la pantalla de inicio.',
+      'Manifest renovado para instalar en Brave, Edge, Samsung Internet e iOS.',
+      'Co-op: cuando alguien se equivoca, el aviso con el motivo aparece en la pantalla de ambos jugadores.'
+    ] },
     { v: 'ui-v48', title: 'Ajustes unificados y carrera más estable', items: [
       'Nuevo diseño unificado en Ajustes: "Novedades de la versión" tiene el mismo botón enmarcado que "Controles y atajos" en los cuatro temas.',
       'Alertas flotantes (errores y hitos de la carrera) que no mueven el tablero ni el teclado.',
@@ -3733,6 +3756,30 @@
     }).catch(() => { /* sin service worker la app funciona igual */ });
   }
 
+  /* ----- Instalar aplicación ----- */
+  let deferredPrompt = null;
+  const isInstalled = () => {
+    try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
+  };
+  function refreshInstallBtn() {
+    const b = $('#btnInstall'); if (b) b.hidden = isInstalled();
+  }
+  function initInstall() {
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
+    window.addEventListener('appinstalled', () => { deferredPrompt = null; refreshInstallBtn(); });
+    try { window.matchMedia('(display-mode: standalone)').addEventListener('change', refreshInstallBtn); } catch (e) { /* navegador antiguo */ }
+    const b = $('#btnInstall');
+    if (b) b.addEventListener('click', () => {
+      if (deferredPrompt) {
+        const p = deferredPrompt; deferredPrompt = null;
+        try { p.prompt(); if (p.userChoice) p.userChoice.then(() => refreshInstallBtn()); } catch (e) { /* ignorar */ }
+      } else {
+        closeModals(); const m = $('#mInstall'); if (m) m.hidden = false;
+      }
+    });
+    refreshInstallBtn();
+  }
+
   /* ----- Novedades ----- */
   const newsPending = () => store.get(K_NEWS) === '1';
   function markBuildSeen() {
@@ -3794,6 +3841,7 @@
     checkCoopHash();      // si se abrió un enlace #coop=..., se une a la sala
     markBuildSeen(); refreshNewsBadge();
     initUpdates();
+    initInstall();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

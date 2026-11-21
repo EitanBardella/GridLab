@@ -1274,3 +1274,17 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
 [data-theme="retro"] .news-btn:active { transform:translate(2px, 2px); box-shadow:none; }
 /* Espaciado limpio entre CONTROLES Y ATAJOS, NOVEDADES y RESPALDO: las sombras no se tocan */
 #mSet .backup-label { margin-top:14px; }
+
+/* Selector de modo (2 filas de 3) en los modales multijugador: nunca se recorta */
+.modes.six { height:auto; min-height:unset; overflow:visible; grid-auto-rows:auto; }
+.modes.six button { height:auto; min-height:40px; padding:10px 4px; line-height:1.2; }
+.modes.six button:first-child { border-top-left-radius:11px; }
+.modes.six button:nth-child(3) { border-top-right-radius:11px; }
+.modes.six button:nth-child(4) { border-bottom-left-radius:11px; }
+.modes.six button:last-child { border-bottom-right-radius:11px; }
+[data-theme="swiss"] .modes.six button, [data-theme="retro"] .modes.six button { border-radius:0; }
+
+/* Novedades: línea divisoria bajo el título principal */
+#mNews .sheet > h2 { margin-bottom:14px; padding-bottom:10px; border-bottom:1px dashed var(--thin); }
+[data-theme="swiss"] #mNews .sheet > h2 { border-bottom:1px solid #000; }
+[data-theme="retro"] #mNews .sheet > h2 { border-bottom:2px solid var(--ink); }

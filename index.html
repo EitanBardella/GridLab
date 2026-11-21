@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v48">
-<link rel="stylesheet" href="tutorial.css?v=ui-v48">
+<link rel="stylesheet" href="style.css?v=ui-v50">
+<link rel="stylesheet" href="tutorial.css?v=ui-v50">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
@@ -375,6 +375,7 @@
         </dl>
       </div>
     </details>
+    <button class="news-btn install-btn" id="btnInstall" type="button" hidden><span class="nb-main"><b class="nb-t">INSTALAR APLICACIÓN</b><small>Añadila a tu pantalla de inicio</small></span><b class="row-go" aria-hidden="true">↓</b></button>
     <button class="news-btn" id="btnNews" type="button"><span class="nb-main"><b class="nb-t">Novedades de la versión</b><small id="newsVer">Versión actual</small></span><em id="newsNew" class="news-new" hidden>Nuevo</em><b class="row-go" aria-hidden="true">→</b></button>
     <p class="sec-label backup-label">Respaldo de progreso</p>
     <div class="backup-btns">
@@ -395,6 +396,20 @@
     <div class="upd-bar" id="updBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="updFill"></i></div>
     <p class="upd-pct" id="updPct" aria-live="polite">0 %</p>
     <p class="sub">No cierres la app: se reinicia sola al terminar.</p>
+  </div>
+</div>
+
+<!-- Cómo instalar la app (navegadores sin instalación con un toque) -->
+<div class="modal" id="mInstall" hidden>
+  <div class="sheet">
+    <h2>Instalar GridLab</h2>
+    <p class="sub">Tu navegador no permite instalarla con un toque. Hacelo desde su menú:</p>
+    <ul class="news-items">
+      <li><b>Android / Brave / Edge / Samsung Internet:</b> abrí el menú <b>⋮</b> (o ≡) y elegí <i>Instalar aplicación</i> o <i>Añadir a pantalla de inicio</i>.</li>
+      <li><b>iPhone / iPad (Safari):</b> tocá <b>Compartir</b> y elegí <i>Añadir a pantalla de inicio</i>.</li>
+      <li><b>Brave con escudos estrictos o Firefox:</b> probá desactivar los escudos para este sitio o usá el menú del navegador.</li>
+    </ul>
+    <button class="chip primary wide" data-close>Entendido</button>
   </div>
 </div>
 
@@ -679,19 +694,19 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v48"></script>
-<script src="engine.js?v=ui-v48"></script>
-<script src="killer-engine.js?v=ui-v48"></script>
-<script src="duel.js?v=ui-v48"></script>
+<script src="sound.js?v=ui-v50"></script>
+<script src="engine.js?v=ui-v50"></script>
+<script src="killer-engine.js?v=ui-v50"></script>
+<script src="duel.js?v=ui-v50"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v48"></script>
-<script src="race.js?v=ui-v48"></script>
+<script src="coop.js?v=ui-v50"></script>
+<script src="race.js?v=ui-v50"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
 <script src="tutorial.js?v=ui-v5"></script>
-<script src="app.js?v=ui-v48"></script>
+<script src="app.js?v=ui-v50"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

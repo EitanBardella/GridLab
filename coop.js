@@ -393,6 +393,11 @@
           return { type: 'coop-end', by: 'host' };
         case 'coop-leave':
           return { type: 'coop-leave', by: 'guest' };
+        case 'coop-mistake-alert': { // motivo del error del compañero (solo texto, acotado)
+          var rsn = String(m.reason === undefined || m.reason === null ? '' : m.reason).replace(/\s+/g, ' ').trim().slice(0, 120);
+          if (!rsn) { return null; }
+          return { type: 'coop-mistake-alert', reason: rsn, playerName: sanitizeAlias(m.playerName) || 'Tu amigo' };
+        }
         /* ----- Duelo 1v1 en vivo ----- */
         case 'dprog': // progreso del rival: celdas correctas, errores, vidas y tiempo
           if (!isInt(m.filled, 0, 81)) { return null; }
