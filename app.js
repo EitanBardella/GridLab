@@ -135,15 +135,16 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v50';
+  const BUILD = 'ui-v51';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
-  const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
+  const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
-  const HAPTIC = { tap: 10, note: 10, correct: 10, error: [25, 40, 25], line: [15, 30, 15, 30, 45],
-                   win: [30, 50, 30, 50, 30, 50, 140], lose: [70, 40, 110] };
-  const haptic = name => {
-    try { if (set.haptic !== false && navigator.vibrate && HAPTIC[name]) navigator.vibrate(HAPTIC[name]); } catch (e) { /* ignorar */ }
-  };
+  const HAPTIC = { tap: 12, error: [30, 40, 30], milestone: [20, 30, 40] };
+  // Único punto de vibración: "tap" (teclado, borrar, deshacer, rewind, notas, pista), "error" y "milestone". Navegación y menús no vibran.
+  function triggerHaptic(type) {
+    try { if (set.haptic !== false && navigator.vibrate && HAPTIC[type]) navigator.vibrate(HAPTIC[type]); } catch (e) { /* ignorar */ }
+  }
+  let keyMemo = { g: null, rem: [] };       // restantes por dígito en el render anterior (detecta cuándo se agota uno)
   let pendingSfx = null;                    // sonido de la jugada en curso; afterChange decide el definitivo
   let unitsMemo = { g: null, n: 0 };        // filas/columnas/cajas completas y correctas (para el sonido de "completaste")
   // Enlaza un evento a un id; si el id no existe lo avisa en consola (antes el ?. lo ocultaba).
@@ -488,6 +489,7 @@
     hideErrExplain();
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c]) return;
+    triggerHaptic("tap");
     if (inCoop()) {
       if (pencil) { if (!G.board[r][c]) { sfx('note'); coopDo('note', sel, n); } }
       else if (G.board[r][c] !== n) {
@@ -532,6 +534,7 @@
     if (!G || sel < 0 || isOver()) return;
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c] || (!G.board[r][c] && !G.notes[r][c].length)) return;
+    triggerHaptic("tap");
     if (inCoop()) { coopDo('erase', sel, 0); return; }
     pendingSfx = 'tap';
     mutate(t => { t(r, c); G.board[r][c] = 0; G.notes[r][c] = []; });
@@ -569,7 +572,7 @@
     if (!G || isOver()) return;
     if (isDigitFirst()) {
       activeDigit = activeDigit === n ? null : n;
-      sfx('tap');
+      sfx('tap'); triggerHaptic('tap');
       sel = -1; hideHint(); render();
     } else {
       input(n);
@@ -586,6 +589,7 @@
 
   function undo() {
     if (!G || G.lost) return;
+    triggerHaptic("tap");
     if (inCoop()) {
       if (G.won) return;
       if (co.role === 'host') {
@@ -622,6 +626,7 @@
     if (!G.hist.length) { toast('No hay movimientos para retroceder'); return; }
     const n = rewindSteps();
     if (!n) { toast('Tu tablero no tiene errores ✓'); return; }
+    triggerHaptic("tap");
     if (n > 1 && !window.confirm('Se retrocederán ' + n + ' movimientos hasta el último tablero sin errores. ¿Continuar?')) return;
     for (let k = 0; k < n; k++) G.hist.pop().forEach(([r, c, v, nt]) => { G.board[r][c] = v; G.notes[r][c] = nt; });
     pendingSfx = 'tap';
@@ -679,6 +684,7 @@
     try { h = computeHint(); } catch (e) { h = undefined; }
     const box = $('#hint'), apply = $('#hintApply');
     if (h && !chargeHint(h)) { toast('Ya no te quedan pistas'); render(); return; }
+    triggerHaptic("tap");
     if (box) box.hidden = false;
     if (h === undefined) {
       hint = null; if (apply) apply.hidden = true;
@@ -938,6 +944,9 @@
       if (el._h !== html) { el.innerHTML = html; el._h = html; }
     }
 
+    const remNow = keys.map((_, k) => Math.max(0, 9 - count[k + 1]));
+    if (keyMemo.g === G && remNow.some((v, k) => v === 0 && keyMemo.rem[k] > 0)) triggerHaptic("milestone");
+    keyMemo = { g: G, rem: remNow };
     keys.forEach((b, k) => {
       const rem = Math.max(0, 9 - count[k + 1]);
       const remEl = b.querySelector('.rem');
@@ -2531,7 +2540,7 @@
     if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }   // reinicia la barra de 4 s
     clearTimeout(msTimer);
     msTimer = setTimeout(hideRaceAlert, 4000);
-    sfx('line');
+    sfx('line'); triggerHaptic('milestone');
   }
   function raceMilestoneBanner(m) {
     if (!G || !G.race) return;
@@ -3536,7 +3545,7 @@
       const b = e.target.closest('button'); if (!b || b.disabled) return;
       const a = b.dataset.act;
       if (a === 'undo') undo(); else if (a === 'rewind') rewind(); else if (a === 'erase') erase();
-      else if (a === 'pencil') { pencil = !pencil; render(); } else if (a === 'hint') showHint();
+      else if (a === 'pencil') { pencil = !pencil; triggerHaptic('tap'); render(); } else if (a === 'hint') showHint();
       else if (a === 'inputmode') toggleInputMode();
     });
     on('hintApply', 'click', applyHint);
@@ -3578,11 +3587,10 @@
     }));
     on('optSound', 'change', e => { if (window.Sound) window.Sound.setEnabled(e.target.checked); });
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
-    on('optHaptic', 'change', e => { set.haptic = e.target.checked; saveSet(); haptic('tap'); });
+    on('optHaptic', 'change', e => { set.haptic = e.target.checked; saveSet(); triggerHaptic('tap'); });
     on('btnExport', 'click', () => { sfx('tap'); exportBackup(); });
     on('btnImport', 'click', () => { sfx('tap'); $('#fileImport').click(); });
     on('fileImport', 'change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; importBackup(f); });
-    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.cell')) haptic('tap'); });
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && !modalOpen()) {
@@ -3604,7 +3612,7 @@
       const dir = { ArrowUp: 'u', ArrowDown: 'd', ArrowLeft: 'l', ArrowRight: 'r', w: 'u', s: 'd', a: 'l', d: 'r' }[kl];
       if (dig) { e.preventDefault(); pressDigit(dig); }
       else if (k === 'Backspace' || k === 'Delete' || k === '0' || e.code === 'Numpad0') { e.preventDefault(); erase(); }
-      else if (kl === 'n' || k === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) { pencil = !pencil; sfx('tap'); render(); } }
+      else if (kl === 'n' || k === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) { pencil = !pencil; sfx('tap'); triggerHaptic('tap'); render(); } }
       else if (kl === 'u') { e.preventDefault(); undo(); }
       else if (kl === 'r') { e.preventDefault(); if (!e.repeat) rewind(); }
       else if (kl === 'h') { e.preventDefault(); if (!e.repeat) showHint(); }
@@ -3669,6 +3677,10 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v51', title: 'Vibración consistente', items: [
+      'Vibración unificada: toque suave en el teclado, borrar, deshacer, rewind, notas y pistas; pulso doble al equivocarte; pulso especial al agotar un número, en los hitos de la carrera y al ganar.',
+      'Navegar por el tablero, abrir menús y modales, elegir modos o dificultades y cambiar de tema ya no vibran.'
+    ] },
     { v: 'ui-v50', title: 'Co-op más claro y selector de modo completo', items: [
       'Co-op: el aviso con el motivo del error aparece en las seis dificultades, para los dos jugadores.',
       'El selector de modo se ve completo (las dos filas) en Co-op, Duelo 1v1, Duelo fantasma y Carrera grupal, en los cuatro temas.',
