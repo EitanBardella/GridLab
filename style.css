@@ -1298,10 +1298,10 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
 /* ---------- Móvil en horizontal: tablero a la izquierda; INICIO/Ajustes, herramientas 3×2 y teclado 3×3 a la derecha.
    El diseño vertical no cambia: todo vive dentro de esta media query. ---------- */
 @media (orientation:landscape) and (max-height:540px) {
-  .app.game { --bs:min(86dvh, 50vw); max-width:none; width:100%; display:grid; gap:0 14px;
-    grid-template-columns:var(--bs) minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr);
+  .app.game { --bs:min(92dvh, 55vw); --bb:var(--bs); max-width:none; width:100%; display:grid; gap:0 16px; justify-content:center;
+    grid-template-columns:var(--bs) clamp(235px, 38vw, 320px); grid-template-rows:auto auto minmax(0,1fr);
     align-content:center; align-items:stretch;
-    padding:max(6px, env(safe-area-inset-top)) calc(env(safe-area-inset-right) + 10px) max(6px, env(safe-area-inset-bottom)) calc(env(safe-area-inset-left) + 10px); }
+    padding:max(8px, env(safe-area-inset-top)) calc(env(safe-area-inset-right) + 10px) max(8px, env(safe-area-inset-bottom)) calc(env(safe-area-inset-left) + 10px); }
   .app.game .play { display:contents; }
   /* Columna izquierda: avisos y barras comparten la celda del tablero, pegados arriba. */
   .app.game > .hint, .app.game > .errx, .app.game .play > :is(.status, .duelbar, .racebar, .coopbar) {
@@ -1310,8 +1310,8 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
   .app.game > .hint p, .app.game > .errx p { font-size:.74rem; line-height:1.2; }
   .app.game > .hint .chip, .app.game > .errx .chip, .app.game .racebar .chip, .app.game .coopbar .chip { min-height:26px; padding:0 8px; font-size:.72rem; }
   .app.game .race-table { max-height:30dvh; overflow:auto; }
-  .app.game .play > .stage { grid-column:1; grid-row:1 / -1; align-self:center; justify-self:start; width:var(--bs); height:var(--bs); flex:none; }
-  .app.game:has(> .hint:not([hidden]), > .errx:not([hidden]), .play > :is(.status, .duelbar, .racebar, .coopbar):not([hidden])) .play > .stage { align-self:end; }
+  .app.game .play > .stage { grid-column:1; grid-row:1 / -1; align-self:center; justify-self:start; width:var(--bb); height:var(--bb); flex:none; }
+  .app.game:has(> .hint:not([hidden]), > .errx:not([hidden]), .play > :is(.status, .duelbar, .racebar, .coopbar):not([hidden])) .play > .stage { --bb:min(82dvh, 55vw); align-self:end; }
   /* Columna derecha */
   .app.game > .top { grid-column:2; grid-row:1; padding:0; gap:6px; align-self:end; margin-bottom:6px; }
   .app.game > .top .chip { min-height:40px; min-width:0; }
