@@ -65,7 +65,9 @@
   // G incluye `mode`/`variant`, `seed`, `req`, `rec` (grabador del fantasma), `duel` y, en Killer, `cages`.
   // También `maxLives`, `lives`, `lost`, `hintsMax`, `hintsUsed` y, en una racha, `surv`.
   // En una sala Co-op también `coop`, `owners` y `hints` (al restaurar, la partida sigue como partida normal).
-  const persist = () => { try { store.set(K_GAME, JSON.stringify(G)); } catch (e) { /* ignorar */ } };
+  // El duelo en vivo no se guarda; la carrera va a su propia clave: así "Continuar partida" (K_GAME) nunca se pisa con partidas de sala.
+  const K_RACE = 'sudoku.race.v1', K_RTOK = 'sudoku.race.tok';
+  const persist = () => { try { if (G && G.live) return; store.set(G && G.race ? K_RACE : K_GAME, JSON.stringify(G)); } catch (e) { /* ignorar */ } };
   const saveSet = () => store.set(K_SET, JSON.stringify(set));
   const saveStats = () => { try { store.set(K_STATS, JSON.stringify(stats)); } catch (e) { /* ignorar */ } };
 
@@ -133,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v44';
+  const BUILD = 'ui-v45';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -1155,6 +1157,7 @@
   // Inicio: guarda la partida (modo, jaulas y fantasma incluidos, vía G) y vuelve a #home-view.
   // El cronómetro se pausa solo porque únicamente corre con view === 'game' (en una sala Co-op sigue el reloj del Host).
   function goHome() {
+    if (G && ((G.race && G.race.over) || (G.live && G.lv && G.lv.over))) dropRoomGame();   // terminó la partida de sala: vuelve la individual guardada
     if (G) persist();
     hideHint(); hideErrExplain(); closeModals(); setPlayOpen(false); setHomeScreen('main');
     showView('home');
@@ -2004,12 +2007,13 @@
     if (!coopOk()) { toast('Falta peerjs.min.js: el duelo en vivo no está disponible.'); return; }
     liveMode = selMode;     // arranca con el modo elegido en Jugar; la elección se conserva mientras la app esté abierta
     setLiveSel();
-    const w = $('#liveWarn'); if (w) w.hidden = !hasProgress();
+    const w = $('#liveWarn'); if (w) w.hidden = true;      // la partida individual se conserva aparte
     const m = $('#mLive'); if (m) m.hidden = false;
   }
 
   // Arma la partida de duelo en vivo (Host y Invitado): vidas 3, sin pistas, sin estadísticas ni fantasma.
   function buildLiveGame(src) {
+    if (G && !G.race && !G.live) persist();        // la partida individual en curso queda guardada antes de reemplazar G
     G = {
       mode: src.mode, variant: src.mode, puzzle: src.puzzle, solution: src.solution, board: E.cloneBoard(src.puzzle),
       notes: emptyNotes(), diff: src.diff, req: src.req, seed: src.seed, hist: [], secs: 0, won: false, lost: false, counted: true,
@@ -2056,7 +2060,7 @@
   function cancelLiveWait() {
     hideLiveWait();
     if (co && co.kind === 'duel') leaveCoop();
-    if (G && G.live) { G.live = false; delete G.lv; }
+    dropRoomGame();
     updateHome();
   }
 
@@ -2248,7 +2252,7 @@
     if (!raceOk()) { toast('Falta peerjs.min.js: la carrera grupal no está disponible.'); return; }
     raceMode = selMode;
     setRaceSel();
-    const w = $('#raceWarn'); if (w) w.hidden = !hasProgress();
+    const w = $('#raceWarn'); if (w) w.hidden = true;
     const m = $('#mRace'); if (m) m.hidden = false;
   }
 
@@ -2308,7 +2312,8 @@
       if (rc !== me || !me.started) return;
       const e = me.table[id];                       // volvió antes de que termine la carrera: si no se había ido a propósito, vuelve a estar activo
       if (e && e.left && !me.voluntary[id]) { e.left = false; raceHostUpdated(); }
-      net.send(id, me.startMsg);
+      if (me.voluntary[id]) { net.send(id, { type: 'race-closed', reason: 'started' }); return; }
+      net.send(id, Object.assign({}, me.startMsg, { elapsed: Math.max(0, Math.floor((Date.now() - me.t0) / 1000)) }));   // tablero + tiempo transcurrido
       net.send(id, { type: 'race-leaderboard', rankings: Object.values(me.table) });
     });
     net.on('error', reason => {
@@ -2347,13 +2352,48 @@
   function buildRaceGame(src, players, me) {
     buildLiveGame(src);
     G.live = false; delete G.lv;
+    G.raceCode = rc ? rc.code : '';
     G.race = { me: me, rows: [], over: false, tableOpen: false, winnerId: -1, mode: src.mode };
     G.race.rows = SR.rank(players.map(p => ({ id: p.id, alias: p.alias, filled: givensN, mistakes: 0, time: 0, eliminated: false, left: false, done: false, host: !!p.host })));
   }
 
-  function raceBegin() {
-    rc.started = true; rc.t0 = Date.now();
-    G.secs = 0;
+  // Token por sala (30 min de vigencia): identifica al jugador si cierra la app y vuelve a abrir el enlace.
+  function raceToken(code) {
+    const now = Date.now(), o = load(K_RTOK, null);
+    const t = (o && o.code === code && o.exp > now && typeof o.t === 'string') ? o.t : Math.random().toString(36).slice(2) + now.toString(36);
+    store.set(K_RTOK, JSON.stringify({ code: code, t: t, exp: now + 30 * 60 * 1000 }));
+    return t;
+  }
+
+  // Reingreso: si lo guardado es de esta misma sala y tablero, se recuperan celdas, notas, vidas y errores.
+  function restoreRaceProgress(sv, seed) {
+    try {
+      if (!sv || sv.raceCode !== rc.code || sv.seed !== seed || !Array.isArray(sv.board) || sv.board.length !== 9 || !Array.isArray(sv.notes) || sv.notes.length !== 9) return;
+      for (let r = 0; r < 9; r++) {
+        if (!Array.isArray(sv.board[r]) || sv.board[r].length !== 9 || !Array.isArray(sv.notes[r]) || sv.notes[r].length !== 9) return;
+        for (let c = 0; c < 9; c++) {
+          const v = sv.board[r][c];
+          if (!Number.isInteger(v) || v < 0 || v > 9 || (G.puzzle[r][c] && v !== G.puzzle[r][c])) return;
+          if (!Array.isArray(sv.notes[r][c])) return;
+        }
+      }
+      G.board = sv.board; G.notes = sv.notes;
+      G.lives = Number.isInteger(sv.lives) ? Math.max(0, Math.min(G.maxLives, sv.lives)) : G.lives;
+      G.errs = sv.errs | 0; G.lost = !!sv.lost; G.won = !!sv.won;
+    } catch (e) { /* se empieza de cero */ }
+  }
+
+  // Al terminar o abandonar una partida de sala se vuelve a la partida individual guardada ("Continuar partida").
+  function dropRoomGame() {
+    if (!(G && (G.race || G.live))) return;
+    G = null; sel = -1; hideHint();
+    restore();
+  }
+
+  function raceBegin(elapsed) {
+    elapsed = elapsed | 0;
+    rc.started = true; rc.t0 = Date.now() - elapsed * 1000;   // en un reingreso retoma el tiempo transcurrido de la carrera
+    G.secs = elapsed;
     hideLoad(); hideRaceLobby(); closeModals();
     showView('game'); render(); persist();
   }
@@ -2406,7 +2446,7 @@
     if (!alias) { askAlias(() => joinRace(code), COOP_ALIAS); return; }
     if (co || rc) leaveCoop();
     let net;
-    try { net = SR.join(code, { alias: alias }); } catch (e) { toast('El código de sala no es válido.'); return; }
+    try { net = SR.join(code, { alias: alias, sid: raceToken(code) }); } catch (e) { toast('El código de sala no es válido.'); return; }
     const me = rc = { role: 'guest', net: net, id: -1, started: false, code: code };
     closeModals();
     showLoad('Conectando con la sala…', true);
@@ -2440,10 +2480,13 @@
         if (!rc.started) renderRaceLobby(m.players); else raceReport();   // reconexión: vuelve a informar su avance actual
         break;
       case 'race-start': {
-        if (rc.started) break;                                     // reenvío tras una reconexión
+        if (rc.started) break;                                     // reenvío tras una reconexión sin haber cerrado la app
         const s = m.state;
+        const sv = load(K_RACE, null);                             // si reabrió la app a mitad de carrera: retoma su tablero guardado
         buildRaceGame({ mode: s.mode, puzzle: s.puzzle, solution: s.solution, diff: s.diff, req: s.req, seed: s.seed, cages: s.cages, regions: s.regions }, m.players, rc.id);
-        raceBegin();
+        restoreRaceProgress(sv, s.seed);
+        raceBegin(m.elapsed);
+        if (m.elapsed || G.lost || G.won) raceReport();            // el Host vuelve a ver su avance actual
         break;
       }
       case 'race-milestone':
@@ -2516,7 +2559,7 @@
     } else if (m.type === 'rwin') {
       e.done = true; e.filled = 81; e.time = m.time;
     } else if (m.type === 'rleave') {
-      e.left = true; rc.voluntary[id] = true;   // salió a propósito: no se reactiva al reconectar
+      e.left = true; if (!m.soft) rc.voluntary[id] = true;   // "Salir de la carrera" es definitivo; cerrar la app (soft) permite reingresar
     } else return;
     raceHostUpdated();
   }
@@ -3286,14 +3329,7 @@
     if (r.kind === 'race') {            // carrera grupal: ruta propia
       if (!raceOk()) { toast('Falta peerjs.min.js: la carrera grupal no está disponible.'); return; }
       if (rc && rc.code === r.code) { toast(rc.role === 'host' ? 'Esa es tu propia sala: mandale el enlace a tus amigos.' : 'Ya estás en esa sala.'); return; }
-      if (hasProgress()) {
-        pendingCoop = r.code; pendingCoopKind = 'race';
-        setText('#coopJoinKind', 'Te invitaron a una carrera grupal');
-        setText('#coopJoinCode', r.code);
-        const w = $('#coopJoinWarn'); if (w) w.hidden = false;
-        document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mCoopJoin') m.hidden = true; });
-        const m = $('#mCoopJoin'); if (m) m.hidden = false;
-      } else joinRace(r.code);
+      joinRace(r.code);                 // la carrera no pisa la partida individual guardada: se entra directo
       return;
     }
     if (!coopOk()) { toast('Falta peerjs.min.js: el modo Co-op no está disponible.'); return; }
@@ -3302,7 +3338,7 @@
       else if (G && G.coop) { showView('game'); render(); }
       return;
     }
-    if (hasProgress()) {
+    if (hasProgress() && r.kind !== 'duel') {   // el duelo en vivo no pisa la partida individual: no hace falta confirmar
       pendingCoop = r.code; pendingCoopKind = r.kind;
       setText('#coopJoinKind', r.kind === 'duel' ? 'Te desafiaron a un duelo 1v1 en vivo' : 'Te invitaron a resolver un Sudoku en equipo');
       setText('#coopJoinCode', r.code);

@@ -1207,3 +1207,11 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
 .errx.milestone { border-color:var(--ms-color); background:linear-gradient(var(--ms-bg), var(--ms-bg)), var(--panel); }
 .errx.milestone .errx-bar { background:var(--ms-color); }
 [data-theme="night"] .errx.milestone .errx-bar { box-shadow:0 0 8px rgba(96, 165, 250, 0.45); }
+
+/* ---------- Avisos flotantes: el de error y el de hitos se superponen bajo el encabezado y NO ocupan espacio en el layout ---------- */
+.errx { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 62px); left:12px; right:12px; max-width:520px; margin:0 auto; z-index:60;
+  box-shadow:0 6px 18px var(--shadow); }
+[data-theme="night"] .errx { box-shadow:0 6px 20px rgba(0, 0, 0, .65); }
+[data-theme="swiss"] .errx { box-shadow:0 4px 0 rgba(0, 0, 0, .12); }
+[data-theme="retro"] .errx { box-shadow:3px 3px 0 var(--ink); }
+.errx:not([hidden]) ~ .errx.milestone:not([hidden]) { top:calc(env(safe-area-inset-top, 0px) + 62px + 60px); }   /* si coinciden, se apilan */

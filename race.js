@@ -28,8 +28,8 @@
   var MAX_PLAYERS = 8, MIN_PLAYERS = 3;
   var MAX_SECS = 359999;
   var DROP_MS = 5000;         // un invitado sin conexión más de este tiempo durante la carrera cuenta como "Abandonó"
-  var HB_MS = 4000;           // latido del Host (ping / pong)
-  var SILENT_LOBBY = 10000, SILENT_RACE = 8000;   // sin ninguna señal durante tanto tiempo = conexión muerta
+  var HB_LOBBY_MS = 4000, HB_RACE_MS = 3000;   // latido del Host (ping / pong): 4 s en el lobby, 3 s en carrera
+  var SILENT_LOBBY = 10000, SILENT_RACE = 6000;   // sin ninguna señal durante tanto tiempo = conexión muerta
   var GUEST_TRIES = 6;
 
   function C() { return root && root.SudokuCoop; }
@@ -86,7 +86,8 @@
               time: isInt(m.time, 0, MAX_SECS) ? m.time : 0, eliminated: !!m.eliminated, left: !!m.left
             };
           case 'rwin': return isInt(m.time, 0, MAX_SECS) ? { type: 'rwin', time: m.time } : null;
-          case 'rleave': case 'race-leave': return { type: 'rleave' };
+          case 'rleave': return { type: 'rleave' };                        // "Salir de la carrera" (definitivo)
+          case 'race-leave': return { type: 'rleave', soft: true };        // cerró la pestaña / la app: puede reingresar con su token
           case 'pong': return { type: 'pong' };
           default: return null;
         }
@@ -111,7 +112,7 @@
             if (!q || !isInt(q.id, 0, 15)) { return null; }
             ps.push({ id: q.id, alias: C().sanitizeAlias(q.alias) || 'Jugador', host: !!q.host });
           }
-          return { type: 'race-start', seed: m.seed, mode: st.mode, difficulty: st.req, players: ps, state: st };
+          return { type: 'race-start', seed: m.seed, mode: st.mode, difficulty: st.req, players: ps, state: st, elapsed: isInt(m.elapsed, 0, MAX_SECS) ? m.elapsed : 0 };
         }
         case 'race-leaderboard':
           rows = cleanRows(m.rankings);
@@ -137,7 +138,7 @@
     this.role = role;
     this.alias = (C() && C().sanitizeAlias(opts.alias)) || 'Jugador';
     this.code = opts.code || null;
-    this.sid = rnd();
+    this.sid = (opts.sid && String(opts.sid).slice(0, 40)) || rnd();
     this.listeners = {};
     this.closed = false;
     this.locked = false;           // Host: la carrera ya empezó, no entra nadie más
@@ -180,7 +181,7 @@
     this.peer = peer;
     peer.on('open', function () {
       if (self.peer !== peer || self.closed) { return; }
-      if (!self._hb) { self._hb = setInterval(function () { self._beat(); }, HB_MS); self._bindUnload(); }
+      if (!self._hb) { self._hb = true; self._tick(); self._bindUnload(); }
       self.emit('ready', self.code);
     });
     peer.on('connection', function (c) { if (self.peer === peer && !self.closed) { self._onIncoming(c); } });
@@ -240,6 +241,12 @@
   Net.prototype._onHello = function (c, m) {
     var self = this, k, ex = null;
     for (k in this.players) { if (this.players[k].sid === m.sid && !this.players[k].host) { ex = this.players[k]; } }
+    if (!ex && this.locked) {                      // sin token conocido: coincidencia de nombre con alguien desconectado
+      for (k in this.players) {
+        var q = this.players[k];
+        if (!q.host && (q.disc || !q.conn) && String(q.alias).toLowerCase() === String(m.alias).toLowerCase()) { ex = q; ex.sid = m.sid; break; }
+      }
+    }
     if (ex) {                                       // reconexión del mismo invitado
       if (ex.timer) { clearTimeout(ex.timer); ex.timer = null; }
       if (ex.conn && ex.conn !== c) { try { ex.conn.close(); } catch (e) { /* ignorar */ } }
@@ -318,16 +325,24 @@
     });
   };
 
+  Net.prototype._tick = function () {
+    var self = this;
+    if (this.closed) { return; }
+    this._hbT = setTimeout(function () { self._beat(); self._tick(); }, this.locked ? HB_RACE_MS : HB_LOBBY_MS);
+  };
+
   // Cerrar la pestaña avisa a los demás: el invitado sale de la lista; si es el Host, la sala se cierra.
   Net.prototype._bindUnload = function () {
     var self = this;
     if (typeof root.addEventListener !== 'function' || this._onUnload) { return; }
-    this._onUnload = function () {
+    this._onUnload = function (ev) {
+      if (ev && ev.type === 'pagehide' && ev.persisted) { return; }   // la página solo pasó a caché (segundo plano): no es un cierre
       if (self.closed) { return; }
       if (self.role === 'host') { self.broadcast({ type: 'race-closed', reason: 'host-quit' }); }
       else { self._send(self.conn, { type: 'race-leave' }); }
     };
     root.addEventListener('beforeunload', this._onUnload);
+    root.addEventListener('pagehide', this._onUnload);   // navegadores móviles: cerrar Chrome / Safari dispara pagehide, no beforeunload
   };
 
   /** Host: cierra el lobby (empezó la carrera). */
@@ -400,8 +415,9 @@
     this.closed = true;
     var self = this;
     Object.keys(this._timers).forEach(function (k) { clearTimeout(self._timers[k]); });
-    if (this._hb) { clearInterval(this._hb); this._hb = null; }
-    if (this._onUnload && typeof root.removeEventListener === 'function') { try { root.removeEventListener('beforeunload', this._onUnload); } catch (e) { /* ignorar */ } }
+    if (this._hbT) { clearTimeout(this._hbT); this._hbT = null; }
+    this._hb = false;
+    if (this._onUnload && typeof root.removeEventListener === 'function') { try { root.removeEventListener('beforeunload', this._onUnload); root.removeEventListener('pagehide', this._onUnload); } catch (e) { /* ignorar */ } }
     Object.keys(this.players).forEach(function (k) {
       var p = self.players[k];
       if (p.timer) { clearTimeout(p.timer); }
@@ -421,7 +437,7 @@
       var c = C() && C().normalizeCode(code);
       if (!c || !C().isValidCode(c)) { throw new RangeError('Código de sala inválido.'); }
       opts = opts || {};
-      return new Net('guest', { alias: opts.alias, code: c });
+      return new Net('guest', { alias: opts.alias, code: c, sid: opts.sid });
     },
     rank: rank,
     sanitize: sanitize
