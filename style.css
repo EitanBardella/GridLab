@@ -1215,3 +1215,13 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
 [data-theme="swiss"] .errx { box-shadow:0 4px 0 rgba(0, 0, 0, .12); }
 [data-theme="retro"] .errx { box-shadow:3px 3px 0 var(--ink); }
 .errx:not([hidden]) ~ .errx.milestone:not([hidden]) { top:calc(env(safe-area-inset-top, 0px) + 62px + 60px); }   /* si coinciden, se apilan */
+
+/* ---------- Modales multijugador: separación vertical pareja (12 px) para que las sombras desplazadas nunca se encimen ---------- */
+:is(#mFriends, #mFriend, #mCoop, #mLive, #mRace, #mRaceLobby, #mRacePodium, #mLiveWait, #mCoopAsk, #mCoopJoin) .sheet { display:flex; flex-direction:column; gap:12px; }
+:is(#mFriends, #mFriend, #mCoop, #mLive, #mRace, #mRaceLobby, #mRacePodium, #mLiveWait, #mCoopAsk, #mCoopJoin) .sheet > :is(h2, p, ol, div) { margin:0; }
+:is(#mFriends, #mFriend, #mCoop, #mLive, #mRace, #mRaceLobby, #mRacePodium, #mLiveWait, #mCoopAsk, #mCoopJoin) .sheet > .chip { margin:0; flex:none; }
+:is(#mFriend, #mCoop, #mLive, #mRace) .sheet > .friend-label { margin-bottom:-6px; }
+/* Mismas distancias entre dificultades, y entre EXTREMO, "Crear sala…" y "Cancelar" */
+:is(#mFriend, #mCoop, #mLive, #mRace) .diffs { gap:12px; }
+/* Sala de carrera: 14 px entre la lista de jugadores y el primer botón (12 de gap + 2) */
+#mRaceLobby .sheet > .race-list { margin-bottom:2px; }
