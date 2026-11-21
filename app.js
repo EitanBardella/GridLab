@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v46';
+  const BUILD = 'ui-v47';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -1157,6 +1157,7 @@
   // Inicio: guarda la partida (modo, jaulas y fantasma incluidos, vía G) y vuelve a #home-view.
   // El cronómetro se pausa solo porque únicamente corre con view === 'game' (en una sala Co-op sigue el reloj del Host).
   function goHome() {
+    if (pendingReload && !co && !rc) { pendingReload = false; updReloaded = true; if (G) persist(); window.location.reload(); return; }   // actualización que esperaba a salir de la sala
     if (G && ((G.race && G.race.over) || (G.live && G.lv && G.lv.over))) dropRoomGame();   // terminó la partida de sala: vuelve la individual guardada
     if (G) persist();
     hideHint(); hideErrExplain(); closeModals(); setPlayOpen(false); setHomeScreen('main');
@@ -3357,7 +3358,7 @@
     const cj = $('#mCoopJoin');
     if (cj && !cj.hidden) pendingCoop = null;                                              // invitación Co-op descartada
     aliasCb = null;
-    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mLiveWait' && m.id !== 'mRaceLobby' && !(m.id === 'mCoopAsk' && askSticky)) m.hidden = true; });
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mLiveWait' && m.id !== 'mRaceLobby' && m.id !== 'mUpdate' && !(m.id === 'mCoopAsk' && askSticky)) m.hidden = true; });
   }
   const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
   const openSettings = () => { const m = $('#mSet'); if (m) m.hidden = false; };
@@ -3529,6 +3530,8 @@
     on('hintClose', 'click', () => { hideHint(); render(); });
     on('btnHome', 'click', goHome);
     on('btnSet', 'click', openSettings);
+    on('btnNews', 'click', openNews);
+    on('newsBack', 'click', () => { closeModals(); openSettings(); });
     // Ajustes desde las vistas secundarias: el engranaje se clona del de la partida; el modal se abre encima sin cambiar de vista.
     const gearSrc = document.querySelector('#btnSet .gear');
     document.querySelectorAll('[data-open-settings]').forEach(b => { if (gearSrc && !b.querySelector('svg')) b.appendChild(gearSrc.cloneNode(true)); });
@@ -3553,7 +3556,7 @@
     // Modales y ajustes
     document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
     document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
-      if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext' || (m.id === 'mCoopAsk' && askSticky) || m.id === 'mLiveWait' || m.id === 'mRaceLobby') return;
+      if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext' || (m.id === 'mCoopAsk' && askSticky) || m.id === 'mLiveWait' || m.id === 'mRaceLobby' || m.id === 'mUpdate') return;
       if (m.id === 'mAlias') hideAlias(); else closeModals();
     }));
     document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => {
@@ -3641,6 +3644,121 @@
   }
 
   /* ---------- Inicio de la app ---------- */
+  /* ===========================================================================
+   * Actualizaciones con barra de progreso y "Novedades de la versión"
+   * ---------------------------------------------------------------------------
+   *  - sw.js descarga la versión nueva archivo por archivo y avisa con SW_UPDATE_PROGRESS {loaded, total, version}; al activarse
+   *    manda SW_UPDATE_READY. Si ya había una versión instalada, se abre "ACTUALIZANDO GRIDLAB" (bloquea la pantalla) y, al terminar,
+   *    se recarga sola. Dentro de una sala (Co-op, duelo o carrera) NO se recarga para no cortar la partida: queda pendiente
+   *    hasta volver al inicio.
+   *  - gridlab.lastSeenBuild guarda la última versión ejecutada; si cambió, Ajustes muestra un punto hasta abrir las novedades.
+   * ========================================================================= */
+  const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
+  const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
+  const CHANGELOG = [
+    { v: 'ui-v47', title: 'Carrera grupal y actualizaciones', items: [
+      'Carrera grupal de 3 a 8 jugadores, todos contra todos: tabla en vivo, eliminación a los 3 errores, avisos del 50 % y 80 % y podio final por tema.',
+      'Duelo 1v1 en vivo por sala, junto al Duelo fantasma asíncrono y el Co-op: "Jugar con amigos" ahora tiene cuatro opciones.',
+      'Los avisos de error y de hitos flotan sobre el tablero y ya no lo desplazan.',
+      'Reconexión en móviles: si cerrás la app en plena carrera, volvés con el mismo enlace y seguís donde estabas.',
+      '"Continuar partida" ya no se pisa al jugar duelos o carreras.',
+      'Actualizaciones automáticas con barra de progreso y esta sección de novedades.'
+    ] },
+    { v: 'ui-v39', title: 'Multijugador y temas', items: [
+      'Co-op: vos siempre ves tu color y a tu compañero con el suyo, con insignia de su inicial; el anfitrión puede terminar la partida y el invitado salir sin cortarla.',
+      'Modales propios en lugar de los cuadros del navegador, con avisos claros cuando alguien se va.',
+      'Cada tema tiene su propio efecto al pasar el mouse y su pulsación táctil; mejor contraste del resaltado en Noche.',
+      'Botón de Ajustes en todas las pantallas y el podio con copa y espadas temáticas.'
+    ] },
+    { v: 'ui-v27', title: 'Aprender mientras jugás', items: [
+      'En Fácil, Medio y Difícil, un error muestra por qué es incorrecto (fila, columna, caja, diagonal, caballo, consecutivos o jaula).',
+      'En N° → Celda, al completar un número se resalta el nuevo dígito activo sin dejar marcada la celda anterior.',
+      'Nueva guía "Jugar con amigos" en el Tutorial.'
+    ] }
+  ];
+
+  let updating = false, updReloaded = false, pendingReload = false;
+  const inRoom = () => !!(co || rc);
+
+  function showUpdate(loaded, total, version) {
+    if (updReloaded) return;
+    if (inRoom()) { pendingReload = true; return; }       // no se interrumpe una sala: se aplica al volver al inicio
+    updating = true;
+    const m = $('#mUpdate'); if (m) m.hidden = false;
+    const pct = total > 0 ? Math.max(0, Math.min(100, Math.round(loaded / total * 100))) : 0;
+    if (version) setText('#updVer', 'Versión ' + verLabel(version));
+    setText('#updPct', pct + ' %');
+    const f = $('#updFill'); if (f) f.style.width = pct + '%';
+    const bar = $('#updBar'); if (bar) bar.setAttribute('aria-valuenow', String(pct));
+  }
+
+  function finishUpdate() {
+    if (updReloaded) return;
+    if (inRoom()) {
+      pendingReload = true;
+      const m = $('#mUpdate'); if (m) m.hidden = true;
+      toast('Nueva versión lista: se instalará al salir de la sala.');
+      return;
+    }
+    updReloaded = true;
+    showUpdate(1, 1);                                     // 100 % a la vista antes de recargar
+    setTimeout(() => { try { if (G) persist(); } catch (e) { /* ignorar */ } window.location.reload(); }, 300);
+  }
+
+  function initUpdates() {
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(window.location.protocol)) return;
+    let had = !!navigator.serviceWorker.controller;        // sin versión previa (primera instalación) no se muestra nada
+    navigator.serviceWorker.onmessage = e => {
+      const m = e.data;
+      if (!m || !had) return;
+      if (m.type === 'SW_UPDATE_PROGRESS') showUpdate(m.loaded, m.total, m.version);
+      else if (m.type === 'SW_UPDATE_READY' && (updating || pendingReload)) finishUpdate();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!had) { had = true; return; }                    // la primera instalación toma el control: a partir de ahora cualquier cambio es una actualización
+      if (updating || pendingReload) finishUpdate();
+    });
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      if (had && reg.waiting) { showUpdate(0, 1); try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e) { /* ignorar */ } }
+      reg.addEventListener('updatefound', () => { if (had && reg.installing) showUpdate(0, 1); });
+      const check = () => { try { reg.update(); } catch (e) { /* ignorar */ } };
+      check();
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    }).catch(() => { /* sin service worker la app funciona igual */ });
+  }
+
+  /* ----- Novedades ----- */
+  const newsPending = () => store.get(K_NEWS) === '1';
+  function markBuildSeen() {
+    const prev = store.get(K_LASTBUILD);
+    store.set(K_LASTBUILD, BUILD);
+    if (prev && prev !== BUILD) store.set(K_NEWS, '1');   // acaba de actualizarse
+  }
+  function refreshNewsBadge() {
+    document.body.classList.toggle('has-news', newsPending());
+    const t = $('#newsNew'); if (t) t.hidden = !newsPending();
+    setText('#newsVer', 'Versión actual: ' + verLabel(BUILD));
+  }
+  function openNews() {
+    const box = $('#newsList');
+    if (box) {
+      box.textContent = '';
+      CHANGELOG.forEach((e, i) => {
+        const sec = mk('section', 'news-ver');
+        const h = mk('h3', '', verLabel(e.v) + ' · ' + e.title);
+        if (e.v === BUILD || i === 0) h.appendChild(mk('em', 'rl-tag', 'Actual'));
+        sec.appendChild(h);
+        const ul = mk('ul', 'news-items');
+        e.items.forEach(t => ul.appendChild(mk('li', '', t)));
+        sec.appendChild(ul);
+        box.appendChild(sec);
+      });
+    }
+    store.set(K_NEWS, '0'); refreshNewsBadge();
+    closeModals();
+    const m = $('#mNews'); if (m) m.hidden = false;
+  }
+
   function init() {
     boardEl = $('#board'); keypad = $('#keypad');
     ['home-view', 'game-view', 'btnPlay', 'playPanel', 'duelBar', 'mDuel', 'coopBar', 'mCoop', 'mLose', 'mSurv', 'mSurvNext', 'mSurvEnd', 'survBar', 'lives', 'hintTag'].forEach(id => {
@@ -3668,6 +3786,8 @@
     if (G) render();      // deja el tablero listo por si se pulsa "Continuar partida"
     checkDuelHash();      // si se abrió un enlace #duel=..., muestra la invitación
     checkCoopHash();      // si se abrió un enlace #coop=..., se une a la sala
+    markBuildSeen(); refreshNewsBadge();
+    initUpdates();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

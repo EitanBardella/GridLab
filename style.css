@@ -1225,3 +1225,34 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
 :is(#mFriend, #mCoop, #mLive, #mRace) .diffs { gap:12px; }
 /* Sala de carrera: 14 px entre la lista de jugadores y el primer botón (12 de gap + 2) */
 #mRaceLobby .sheet > .race-list { margin-bottom:2px; }
+
+/* ---------- Actualización con progreso y novedades de la versión ---------- */
+#mUpdate { z-index:90; }   /* por encima de cualquier otro modal o aviso */
+.upd-bar { height:14px; border:1.5px solid var(--ink); border-radius:8px; background:var(--panel); overflow:hidden; }
+.upd-bar i { display:block; width:0; height:100%; background:var(--accent); transition:width .2s ease; }
+.upd-pct { margin:6px 0 4px; font-variant-numeric:tabular-nums; font-weight:800; font-size:1.1rem; }
+[data-theme="night"] .upd-bar { border-color:#60A5FA; box-shadow:0 0 10px rgba(96, 165, 250, 0.35); }
+[data-theme="night"] .upd-bar i { background:#60A5FA; box-shadow:0 0 10px rgba(96, 165, 250, 0.7); }
+[data-theme="swiss"] .upd-bar { border:1px solid #000; border-radius:0; background:#fff; }
+[data-theme="swiss"] .upd-bar i { background:#000; }
+[data-theme="retro"] .upd-bar { border:2px solid var(--ink); border-radius:0; }
+[data-theme="retro"] .upd-bar i { background:repeating-linear-gradient(90deg, var(--ink) 0 8px, transparent 8px 10px); }
+
+/* Fila "Novedades de la versión" en Ajustes */
+.row-btn { width:100%; background:none; border-left:0; border-right:0; border-top:0; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.row-btn span { flex:1; }
+.news-new { font-style:normal; font-size:.68rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:2px 8px; border-radius:99px; background:var(--accent); color:var(--on-accent); }
+.news-new[hidden] { display:none; }
+.row-go { color:var(--muted); }
+/* Punto sutil en los botones de Ajustes cuando acaba de actualizarse */
+#btnSet, .set-btn { position:relative; }
+body.has-news :is(#btnSet, .set-btn)::after { content:""; position:absolute; top:4px; right:4px; width:9px; height:9px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 2px var(--bg); pointer-events:none; }
+body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:8px; height:8px; margin-left:8px; border-radius:50%; background:var(--accent); vertical-align:middle; }
+[data-theme="retro"] .news-new, [data-theme="swiss"] .news-new { border-radius:0; }
+[data-theme="retro"] body.has-news :is(#btnSet, .set-btn)::after, [data-theme="swiss"] body.has-news :is(#btnSet, .set-btn)::after { border-radius:0; }
+
+.news-list { text-align:left; margin:4px 0 12px; max-height:56dvh; overflow-y:auto; }
+.news-ver + .news-ver { margin-top:16px; padding-top:14px; border-top:1px dashed var(--thin); }
+.news-ver h3 { margin:0 0 6px; font-family:var(--font-head); font-size:1rem; text-transform:uppercase; letter-spacing:.07em; }
+.news-items { margin:0; padding-left:1.1em; font-size:.88rem; line-height:1.4; }
+.news-items li { margin:0 0 5px; }
