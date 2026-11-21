@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v52';
+  const BUILD = 'ui-v53';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3677,6 +3677,11 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v53', title: 'Ajuste fino en pantallas angostas', items: [
+      'Auditoría en 360×800, 375×667, 390×844 y 412×915 con los cuatro temas: sin desbordes horizontales y con tablero, herramientas y teclado completos sin scroll.',
+      'El título de la partida ("Sin Consecutivos • Extremo") ya no se corta con puntos suspensivos en 360 px.',
+      'Las hojas de Ajustes, Novedades y salas respetan la zona segura superior en móviles con notch.'
+    ] },
     { v: 'ui-v52', title: 'Más técnicas en las variantes', items: [
       'Técnicas ahora incluye Sin Consecutivos y Jigsaw, cada una con sus capítulos, ejemplos paso a paso y práctica.',
       'Nuevas lecciones: Par en diagonal (Diagonal), Esquina que ataca al bloque vecino (Anti-Caballo), Aislamiento del 1 y el 9 y Par consecutivo (Sin Consecutivos), e Intersección región–línea y Regla del 45 (Jigsaw).',
