@@ -94,8 +94,8 @@
   var BAD_CHARS = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF<>]/g;
 
   // Tipos de mensaje que cada rol acepta del otro lado.
-  var HOST_ACCEPTS = { hello: 1, focus: 1, op: 1, hint: 1, again: 1, bye: 1, 'coop-leave': 1 };
-  var GUEST_ACCEPTS = { state: 1, cells: 1, clock: 1, won: 1, lost: 1, focus: 1, full: 1, bye: 1, 'coop-end': 1 };
+  var HOST_ACCEPTS = { hello: 1, focus: 1, op: 1, hint: 1, again: 1, bye: 1, 'coop-leave': 1, dprog: 1, 'duel-win': 1, 'duel-eliminated': 1, 'duel-forfeit': 1 };
+  var GUEST_ACCEPTS = { state: 1, cells: 1, clock: 1, won: 1, lost: 1, focus: 1, full: 1, bye: 1, 'coop-end': 1, dprog: 1, 'duel-win': 1, 'duel-eliminated': 1, 'duel-forfeit': 1 };
 
   /* ===========================================================================
    * Utilidades
@@ -179,8 +179,8 @@
   function isValidCode(code) { return CODE_RX.test(String(code)); }
 
   /** URL completa de la app (sin hash previo) con `#coop=XXXX`. */
-  function buildLink(code) {
-    return String(window.location.href).split('#')[0] + '#coop=' + code;
+  function buildLink(code, kind) {
+    return String(window.location.href).split('#')[0] + '#coop=' + code + (kind === 'duel' ? '&k=d' : '');
   }
 
   /**
@@ -192,7 +192,7 @@
     var m = /(?:^|[#&])coop=([^&#\s]*)/.exec(h);
     if (!m) { return null; }
     var code = normalizeCode(decodeURIComponent_safe(m[1]));
-    return isValidCode(code) ? { ok: true, code: code } : { ok: false, error: 'code' };
+    return isValidCode(code) ? { ok: true, code: code, kind: /[#&]k=d(?:&|$)/.test(h) ? 'duel' : 'coop' } : { ok: false, error: 'code' };
   }
 
   function decodeURIComponent_safe(s) {
@@ -372,6 +372,7 @@
       lives: isInt(m.lives, 0, MAX_LIVES) ? m.lives : DEFAULT_LIVES,
       won: !!m.won
     };
+    if (m.duel) { st.duel = true; }
     if (cages) { st.cages = cages; }
     if (regions) { st.regions = regions; }
     return st;
@@ -392,6 +393,18 @@
           return { type: 'coop-end', by: 'host' };
         case 'coop-leave':
           return { type: 'coop-leave', by: 'guest' };
+        /* ----- Duelo 1v1 en vivo ----- */
+        case 'dprog': // progreso del rival: celdas correctas, errores, vidas y tiempo
+          if (!isInt(m.filled, 0, 81)) { return null; }
+          return {
+            type: 'dprog', filled: m.filled, errors: isInt(m.errors, 0, 255) ? m.errors : 0,
+            lives: isInt(m.lives, 0, MAX_LIVES) ? m.lives : 0, secs: isInt(m.secs, 0, MAX_SECS) ? m.secs : 0
+          };
+        case 'duel-win': case 'duel-eliminated':
+          if (!isInt(m.time, 0, MAX_SECS)) { return null; }
+          return { type: m.type, time: m.time, filled: isInt(m.filled, 0, 81) ? m.filled : 0 };
+        case 'duel-forfeit':
+          return { type: 'duel-forfeit' };
         case 'hello':
           return { type: 'hello', alias: sanitizeAlias(m.alias) || 'Amigo', resume: !!m.resume, v: isInt(m.v, 0, 1000) ? m.v : 0 };
         case 'state': {
@@ -481,6 +494,7 @@
       lives: src.lives === undefined || src.lives === null ? DEFAULT_LIVES : (src.lives | 0),
       won: !!src.won
     };
+    if (src.duel) { s.duel = true; }
     if (src.mode === 'killer' && src.cages) { s.cages = JSON.parse(JSON.stringify(src.cages)); }
     if (src.mode === 'jigsaw' && src.regions) { s.regions = Array.prototype.slice.call(src.regions); }
     return s;
@@ -567,6 +581,7 @@
     this.role = role;                       // 'host' | 'guest'
     this.alias = sanitizeAlias(opts.alias) || 'Jugador';
     this.code = opts.code || null;
+    this.kind = opts.kind === 'duel' ? 'duel' : 'coop';   // 'duel' = duelo 1v1 en vivo: solo cambia el enlace y el uso que le da la app
     this.iceServers = opts.iceServers || ICE_SERVERS;
     this.peerAlias = '';
     this.state = 'idle';
@@ -645,7 +660,7 @@
   };
 
   /** Enlace compartible de la sala. */
-  Session.prototype.link = function () { return buildLink(this.code); };
+  Session.prototype.link = function () { return buildLink(this.code, this.kind); };
 
   /** Comparte (o copia) el enlace de la sala. @returns {Promise<'shared'|'cancelled'|'copied'|'failed'>} */
   Session.prototype.share = function (opts) {
@@ -702,6 +717,14 @@
     var self = this;
     if (this.closed) { return; }
     this.send({ type: 'coop-end', by: 'host' });
+    setTimeout(function () { self.close(); }, 150);
+  };
+
+  /** Duelo en vivo: envía un mensaje final (duel-win / duel-eliminated / duel-forfeit) y cierra la sala 150 ms después. */
+  Session.prototype.sendAndClose = function (msg) {
+    var self = this;
+    if (this.closed) { return; }
+    this.send(msg);
     setTimeout(function () { self.close(); }, 150);
   };
 
@@ -1134,7 +1157,7 @@
   function createHost(opts) {
     opts = opts || {};
     var code = opts.code ? normalizeCode(opts.code) : generateCode();
-    return new Session('host', { alias: opts.alias, iceServers: opts.iceServers, code: isValidCode(code) ? code : generateCode() });
+    return new Session('host', { alias: opts.alias, iceServers: opts.iceServers, kind: opts.kind, code: isValidCode(code) ? code : generateCode() });
   }
 
   /**

@@ -6,6 +6,7 @@
    --sh1 / --sh2 / --sh-press: sombra dura (sin difuminado) de botones grandes, medianos y pulsados.
    ===================================================================== */
 :root, [data-theme="paper"] {
+  --error-color:#B91C1C; --error-bg:rgba(185, 28, 28, 0.07);
   --bg:#F7F4EB; --panel:#EFEADA; --ink:#1B2A41; --user:#1F4FBF; --muted:#475569;
   --thin:#D3CCB4; --thick:#1B2A41; --peer:#EEE8D2; --same:#F2DC9A; --sel:#C9D6F7;
   --err:#B3261E; --errbg:#F5D6CF; --accent:#B45309; --shadow:rgba(27,42,65,.22);
@@ -19,6 +20,7 @@
   --font-num:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;
 }
 [data-theme="night"] {
+  --error-color:#F87171; --error-bg:rgba(248, 113, 113, 0.11);
   --bg:#0E0F12; --panel:#181A1F; --ink:#E8E8EC; --user:#7FA6FF; --muted:#cbd5e1;
   --thin:#2A2D35; --thick:#7C8190; --peer:rgba(96,165,250,.15); --same:rgba(96,165,250,.28); --sel:rgba(96,165,250,.44);
   --err:#FF7B72; --errbg:#4A1F22; --accent:#5B8CFF; --shadow:rgba(0,0,0,.7);
@@ -32,6 +34,7 @@
   --font-num:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 [data-theme="swiss"] {
+  --error-color:#DC2626; --error-bg:rgba(220, 38, 38, 0.05);
   --bg:#FFFFFF; --panel:#FFFFFF; --ink:#000000; --user:#0A3FD1; --muted:#52525b;
   --thin:#D6D6D6; --thick:#000000; --peer:#F2F2F2; --same:#DCE6FF; --sel:#BFD0FF;
   --err:#D40000; --errbg:#FFDADA; --accent:#E30613; --shadow:rgba(0,0,0,.2);
@@ -45,6 +48,7 @@
   --font-num:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
 }
 [data-theme="retro"] {
+  --error-color:#9F2D18; --error-bg:rgba(159, 45, 24, 0.12);
   --bg:#CCD4A0; --panel:#B9C38A; --ink:#232B12; --user:#4A3410; --muted:#243016;
   --thin:#97A268; --thick:#232B12; --peer:#B3BE80; --same:#E2E89C; --sel:#A5B66B;
   --err:#8E1B10; --errbg:#D8A88B; --accent:#7A4A0B; --shadow:rgba(35,43,18,.4);
@@ -479,9 +483,12 @@ button:disabled { cursor:default; }
 [data-theme="retro"] .board.coop .cell.pf2::before { box-shadow:none; border:2px dashed #9F2D18; background:rgba(159, 45, 24, 0.14); }
 
 /* ---------- Aviso con la explicación del error ---------- */
-.errx { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--err); border-left-width:5px;
-  border-radius:10px; background:var(--panel); }
+.errx { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--error-color); border-left-width:5px;
+  border-radius:10px; background:linear-gradient(var(--error-bg), var(--error-bg)), var(--panel); }
+.errx { position:relative; overflow:hidden; }
 .errx[hidden] { display:none; }
+.errx-bar { position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--error-color); transform:scaleX(0); transform-origin:left; animation:errxBar 4s linear forwards; }
+@keyframes errxBar { to { transform:scaleX(1); } }
 .errx p { margin:0; flex:1; font-size:.9rem; font-weight:600; }
 .errx .chip { min-height:32px; min-width:32px; padding:0 8px; }
 [data-theme="swiss"] .errx, [data-theme="retro"] .errx { border-radius:0; }
@@ -1116,3 +1123,35 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
 :is([data-theme="night"], [data-theme="retro"]) :is(.m-primary, .m-daily, .m-continue, .mode-list button, .chip.wide, .chip.home-btn, .diffs button, .surv-grid button):active:not(:disabled) {
   transform:var(--press-tf); box-shadow:var(--sh-press); }
 [data-theme="retro"] :is(.keypad button, .tools button, .tut-opt, .tut-lesson):active:not(:disabled) { transform:translate(2px, 2px); box-shadow:0 0 0 transparent; }
+
+/* ---------- Íconos del resultado de un duelo: copa (victoria) y espadas cruzadas (derrota), uno por tema ---------- */
+.res-icon { display:flex; justify-content:center; margin:0 0 6px; }
+.res-icon[hidden] { display:none; }
+.res-svg { width:76px; height:76px; overflow:visible; }
+.res-svg .i-pixel { display:none; }
+/* Papel: tinta con relleno dorado tenue */
+.res-svg .i-smooth { fill:#D4AF37; fill-opacity:.4; stroke:var(--ink); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+.res-svg .i-smooth .nf { fill:none; stroke-width:2.6; }
+/* Noche: trazo neón con resplandor */
+[data-theme="night"] .res-svg .i-smooth { fill:#60A5FA; fill-opacity:.18; stroke:#60A5FA; filter:drop-shadow(0 0 6px rgba(96, 165, 250, .7)); }
+/* Minimalista: lineal editorial */
+[data-theme="swiss"] .res-svg .i-smooth { fill:none; stroke:#000; stroke-width:1.8; stroke-linejoin:miter; stroke-linecap:butt; }
+[data-theme="swiss"] .res-svg .i-smooth .nf { stroke-width:2.2; }
+/* Retro: pixel-art */
+[data-theme="retro"] .res-svg { shape-rendering:crispEdges; }
+[data-theme="retro"] .res-svg .i-smooth { display:none; }
+[data-theme="retro"] .res-svg .i-pixel { display:inline; fill:var(--ink); }
+
+/* ---------- Duelo 1v1 en vivo: tarjeta con los colores de J1 / J2 y botón de salida ---------- */
+.duelbar.lv .dcol.me .dname { color:var(--coop-p1); }
+.duelbar.lv .dcol.me .dprog i { background:var(--coop-p1); }
+.duelbar.lv .dcol.rival .dname { color:var(--coop-p2); }
+.duelbar.lv .dcol.rival .dprog i { background:var(--coop-p2); }
+.dquit { grid-column:1 / -1; min-height:30px; padding:0 12px; font-size:.78rem; font-weight:700; }
+.dquit[hidden] { display:none; }
+[data-theme="night"] .errx-bar { box-shadow:0 0 8px rgba(248, 113, 113, 0.35); }
+
+/* ---------- Jugar con amigos: botones separados de forma pareja para que se vea completa la sombra desplazada ---------- */
+#mFriends .sheet { display:flex; flex-direction:column; gap:12px; }
+#mFriends .sheet > h2, #mFriends .sheet > .sub { margin:0; }
+#mFriends .sheet > .chip, #mFriends .sheet > .home-btn { margin:0; flex:none; }

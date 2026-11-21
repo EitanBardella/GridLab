@@ -312,16 +312,24 @@
   const gridOf = fn => { const g = new Array(81).fill(0); fn(g); return g.join(''); };
 
   const DUEL_GUIDE = [
-    { tag: 'Duelo', title: 'Duelo con amigo', steps: [
-      'En el inicio tocá "Duelo con amigo" y elegí el modo y la dificultad del tablero.',
-      'Tocá "Compartir enlace y jugar": la app te pide un alias (hasta 12 caracteres) y arma un enlace de invitación.',
-      'Tu amigo abre el enlace y acepta el duelo: los dos juegan el mismo tablero, a la vez, con 3 vidas y 2 pistas (+30 s cada una).',
-      'Arriba ves el progreso de cada uno (celdas completadas y tiempo). Al terminar se comparan los tiempos.'
-    ], tip: 'Después del duelo podés "Devolver desafío" para una revancha o "Desafiar a un amigo" con otro tablero.' },
+    { tag: 'En vivo', title: 'Duelo 1v1 en vivo', steps: [
+      'En el inicio tocá "Jugar con amigos" y elegí "Duelo 1v1 en vivo". Elegí modo y dificultad y tocá "Crear sala y compartir enlace".',
+      'Tu rival abre el enlace: en cuanto se conecta, los dos reciben el mismo tablero y el reloj arranca en 00:00 al mismo tiempo.',
+      'Cada uno resuelve su copia, con 3 vidas y sin pistas. Arriba ves tu avance (Vos) y el de tu rival en tiempo real: celdas, barra y vidas.',
+      'Gana quien completa primero las 81 celdas. Si alguien agota sus 3 vidas, el otro gana al instante.',
+      'Con "Salir del duelo" abandonás (te pide confirmación) y tu rival se lleva la victoria. Un micro-corte de conexión no te elimina: la app reconecta sola.'
+    ], tip: 'Mirá la barra del rival de reojo: si va muy adelantada, priorizá la velocidad sin arriesgar vidas.' },
+    { tag: 'Fantasma', title: 'Duelo fantasma (asíncrono)', steps: [
+      'En "Jugar con amigos" elegí "Duelo fantasma (asíncrono)", el modo y la dificultad, y tocá "Compartir enlace y jugar".',
+      'Jugás tu tablero a tu ritmo, con 3 vidas y 2 pistas (+30 s cada una). Tu recorrido celda a celda queda grabado como un fantasma.',
+      'Al terminar compartís el enlace con tu resultado. Tu amigo lo abre cuando quiera y compite contra tu tiempo y tu fantasma.',
+      'En su pantalla ve "Vos" contra "Obj. mm:ss" y los destellos de las celdas que tu fantasma ya resolvió. Al final se comparan los tiempos.'
+    ], tip: 'Después podés "Devolver desafío" para una revancha o "Desafiar a un amigo" con otro tablero.' },
     { tag: 'Co-op', title: 'Resolver juntos', steps: [
-      'En el inicio tocá "Resolver juntos (Co-op)", elegí modo y dificultad y tocá "Crear sala y compartir enlace".',
-      'Tu amigo entra con el enlace: ven el mismo tablero y cada uno ve al instante lo que escribe el otro.',
-      'Comparten 3 vidas y 3 pistas, y cada jugador tiene su propio color para distinguir quién colocó cada número.',
+      'En "Jugar con amigos" elegí "Resolver juntos (Co-op)", el modo y la dificultad, y tocá "Crear sala y compartir enlace".',
+      'Tu amigo entra con el enlace: ven el mismo tablero y cada uno ve al instante lo que escribe el otro, en tiempo real.',
+      'Comparten 3 vidas y 3 pistas. Vos siempre te ves con tu color y a tu compañero con el suyo (cursor, insignia con su inicial y números).',
+      'Si el anfitrión termina la partida, o alguien sale de la sala, la app te deja elegir si seguir en solitario o volver al inicio.',
       'Mientras esperan al invitado podés volver a tocar "Compartir" para reenviar el enlace de la sala.'
     ], tip: 'Una buena división: uno busca únicos ocultos por números y el otro únicos desnudos por celdas.' },
     { tag: 'Consejos', title: 'Antes de empezar', steps: [
@@ -524,19 +532,19 @@
       }
     },
     duels: {
-      label: 'Duelos / Co-op', map: null,
-      title: 'Duelos y Co-op',
-      tagline: 'Mismo tablero • Dos jugadores • Competí o cooperá',
-      intro: 'Dos formas de jugar con un amigo, sin cuentas ni servidores: en el Duelo cada uno resuelve el mismo tablero a la vez y gana el más rápido; en el Co-op resuelven juntos un único tablero compartido.',
+      label: 'Jugar con amigos', map: null,
+      title: 'Jugar con amigos (Multijugador)',
+      tagline: 'Tres formas: duelo en vivo • duelo fantasma • Co-op',
+      intro: 'Tres formas de jugar con un amigo, sin cuentas: el Duelo 1v1 en vivo (los dos a la vez, ven el avance del otro y gana el más rápido), el Duelo fantasma (jugás a tu ritmo y tu amigo compite después contra tu recorrido grabado) y el Co-op (resuelven juntos un único tablero).',
       exTitle: 'Paso a paso',
       example: null, steps: DUEL_GUIDE,
       rules: [
-        'Los dos juegan exactamente el mismo tablero (mismo modo y dificultad).',
-        'Hay 3 vidas: en el Duelo cada uno tiene las suyas; en el Co-op son compartidas entre los dos.',
-        'Pistas: 2 por jugador en el Duelo (+30 s cada una) y 3 compartidas en el Co-op.'
+        'Duelo en vivo: gana quien completa primero las 81 celdas, o quien sobrevive si el otro agota sus 3 vidas o abandona.',
+        'Hay 3 vidas: en los duelos cada uno tiene las suyas; en el Co-op son compartidas entre los dos.',
+        'Pistas: ninguna en el duelo en vivo, 2 en el fantasma (+30 s cada una) y 3 compartidas en el Co-op.'
       ],
       routine: [
-        { t: 'Armá la partida', d: 'Elegí modo y dificultad, creá el enlace o la sala y compartilo por tu app de mensajes.' },
+        { t: 'Elegí la variante', d: 'En vivo si pueden jugar a la vez, fantasma si no coinciden en horario, Co-op si prefieren colaborar. Creá el enlace o la sala y compartilo.' },
         { t: 'Coordiná la estrategia', d: 'En Duelo, concentrate en tu tablero y ganá por tiempo. En Co-op, repartan el trabajo: uno por números y otro por celdas.' },
         { t: 'Confirmá antes de colocar', d: 'Un error cuesta una vida: en Co-op la pierden los dos. Dudá, comentá y recién después poné el número.' }
       ],
@@ -550,7 +558,7 @@
         q: '¿Qué comparten los dos jugadores en el modo Co-op?',
         options: ['3 vidas y 3 pistas, en conjunto', 'Cada uno tiene 3 vidas propias', 'Vidas infinitas y 2 pistas cada uno', 'Solo el tiempo, nada más'], answer: 0,
         wrong: [null, 'Eso pasa en el Duelo. En el Co-op las vidas son del equipo.', 'Las vidas no son infinitas: son 3 para los dos.', 'También comparten vidas y pistas, no solo el tiempo.'],
-        why: 'En Co-op las 3 vidas y las 3 pistas son del equipo; en el Duelo, en cambio, cada jugador usa las suyas (3 vidas y 2 pistas).'
+        why: 'En Co-op las 3 vidas y las 3 pistas son del equipo; en los duelos, en cambio, cada jugador usa las suyas.'
       }
     }
   };
@@ -826,7 +834,7 @@
 
   /* ---------- Cómo jugar ---------- */
   const GUIDE_SUB = { classic: 'Filas, columnas y bloques', killer: 'Jaulas con suma', diagonal: 'Las dos diagonales',
-    antiknight: 'Sin saltos de caballo', nonconsecutive: 'Sin números seguidos pegados', jigsaw: 'Regiones irregulares de 9 celdas', duels: 'Duelos y Co-op con amigos' };
+    antiknight: 'Sin saltos de caballo', nonconsecutive: 'Sin números seguidos pegados', jigsaw: 'Regiones irregulares de 9 celdas', duels: 'Duelo en vivo, fantasma y Co-op' };
 
   // Tarjeta vertical de ancho completo (mismo estilo que el submenú Jugar).
   function vcard(title, sub, right, done, onclick, pct, big) {

@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v37">
-<link rel="stylesheet" href="tutorial.css?v=ui-v37">
+<link rel="stylesheet" href="style.css?v=ui-v41">
+<link rel="stylesheet" href="tutorial.css?v=ui-v41">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
@@ -125,13 +125,17 @@
   <div class="sheet center">
     <h2>Jugar con amigos</h2>
     <p class="sub">Mismo tablero, tu amigo y vos.</p>
+    <button id="btnLive" class="chip home-btn" type="button">
+      <b>Duelo 1v1 en vivo</b>
+      <small>Al mismo tiempo por sala: gana el más rápido</small>
+    </button>
     <button id="btnFriend" class="chip home-btn" type="button">
-      <b>Duelo con amigo</b>
-      <small>Mismo tablero, al mismo tiempo: gana el más rápido</small>
+      <b>Duelo fantasma (asíncrono)</b>
+      <small>Jugá tu tablero y compartí el enlace para que superen tu tiempo</small>
     </button>
     <button id="btnCoop" class="chip home-btn" type="button">
       <b>Resolver juntos (Co-op)</b>
-      <small>Mismo tablero, en equipo</small>
+      <small>Mismo tablero, en equipo y vidas compartidas</small>
     </button>
     <button class="chip wide" data-close>Cancelar</button>
   </div>
@@ -232,6 +236,7 @@
   <section id="errExplain" class="errx" hidden role="status" aria-live="polite">
     <p id="errExplainTxt"></p>
     <button id="errExplainClose" class="chip" aria-label="Cerrar aviso">✕</button>
+    <i class="errx-bar" aria-hidden="true"></i>
   </section>
 
   <!-- Zona de juego: estado + tablero + herramientas + teclado, agrupados sin huecos entre sí. -->
@@ -257,6 +262,7 @@
   <!-- Barra de duelo: solo visible en un duelo activo. La app rellena los textos y las barras. -->
   <div id="duelBar" class="duelbar" hidden role="group" aria-label="Progreso del duelo">
     <button type="button" id="duelLive" class="dlive" hidden title="Tocá para volver a compartir el enlace de invitación"></button>
+    <button type="button" id="duelQuit" class="chip dquit" hidden>Salir del duelo</button>
     <div class="dcol me">
       <div class="dtop"><span class="dname">Vos</span><b id="duelMe">0/81</b><span class="dtime" id="duelMeT">00:00</span></div>
       <div class="dprog"><i id="duelMeBar"></i></div>
@@ -360,6 +366,7 @@
 
 <div class="modal" id="mWin" hidden>
   <div class="sheet center">
+    <div id="winIcon" class="res-icon" hidden></div>
     <h2 id="winTitle">¡Resuelto!</h2>
     <p id="winTxt" class="sub"></p>
     <div id="duelResult" class="duel-result" hidden></div>
@@ -376,6 +383,7 @@
 <!-- Derrota por vidas (partida en solitario, duelo o Co-op) -->
 <div class="modal" id="mLose" hidden>
   <div class="sheet center">
+    <div id="loseIcon" class="res-icon" hidden></div>
     <h2 id="loseTitle">Derrota</h2>
     <p id="loseTxt" class="sub"></p>
     <p id="loseNote" class="sub" hidden></p>
@@ -440,7 +448,7 @@
 
 <div class="modal" id="mFriend" hidden>
   <div class="sheet center">
-    <h2>Duelo con amigo</h2>
+    <h2>Duelo fantasma</h2>
     <p class="sub">Elegí el tablero: vos y tu amigo juegan el mismo, a la vez, y comparan tiempos al terminar. 3 vidas y 2 pistas (+30 s cada una).</p>
     <p class="sub warn" id="friendWarn" hidden>Se perderá la partida en curso.</p>
     <p class="friend-label">Modo</p>
@@ -463,6 +471,45 @@
     </div>
     <button class="chip primary wide" id="friendGo">Compartir enlace y jugar</button>
     <button class="chip wide" data-close>Cancelar</button>
+  </div>
+</div>
+
+<!-- Duelo 1v1 en vivo: elegir tablero y crear la sala (Host) -->
+<div class="modal" id="mLive" hidden>
+  <div class="sheet center">
+    <h2>Duelo 1v1 en vivo</h2>
+    <p class="sub">Vos y tu rival resuelven el mismo tablero a la vez, cada uno el suyo. Ven el avance del otro en tiempo real; gana quien complete primero las 81 celdas o quien sobreviva si el otro agota sus 3 vidas. Sin pistas.</p>
+    <p class="sub warn" id="liveWarn" hidden>Se perderá la partida en curso.</p>
+    <p class="friend-label">Modo</p>
+    <div class="modes six" id="liveModes" role="radiogroup" aria-label="Modo del duelo en vivo">
+      <button type="button" role="radio" class="on" aria-checked="true" data-lmode="classic">Clásico</button>
+      <button type="button" role="radio" aria-checked="false" data-lmode="killer">Killer</button>
+      <button type="button" role="radio" aria-checked="false" data-lmode="diagonal">Diagonal</button>
+      <button type="button" role="radio" aria-checked="false" data-lmode="antiknight">Anti-Caballo</button>
+      <button type="button" role="radio" aria-checked="false" data-lmode="nonconsecutive">Sin Consec.</button>
+      <button type="button" role="radio" aria-checked="false" data-lmode="jigsaw">Jigsaw</button>
+    </div>
+    <p class="friend-label">Dificultad</p>
+    <div class="diffs" id="liveDiffs" role="radiogroup" aria-label="Dificultad del duelo en vivo">
+      <button type="button" role="radio" aria-checked="false" data-ldiff="facil">Fácil</button>
+      <button type="button" role="radio" class="on" aria-checked="true" data-ldiff="medio">Medio</button>
+      <button type="button" role="radio" aria-checked="false" data-ldiff="dificil">Difícil</button>
+      <button type="button" role="radio" aria-checked="false" data-ldiff="experto">Experto</button>
+      <button type="button" role="radio" aria-checked="false" data-ldiff="maestro">Maestro</button>
+      <button type="button" role="radio" aria-checked="false" data-ldiff="extremo">Extremo</button>
+    </div>
+    <button class="chip primary wide" id="liveGo">Crear sala y compartir enlace</button>
+    <button class="chip wide" data-close>Cancelar</button>
+  </div>
+</div>
+
+<!-- Duelo 1v1 en vivo: el Host espera a su rival (no se cierra tocando el fondo) -->
+<div class="modal" id="mLiveWait" hidden>
+  <div class="sheet center" role="dialog" aria-modal="true" aria-labelledby="liveWaitTitle">
+    <p class="duel-title" id="liveWaitTitle">Esperando a tu rival…</p>
+    <p class="sub">Compartí el enlace. El duelo empieza, con el mismo tablero y el reloj en 00:00, en cuanto se conecte.</p>
+    <button class="chip primary wide" id="liveWaitShare">Copiar link</button>
+    <button class="chip wide" id="liveWaitCancel">Cancelar duelo</button>
   </div>
 </div>
 
@@ -499,7 +546,7 @@
 <div class="modal" id="mCoopJoin" hidden>
   <div class="sheet center">
     <h2>Resolver juntos</h2>
-    <p class="duel-title">Te invitaron a resolver un Sudoku en equipo (sala <b id="coopJoinCode"></b>).</p>
+    <p class="duel-title"><span id="coopJoinKind">Te invitaron a resolver un Sudoku en equipo</span> (sala <b id="coopJoinCode"></b>).</p>
     <p class="sub warn" id="coopJoinWarn" hidden>Se perderá la partida en curso.</p>
     <button class="chip primary wide" id="coopJoinGo">Unirme a la sala</button>
     <button class="chip wide" id="coopJoinCancel">Cancelar</button>
@@ -535,18 +582,18 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v37"></script>
-<script src="engine.js?v=ui-v37"></script>
-<script src="killer-engine.js?v=ui-v37"></script>
-<script src="duel.js?v=ui-v37"></script>
+<script src="sound.js?v=ui-v41"></script>
+<script src="engine.js?v=ui-v41"></script>
+<script src="killer-engine.js?v=ui-v41"></script>
+<script src="duel.js?v=ui-v41"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v37"></script>
+<script src="coop.js?v=ui-v41"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
-<script src="tutorial.js?v=ui-v3"></script>
-<script src="app.js?v=ui-v37"></script>
+<script src="tutorial.js?v=ui-v4"></script>
+<script src="app.js?v=ui-v41"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>
