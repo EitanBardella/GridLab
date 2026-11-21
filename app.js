@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v54';
+  const BUILD = 'ui-v55';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3677,6 +3677,10 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v55', title: 'Móvil en horizontal', items: [
+      'Nuevo diseño de dos columnas al girar el celular: el tablero ocupa casi toda la altura a la izquierda, y a la derecha quedan INICIO y Ajustes, las herramientas en grilla 3×2 y el teclado numérico 3×3 para el pulgar.',
+      'Sin scroll ni desbordes en los cuatro temas, en Clásico y Killer. El diseño vertical no cambia.'
+    ] },
     { v: 'ui-v54', title: 'Técnicas avanzadas de las variantes', items: [
       'Siete lecciones nuevas en Técnicas: Trío desnudo en diagonal, Doble salto desde una caja y Pasillo bloqueado por el caballo (Anti-Caballo), Encrucijada ortogonal (Sin Consecutivos), y Reducción línea–región, Par oculto y Ley del 45 en 3 líneas (Jigsaw).',
       'Cada lección trae ejemplo paso a paso y práctica con tablero de solución única.'

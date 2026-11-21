@@ -1294,3 +1294,33 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
   .title b { font-size:.86rem; letter-spacing:0; }
   [data-theme="retro"] .title b { font-size:.8rem; }
 }
+
+/* ---------- Móvil en horizontal: tablero a la izquierda; INICIO/Ajustes, herramientas 3×2 y teclado 3×3 a la derecha.
+   El diseño vertical no cambia: todo vive dentro de esta media query. ---------- */
+@media (orientation:landscape) and (max-height:540px) {
+  .app.game { --bs:min(86dvh, 50vw); max-width:none; width:100%; display:grid; gap:0 14px;
+    grid-template-columns:var(--bs) minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr);
+    align-content:center; align-items:stretch;
+    padding:max(6px, env(safe-area-inset-top)) calc(env(safe-area-inset-right) + 10px) max(6px, env(safe-area-inset-bottom)) calc(env(safe-area-inset-left) + 10px); }
+  .app.game .play { display:contents; }
+  /* Columna izquierda: avisos y barras comparten la celda del tablero, pegados arriba. */
+  .app.game > .hint, .app.game > .errx, .app.game .play > :is(.status, .duelbar, .racebar, .coopbar) {
+    grid-column:1; grid-row:1 / -1; align-self:start; z-index:3; margin:0; min-width:0; max-width:var(--bs);
+    padding:3px 8px; font-size:.74rem; min-height:0; }
+  .app.game > .hint p, .app.game > .errx p { font-size:.74rem; line-height:1.2; }
+  .app.game > .hint .chip, .app.game > .errx .chip, .app.game .racebar .chip, .app.game .coopbar .chip { min-height:26px; padding:0 8px; font-size:.72rem; }
+  .app.game .race-table { max-height:30dvh; overflow:auto; }
+  .app.game .play > .stage { grid-column:1; grid-row:1 / -1; align-self:center; justify-self:start; width:var(--bs); height:var(--bs); flex:none; }
+  .app.game:has(> .hint:not([hidden]), > .errx:not([hidden]), .play > :is(.status, .duelbar, .racebar, .coopbar):not([hidden])) .play > .stage { align-self:end; }
+  /* Columna derecha */
+  .app.game > .top { grid-column:2; grid-row:1; padding:0; gap:6px; align-self:end; margin-bottom:6px; }
+  .app.game > .top .chip { min-height:40px; min-width:0; }
+  .app.game .title b { font-size:.9rem; }
+  .app.game .play > .tools { grid-column:2; grid-row:2; grid-template-columns:repeat(3, minmax(0,1fr)); gap:5px; margin-bottom:6px; }
+  .app.game .tools button { min-height:0; height:clamp(38px, 12dvh, 52px); font-size:.72rem; gap:1px; }
+  .app.game .tools .ic { font-size:1.1rem; }
+  .app.game .play > .keypad { grid-column:2; grid-row:3; grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:repeat(3, minmax(0,1fr));
+    gap:5px; align-self:start; height:min(100%, 44dvh); max-height:calc(3 * 62px + 10px); }
+  .app.game .keypad button { min-height:0; font-size:1.5rem; padding:0 0 11px; }
+  .app.game .keypad .rem { bottom:2px; font-size:.62rem; }
+}
