@@ -156,7 +156,7 @@ Puntos de diseño:
 
 ## Versionado de caché
 
-Al publicar cambios, subí `CACHE_NAME` en `sw.js` (por ejemplo `sudoku-v37`) y, si querés, los parámetros `?v=` de `index.html`, para que los dispositivos descarguen los archivos nuevos.
+Al publicar cambios, subí `CACHE_NAME` en `sw.js` (por ejemplo `sudoku-v38`) y, si querés, los parámetros `?v=` de `index.html`, para que los dispositivos descarguen los archivos nuevos.
 
 ## Licencia y Uso
 

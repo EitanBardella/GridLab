@@ -132,7 +132,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v25';
+  const BUILD = 'ui-v37';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -427,8 +427,59 @@
     if (defeat) showLose();
   }
 
+  /* ---------- Explicación del error (solo Fácil, Medio y Difícil) ---------- */
+  const EXPLAIN_DIFFS = ['facil', 'medio', 'dificil'];
+  let errTimer = 0;
+  function hideErrExplain() {
+    clearTimeout(errTimer);
+    const b = $('#errExplain'); if (b) b.hidden = true;
+  }
+  function showErrExplain(msg) {
+    const b = $('#errExplain'); if (!b) return;
+    setText('#errExplainTxt', msg); b.hidden = false;
+    clearTimeout(errTimer);
+    errTimer = setTimeout(hideErrExplain, 6000);
+  }
+
+  // Motivo por el que `n` no encaja en (r, c): regla del modo que se rompe o, si no choca con nada, la solución única.
+  function explainWrong(r, c, n) {
+    const i = r * 9 + c, mode = G.mode;
+    const at = j => G.board[Math.floor(j / 9)][j % 9];
+    const dup = list => list.some(j => j !== i && at(j) === n);
+    const row = [], col = [];
+    for (let k = 0; k < 9; k++) { row.push(r * 9 + k); col.push(k * 9 + c); }
+    if (dup(row)) return 'El ' + n + ' ya está en esta fila.';
+    if (dup(col)) return 'El ' + n + ' ya está en esta columna.';
+    if (mode === 'jigsaw' && Array.isArray(G.regions)) {
+      if (dup(basePeers(mode)[i].filter(j => G.regions[j] === G.regions[i]))) return 'El ' + n + ' ya está en esta región.';
+    } else {
+      const box = [], br = r - (r % 3), bc = c - (c % 3);
+      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) box.push((br + a) * 9 + bc + b);
+      if (dup(box)) return 'El ' + n + ' ya está en esta caja 3×3.';
+    }
+    if (mode === 'diagonal') {
+      if (r === c && dup(diagonalsOf(i).filter(j => Math.floor(j / 9) === j % 9))) return 'El ' + n + ' ya está en la diagonal principal.';
+      if (r + c === 8 && dup(diagonalsOf(i).filter(j => Math.floor(j / 9) + (j % 9) === 8))) return 'El ' + n + ' ya está en la diagonal secundaria.';
+    }
+    if (mode === 'antiknight' && dup(knightOf(i))) return 'El ' + n + ' choca con otro ' + n + ' a un salto de caballo.';
+    if (mode === 'nonconsecutive') {
+      const nb = adjOf(i).map(at).find(v => v && Math.abs(v - n) === 1);
+      if (nb) return 'El ' + n + ' es consecutivo del ' + nb + ' que está pegado a esta celda.';
+    }
+    if (mode === 'killer' && cageOf[i] >= 0) {
+      const cg = G.cages[cageOf[i]], cells = cg.cells.map(q => q[0] * 9 + q[1]);
+      if (dup(cells)) return 'El ' + n + ' ya está en esta jaula.';
+      const others = cells.filter(j => j !== i);
+      const total = others.reduce((a, j) => a + at(j), 0) + n;
+      if (total > cg.sum) return 'La suma de la jaula superaría ' + cg.sum + '.';
+      if (others.every(j => at(j)) && total !== cg.sum) return 'La jaula debe sumar ' + cg.sum + ', no ' + total + '.';
+    }
+    return 'No choca a simple vista, pero impide completar el tablero de forma lógica.';
+  }
+
   function input(n) {
     if (!G || sel < 0 || isOver()) return;
+    hideErrExplain();
     const r = Math.floor(sel / 9), c = sel % 9;
     if (G.puzzle[r][c]) return;
     if (inCoop()) {
@@ -457,7 +508,9 @@
         if (G.lives > 0) toast('\u22121 vida \u00B7 te ' + (G.lives === 1 ? 'queda 1' : 'quedan ' + G.lives));
       }
       pendingSfx = bad ? (G.zen ? 'note' : 'error') : 'correct';
+      const why = bad && set.showErrors && EXPLAIN_DIFFS.indexOf(G.diff) >= 0 ? explainWrong(r, c, n) : '';
       mutate(t => place(r, c, n, t));
+      if (why && !isOver()) showErrExplain(why);
     }
   }
 
@@ -729,14 +782,19 @@
     if (!active) return;
     const info = co.session.info();
     bar.dataset.state = info.state;
-    setText('#coopStatus', C.statusText(info));
+    const who = info.peerAlias || co.friendAlias || 'tu compañero';
+    const waiting = co.role === 'host' && !!co.guestLeft && info.state !== 'connected';
+    setText('#coopStatus', waiting ? 'Esperando a ' + who + '…'
+      : (info.state === 'reconnecting' && (co.hasState || co.role === 'host') ? 'Reconectando con ' + who + '…' : C.statusText(info)));
     const md = $('#coopMeDot'), fd = $('#coopFriendDot');
-    if (md) md.className = 'pdot p' + co.me;
-    if (fd) fd.className = 'pdot p' + (co.me === 1 ? 2 : 1);
+    if (md) md.className = 'pdot p1';
+    if (fd) fd.className = 'pdot p2';
     setText('#coopMeName', 'Vos');
     setText('#coopFriendName', info.peerAlias || co.friendAlias || 'Amigo');
     setText('#coopCount', myProgress() + '/81');
-    const sh = $('#coopShare'); if (sh) sh.hidden = co.role !== 'host' || info.state === 'connected';
+    const sh = $('#coopShare'); if (sh) { sh.hidden = co.role !== 'host' || info.state === 'connected'; sh.textContent = waiting ? 'Copiar link' : 'Compartir'; }
+    const so = $('#coopSolo'); if (so) so.hidden = !waiting;
+    const ce = $('#coopEnd'); if (ce) ce.textContent = co.role === 'host' ? 'Terminar partida' : 'Salir de la sala';
   }
 
   // Avisa al compañero de qué celda tengo activa (-1 si estoy fuera del tablero o ya se resolvió).
@@ -747,6 +805,12 @@
     if (co.session.send({ type: 'focus', index: f })) co.sentFocus = f;
   }
 
+  // Inicial del compañero para la insignia de su cursor.
+  function coopInitial() {
+    const a = String((co && (co.friendAlias || (co.session.info() || {}).peerAlias)) || '').trim();
+    return (a ? Array.from(a)[0].toUpperCase() : 'J' + (co && co.me === 1 ? 2 : 1)).replace(/[<>&"]/g, '');
+  }
+
   /* ---------- Render ---------- */
   function render() {
     if (!G || !cells.length) return;
@@ -754,12 +818,12 @@
     const df = isDigitFirst();
     const mode = G.mode, killer = mode === 'killer';
     const coop = inCoop();
-    const ff = coop ? co.friendFocus : -1, fnum = coop ? (co.me === 1 ? 2 : 1) : 0;
+    const ff = coop ? co.friendFocus : -1;
     const wrong = set.showErrors ? new Set(wrongCells().map(w => w.row * 9 + w.col)) : null;
     const hasSel = sel >= 0;
     const sr = Math.floor(sel / 9), sc = sel % 9;
     const sv = hasSel ? G.board[sr][sc] : 0;
-    const hv = sv || (df && activeDigit) || 0; // dígito cuyas apariciones se resaltan
+    const hv = (df && activeDigit) || sv || 0; // dígito cuyas apariciones se resaltan
     const peerSet = hasSel ? new Set(basePeers(mode)[sel]) : null;
     let extra = null; // celdas con anillo suave: diagonal(es) de la selección o saltos de caballo
     if (hasSel && mode === 'antiknight') extra = new Set(knightOf(sel));
@@ -811,8 +875,8 @@
       if (isHint) cl += ' hint'; else if (rel.has(i)) cl += ' rel';
       if (flash[i] > nowMs && !v) cl += ' ghost'; // destello del rival (sin mostrar el número)
       if (coop) {
-        if (v && !G.puzzle[r][c] && G.owners && G.owners[i]) cl += ' own' + G.owners[i]; // dígito con el color de su autor
-        if (i === ff) cl += (i === sel ? ' pf12' : ' pf' + fnum);                        // celda activa del compañero
+        if (v && !G.puzzle[r][c] && G.owners && G.owners[i]) cl += ' own' + (G.owners[i] === co.me ? 1 : 2); // dígito con el color de su autor
+        if (i === ff) cl += (i === sel ? ' pf12' : ' pf2');                        // celda activa del compañero
       }
       if (killer && cageOf[i] >= 0) { // contorno punteado donde la celda vecina es de otra jaula
         const g = cageOf[i];
@@ -834,6 +898,7 @@
         const a = G.notes[r][c];
         html += '<span class="nt">' + [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => '<i>' + (a.indexOf(n) >= 0 ? n : '') + '</i>').join('') + '</span>';
       }
+      if (coop && i === ff) html += '<span class="pbadge" aria-hidden="true">' + coopInitial() + '</span>';
       if (el._h !== html) { el.innerHTML = html; el._h = html; }
     }
 
@@ -1063,7 +1128,7 @@
   // El cronómetro se pausa solo porque únicamente corre con view === 'game' (en una sala Co-op sigue el reloj del Host).
   function goHome() {
     if (G) persist();
-    hideHint(); closeModals(); setPlayOpen(false); setHomeScreen('main');
+    hideHint(); hideErrExplain(); closeModals(); setPlayOpen(false); setHomeScreen('main');
     showView('home');
   }
 
@@ -1903,6 +1968,76 @@
     if (rt && rt.session) { try { rt.session.close(); } catch (e) { /* ignorar */ } }
   }
 
+  /* ---------- Co-op: modales propios (reemplazan confirm/alert) ---------- */
+  // `sticky` = decisión obligatoria: no se cierra con el fondo ni con Escape.
+  let askCb = null, askSticky = false;
+  function coopAsk(o) {
+    setText('#coopAskTitle', o.title);
+    const t = $('#coopAskTxt'); if (t) { t.textContent = o.text || ''; t.hidden = !o.text; }
+    setText('#coopAskYes', o.yes); setText('#coopAskNo', o.no);
+    askCb = { yes: o.onYes, no: o.onNo }; askSticky = !!o.sticky;
+    const m = $('#mCoopAsk'); if (m) m.hidden = false;
+  }
+  function coopAskAnswer(k) {
+    const cb = askCb; askCb = null; askSticky = false;
+    const m = $('#mCoopAsk'); if (m) m.hidden = true;
+    if (cb && cb[k]) cb[k]();
+  }
+
+  // Convierte la sala en una partida individual: se conservan celdas, notas, errores y tiempo, y el reloj local retoma solo.
+  function coopGoSolo(msg) {
+    const rt = co;
+    co = null;
+    if (G) { G.coop = false; G.hintsUsed = Math.max(G.hintsUsed | 0, G.hints | 0); }
+    if (rt && rt.session) { try { rt.session.close(); } catch (e) { /* ignorar */ } }
+    persist(); render(); updateHome();
+    toast(msg);
+  }
+
+  // Host: termina la partida para los dos. Invitado: solo sale de la sala (el Host decide qué hacer). Ambos piden confirmación.
+  function coopEndOrLeave() {
+    if (!inCoop()) return;
+    if (co.role === 'host') {
+      coopAsk({
+        title: '¿Terminar la partida cooperativa?', yes: 'Sí, terminar', no: 'Cancelar',
+        onYes: () => {
+          if (!inCoop() || co.role !== 'host') return;
+          const rt = co;
+          co = null;
+          if (G) G.coop = false;
+          rt.session.endGame();   // envía coop-end, espera 150 ms y cierra
+          goHome(); updateHome();
+          toast('Partida terminada.');
+        }
+      });
+    } else {
+      coopAsk({
+        title: '¿Salir de la sala?', yes: 'Sí, salir', no: 'Cancelar',
+        onYes: () => {
+          if (!inCoop() || co.role !== 'guest') return;
+          const rt = co;
+          co = null;
+          if (G) G.coop = false;
+          rt.session.leaveRoom(); // envía coop-leave, espera 150 ms y cierra
+          goHome(); updateHome();
+          toast('Saliste de la sala.');
+        }
+      });
+    }
+  }
+
+  // Host: el invitado salió a propósito (coop-leave). El reloj queda pausado (solo corre con el invitado conectado).
+  function onGuestLeft(rt) {
+    const name = rt.friendAlias || 'Tu compañero';
+    rt.guestLeft = true; rt.friendFocus = -1;
+    closeModals(); render();
+    coopAsk({
+      title: name + ' salió de la sala', yes: 'Esperar a que se reconecte ' + name, no: 'Seguir jugando solo', sticky: true,
+      onYes: () => { if (co === rt) { updateCoopBar(); render(); } }, // la sala sigue abierta con el mismo enlace
+      onNo: () => { if (co === rt) coopGoSolo('Seguís solo con tu tablero.'); }
+    });
+  }
+
   // La sala terminó (error, el anfitrión se fue, etc.): la partida sigue sola con lo que ya tiene.
   function endCoop(info) {
     co = null;
@@ -2005,6 +2140,7 @@
       }
       return;
     }
+    if (rt.ended) return;   // el invitado está eligiendo en el diálogo de cierre
     if (info.state === 'error' || info.state === 'closed') {
       if (info.reason !== 'local') endCoop(info);
       return;
@@ -2151,6 +2287,8 @@
     switch (m.type) {
       case 'hello':
         rt.friendAlias = m.alias; rt.friendFocus = -1; rt.sentFocus = -2;
+        if (rt.guestLeft && askSticky) { askCb = null; askSticky = false; const am = $('#mCoopAsk'); if (am) am.hidden = true; }
+        rt.guestLeft = false;   // volvió: el reloj retoma y recibe el tablero completo
         sendState(false);
         syncFocus();
         toast(m.alias + (m.resume ? ' volvió a la sala' : ' se unió a la sala'));
@@ -2172,9 +2310,12 @@
         if (G.won) coopNewGame();
         else if (G.lost) coopRetry();
         break;
+      case 'coop-leave':
+        onGuestLeft(rt);
+        break;
       case 'bye':
         rt.friendFocus = -1;
-        toast((rt.friendAlias || 'Tu amigo') + ' salió de la sala');
+        if (!rt.guestLeft) toast((rt.friendAlias || 'Tu compañero') + ' se desconectó de la sala');
         render();
         break;
       default:
@@ -2242,6 +2383,16 @@
   function onGuestMessage(rt, m) {
     if (co !== rt) return;
     if (m.type === 'state') { applyCoopState(rt, m); return; }
+    if (m.type === 'coop-end') { // el Host terminó la partida: el invitado decide (el reloj ya está frenado: depende del Host)
+      rt.ended = true; rt.friendFocus = -1;
+      closeModals(); hideHint(); hideErrExplain(); render();
+      coopAsk({
+        title: 'El anfitrión se ha salido. ¿Querés continuar?', yes: 'Sí', no: 'No', sticky: true,
+        onYes: () => { if (co === rt) coopGoSolo('Seguís solo con tu tablero.'); },
+        onNo: () => { if (co === rt) { leaveCoop(); goHome(); updateHome(); } }
+      });
+      return;
+    }
     if (!rt.hasState || !G || !G.coop) return;
     switch (m.type) {
       case 'cells': {
@@ -2301,7 +2452,7 @@
       const total = (counts[0] + counts[1]) || 1;
       [1, 2].forEach(p => {
         const row = mk('div', 'cr-row'), nm = mk('div', 'cr-name');
-        nm.appendChild(mk('i', 'pdot p' + p));
+        nm.appendChild(mk('i', 'pdot p' + (p === co.me ? 1 : 2)));
         nm.appendChild(mk('span', '', p === co.me ? 'Vos' : (co.friendAlias || 'Amigo')));
         row.appendChild(nm);
         row.appendChild(mk('b', '', counts[p - 1] + (counts[p - 1] === 1 ? ' celda' : ' celdas')));
@@ -2309,7 +2460,7 @@
       });
       const bar = mk('div', 'cr-bar');
       [1, 2].forEach(p => {
-        const seg = mk('i', 'p' + p);
+        const seg = mk('i', 'p' + (p === co.me ? 1 : 2));
         seg.style.width = (counts[p - 1] / total * 100) + '%';
         bar.appendChild(seg);
       });
@@ -2403,13 +2554,14 @@
     const cj = $('#mCoopJoin');
     if (cj && !cj.hidden) pendingCoop = null;                                              // invitación Co-op descartada
     aliasCb = null;
-    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad') m.hidden = true; });
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && !(m.id === 'mCoopAsk' && askSticky)) m.hidden = true; });
   }
   const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
   const openSettings = () => { const m = $('#mSet'); if (m) m.hidden = false; };
 
   function applyTheme() {
     document.documentElement.dataset.theme = set.theme;
+    try { render(); } catch (e) { /* aún sin partida */ }
     $('meta[name="theme-color"]')?.setAttribute('content', THEMES[set.theme] || THEMES.paper);
     document.querySelectorAll('[data-theme-set]').forEach(b => {
       const on_ = b.dataset.themeSet === set.theme;
@@ -2518,6 +2670,11 @@
     document.querySelectorAll('#coopModes [data-cmode]').forEach(b => b.addEventListener('click', () => { coopMode = b.dataset.cmode; setCoopSel(); }));
     document.querySelectorAll('#coopDiffs [data-cdiff]').forEach(b => b.addEventListener('click', () => { coopDiff = b.dataset.cdiff; setCoopSel(); }));
     on('coopShare', 'click', shareCoopLink);
+    on('coopEnd', 'click', coopEndOrLeave);
+    on('coopSolo', 'click', () => { if (inCoop()) coopGoSolo('Seguís solo con tu tablero.'); });
+    on('coopAskYes', 'click', () => coopAskAnswer('yes'));
+    on('coopAskNo', 'click', () => coopAskAnswer('no'));
+    on('errExplainClose', 'click', hideErrExplain);
     on('winCoopAgain', 'click', coopAgain);
     on('coopJoinGo', 'click', () => { const code = pendingCoop; closeModals(); if (code) joinCoop(code); });
     on('coopJoinCancel', 'click', closeModals);
@@ -2529,7 +2686,7 @@
       const t = e.target.closest('.cell');
       if (!t || !G) return;
       const i = +t.dataset.i, r = Math.floor(i / 9), c = i % 9;
-      sel = i; hideHint();
+      sel = i; hideHint(); hideErrExplain();
       if (!(isDigitFirst() && activeDigit && !isOver() && !G.puzzle[r][c] && !G.board[r][c])) sfx('tap');
       // Número Primero: una celda vacía editable recibe el dígito activo (o su nota, con el lápiz activo).
       // Una celda que ya tiene número no se sobrescribe: solo se selecciona para inspeccionarla.
@@ -2548,6 +2705,10 @@
     on('hintClose', 'click', () => { hideHint(); render(); });
     on('btnHome', 'click', goHome);
     on('btnSet', 'click', openSettings);
+    // Ajustes desde las vistas secundarias: el engranaje se clona del de la partida; el modal se abre encima sin cambiar de vista.
+    const gearSrc = document.querySelector('#btnSet .gear');
+    document.querySelectorAll('[data-open-settings]').forEach(b => { if (gearSrc && !b.querySelector('svg')) b.appendChild(gearSrc.cloneNode(true)); });
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-open-settings]')) { sfx('tap'); openSettings(); } });
     // Con la partida terminada, tocar el reloj vuelve a abrir el resultado (victoria, derrota o fin de racha).
     ['clock', 'zenTag'].forEach(id => on(id, 'click', () => {
       if (!G || view !== 'game') return;
@@ -2568,7 +2729,7 @@
     // Modales y ajustes
     document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
     document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
-      if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext') return;
+      if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext' || (m.id === 'mCoopAsk' && askSticky)) return;
       if (m.id === 'mAlias') hideAlias(); else closeModals();
     }));
     document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => {
@@ -2625,7 +2786,7 @@
     setInterval(() => {
       if (!G || busy || G.won || G.lost || document.hidden) return;
       if (inCoop()) {
-        if (co.role === 'host' && co.session.isConnected()) {
+        if (co.role === 'host' && co.session.isConnected() && !co.guestLeft) {
           G.secs++;
           co.session.send({ type: 'clock', secs: G.secs, hints: G.hints | 0 });
           setText('#clock', fmt(G.secs));

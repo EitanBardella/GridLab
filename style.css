@@ -11,7 +11,7 @@
   --err:#B3261E; --errbg:#F5D6CF; --accent:#B45309; --shadow:rgba(27,42,65,.22);
   --diag:#E4E9D2; --cage:#7A7059; --cage-ink:#5A5240;
   --ok:#2E7D32; --okbg:#DCEBD6; --rival:#9333EA;
-  --coop-p1:#1F4FBF; --coop-p2:#D97706;
+  --coop-p1:#2563EB; --coop-p2:#D97706;
   --on-user:#fff; --on-accent:#fff; --press:#E2DCC6;
   --edge:#1B2A41; --sh1:4px 4px 0 #1B2A41; --sh2:3px 3px 0 #1B2A41; --sh-press:1px 1px 0 #1B2A41; --press-tf:translate(3px,3px);
   --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -20,11 +20,11 @@
 }
 [data-theme="night"] {
   --bg:#0E0F12; --panel:#181A1F; --ink:#E8E8EC; --user:#7FA6FF; --muted:#cbd5e1;
-  --thin:#2A2D35; --thick:#7C8190; --peer:#14171E; --same:#1F2A47; --sel:#2B468C;
+  --thin:#2A2D35; --thick:#7C8190; --peer:rgba(96,165,250,.15); --same:rgba(96,165,250,.28); --sel:rgba(96,165,250,.44);
   --err:#FF7B72; --errbg:#4A1F22; --accent:#5B8CFF; --shadow:rgba(0,0,0,.7);
   --diag:#12182A; --cage:#98A3BF; --cage-ink:#B5BED4;
   --ok:#6FD08C; --okbg:#173324; --rival:#C58BFF;
-  --coop-p1:#7FA6FF; --coop-p2:#F59E0B;
+  --coop-p1:#60A5FA; --coop-p2:#FB923C;
   --on-user:#071026; --on-accent:#050A1C; --press:#242732;
   --edge:#D6DAE6; --sh1:4px 4px 0 #3A5BC0; --sh2:4px 4px 0 #3A5BC0; --sh-press:1px 1px 0 #3A5BC0; --press-tf:translate(3px,3px);
   --font-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -37,7 +37,7 @@
   --err:#D40000; --errbg:#FFDADA; --accent:#E30613; --shadow:rgba(0,0,0,.2);
   --diag:#EDEDED; --cage:#666666; --cage-ink:#333333;
   --ok:#1B7A2E; --okbg:#E1F3E5; --rival:#7B2CBF;
-  --coop-p1:#0A3FD1; --coop-p2:#E36B00;
+  --coop-p1:#0044FF; --coop-p2:#EA580C;
   --on-user:#fff; --on-accent:#fff; --press:#EBEBEB;
   --edge:#000000; --sh1:none; --sh2:none; --sh-press:none; --press-tf:scale(.985);
   --font-body:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
@@ -50,7 +50,7 @@
   --err:#8E1B10; --errbg:#D8A88B; --accent:#7A4A0B; --shadow:rgba(35,43,18,.4);
   --diag:#BEC891; --cage:#47522A; --cage-ink:#323B1A;
   --ok:#2B5E1B; --okbg:#A6C282; --rival:#5A2E7A;
-  --coop-p1:#2B4F7A; --coop-p2:#8A4B0B;
+  --coop-p1:#1E260D; --coop-p2:#9F2D18;
   --on-user:#EDF1C9; --on-accent:#EDF1C9; --press:#A2AD72;
   --edge:#232B12; --sh1:4px 4px 0 #232B12; --sh2:3px 3px 0 #232B12; --sh-press:1px 1px 0 #232B12; --press-tf:translate(3px,3px);
   --font-body:ui-monospace,'SFMono-Regular','Roboto Mono','Cascadia Code','Consolas',monospace;
@@ -154,7 +154,8 @@ button:disabled { cursor:default; }
 .m-row:active { background:var(--press); }
 
 /* Sub-vista "Jugar" */
-.sub-top { display:flex; }
+.sub-top { display:flex; justify-content:space-between; align-items:center; }
+.set-btn { min-width:68px; }
 .chip.back { min-width:0; padding:0 14px 0 10px; font-weight:600; }
 .sub-title { margin:14px 0 0; padding-bottom:12px; border-bottom:2px solid var(--ink); font-family:var(--font-head);
   font-size:2.5rem; font-weight:700; line-height:1; letter-spacing:-.01em; }
@@ -449,6 +450,8 @@ button:disabled { cursor:default; }
 .coopbar[data-state="creating"] .cdot, .coopbar[data-state="waiting"] .cdot,
 .coopbar[data-state="connecting"] .cdot, .coopbar[data-state="reconnecting"] .cdot {
   background:var(--accent); animation:coopPulse 1.2s ease-in-out infinite; }
+.coopbar[data-state="reconnecting"] .cdot { background:#F59E0B; } /* ámbar: micro-corte o cambio de app, sin modal */
+.cbtns .chip[hidden] { display:none; }
 .coopbar[data-state="error"] .cdot, .coopbar[data-state="closed"] .cdot { background:var(--err); }
 @keyframes coopPulse { 50% { opacity:.3; } }
 .coopbar .chip { min-height:32px; min-width:0; padding:0 12px; border-radius:10px; font-size:.78rem; font-weight:600; }
@@ -465,6 +468,23 @@ button:disabled { cursor:default; }
 .cell.user.own2 { color:var(--coop-p2); }
 .cell.err.own1, .cell.err.own2 { color:var(--err); }
 .board.coop-off { opacity:.7; }
+.cbtns { display:flex; gap:6px; }
+.cell { position:relative; }
+.pbadge { position:absolute; top:1px; right:1px; min-width:12px; height:12px; padding:0 2px; border-radius:3px; z-index:2;
+  background:var(--coop-p2); color:#fff; font-size:.55rem; font-weight:800; line-height:12px; text-align:center; pointer-events:none; }
+/* Perspectiva fija: Vos = --coop-p1 (celda propia y dígitos), Compañero = --coop-p2 (celda, tinte e insignia). */
+.board.coop .cell.sel:not(.hint):not(.rel) { box-shadow:inset 0 0 0 3px var(--coop-p1); background:color-mix(in srgb, var(--coop-p1) 18%, var(--bg)); }
+.board.coop .cell.pf2::before { box-shadow:inset 0 0 0 3px var(--coop-p2); }
+/* LCD: celda remota con borde discontinuo terracota y tinte suave, distinta del verde tinta del jugador local */
+[data-theme="retro"] .board.coop .cell.pf2::before { box-shadow:none; border:2px dashed #9F2D18; background:rgba(159, 45, 24, 0.14); }
+
+/* ---------- Aviso con la explicación del error ---------- */
+.errx { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--err); border-left-width:5px;
+  border-radius:10px; background:var(--panel); }
+.errx[hidden] { display:none; }
+.errx p { margin:0; flex:1; font-size:.9rem; font-weight:600; }
+.errx .chip { min-height:32px; min-width:32px; padding:0 8px; }
+[data-theme="swiss"] .errx, [data-theme="retro"] .errx { border-radius:0; }
 
 /* Celda activa del compañero: aro y tinte tenues, sin etiquetas ni flechas. Va en ::before (la ::after es de las jaulas)
    con z-index:-1 dentro de una celda aislada, así queda por debajo del dígito y de las notas. */
@@ -549,12 +569,12 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 
 /* Botones secundarios y de navegación: misma identidad que las tarjetas (borde definido, sombra sólida desplazada y hundimiento al pulsar).
    Minimalista deja la sombra en none (--sh2) y Retro tiene sus propias reglas más abajo. */
-:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip) {
+:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip, .set-btn) {
   border:2px solid var(--edge); border-radius:6px; background:var(--panel); box-shadow:var(--sh2);
   transition:transform .07s, box-shadow .07s; }
 :is(.chip.primary.wide, .tut-cta .chip.primary) { background:var(--user); border-color:var(--edge); color:var(--on-user); }
 .diffs button.on { background:var(--user); color:var(--on-user); }
-:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip):active:not(:disabled) {
+:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip, .set-btn):active:not(:disabled) {
   transform:var(--press-tf); box-shadow:var(--sh-press); }
 .mode-list.one { grid-template-columns:1fr; }
 .mode-list.one button { min-height:72px; }
@@ -1026,3 +1046,73 @@ body { min-height:100vh; min-height:100dvh; background-color:var(--bg); }
 .app:not(.game) { padding-bottom:max(12px, env(safe-area-inset-bottom)); }
 #game-view { padding-bottom:max(12px, calc(env(safe-area-inset-bottom) + 12px)); }
 #mSet .sheet { padding-bottom:max(12px, calc(env(safe-area-inset-bottom) + 12px)); }
+
+/* ======================================================================
+   Scrollbars ocultas en toda la app (el scroll táctil, con rueda y con teclado sigue funcionando)
+   ====================================================================== */
+html, body, * { scrollbar-width:none; -ms-overflow-style:none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display:none; width:0; height:0; }
+
+/* ---------- Botones de acción de la barra Co-op: mismo lenguaje táctil que INICIO / Ajustes, en escala compacta ---------- */
+.cbtns .chip { border:1.5px solid var(--ink); border-radius:6px; background:var(--panel); color:var(--ink);
+  box-shadow:2px 2px 0 var(--ink); transition:transform .07s, box-shadow .07s; }
+.cbtns .chip:active:not(:disabled) { transform:translate(1px, 1px); box-shadow:1px 1px 0 var(--ink); }
+.cbtns .chip:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+[data-theme="night"] .cbtns .chip { background:var(--bg); box-shadow:2px 2px 0 var(--accent); }
+[data-theme="night"] .cbtns .chip:active:not(:disabled) { box-shadow:1px 1px 0 var(--accent); }
+[data-theme="swiss"] .cbtns .chip { border:1px solid #000; border-radius:0; box-shadow:none; background:#fff; }
+[data-theme="swiss"] .cbtns .chip:active:not(:disabled) { transform:none; }
+[data-theme="retro"] .cbtns .chip { border:2px solid var(--ink); border-radius:0; box-shadow:2px 2px 0 var(--ink); }
+[data-theme="retro"] .cbtns .chip:active:not(:disabled) { transform:translate(2px, 2px); box-shadow:none; }
+
+/* ---------- Duelo / Co-op: mismos títulos que las tarjetas de modo (CLÁSICO, KILLER…) ---------- */
+.home-btn b { font-family:var(--font-head); font-size:1.05rem; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+[data-theme="swiss"] .home-btn b { color:#09090b; }
+[data-theme="retro"] .home-btn b { font-weight:700; letter-spacing:.04em; }
+
+/* ---------- Botones de movimiento: Ajustes cuadrado, transición y :hover con personalidad por tema ---------- */
+/* Ajustes: cuadrado idéntico en la partida y en todas las vistas secundarias (el engranaje queda centrado). */
+.chip.set-btn, .top > #btnSet, .tut-top .chip.set-btn, .tut-app .tut-top .chip.set-btn {
+  width:44px; height:44px; min-width:44px; min-height:44px; padding:0; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+@media (max-width:380px) { .chip.set-btn, .top > #btnSet, .tut-top .chip.set-btn, .tut-app .tut-top .chip.set-btn { width:42px; height:42px; min-width:42px; min-height:42px; padding:0; } }
+
+:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip) {
+  transition:background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip) .gear :is(.g-smooth, .g-pixel) {
+  transition:fill .18s ease, stroke .18s ease, filter .18s ease; }
+
+@media (hover:hover) {
+  /* Papel (y base): solo cambia el color, en tono terracota cálido; sin elevación (el movimiento queda para :active). */
+  :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+    background-color:#8C4A27; color:#F5F2EA; border-color:var(--ink); }
+  :is(.set-btn, #btnSet):hover .gear .g-smooth { stroke:#F5F2EA; fill:#F5F2EA; fill-opacity:.25; }
+  /* Noche: fondo blanco con texto e ícono en azul neón. */
+  [data-theme="night"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+    background-color:#fff; color:#2563EB; border-color:#fff; transform:none; text-shadow:0 0 8px rgba(96, 165, 250, 0.55);
+    box-shadow:0 0 14px rgba(96, 165, 250, 0.45); }
+  [data-theme="night"] :is(.set-btn, #btnSet):hover .gear .g-smooth { stroke:#2563EB; fill:#3B82F6; fill-opacity:.3; filter:drop-shadow(0 0 6px rgba(96, 165, 250, 0.7)); }
+  /* Minimalista: contraste editorial limpio, sin sombra ni movimiento. */
+  [data-theme="swiss"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+    background:#000; color:#fff; border-color:#000; transform:none; box-shadow:none; }
+  [data-theme="swiss"] :is(.set-btn, #btnSet):hover .gear .g-smooth { stroke:#fff; fill:none; }
+  /* Retro: inversión LCD monocromática. */
+  [data-theme="retro"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+    background:#1E260D; color:#CCD4A0; border-color:#1E260D; transform:none; box-shadow:2px 2px 0 #1E260D; }
+  [data-theme="retro"] :is(.set-btn, #btnSet):hover .gear .g-pixel { fill:#CCD4A0; }
+}
+/* Pulsado: se hunde (gana al :hover) */
+:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) { transform:translate(1px, 1px); box-shadow:1px 1px 0 var(--ink); }
+[data-theme="night"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) { box-shadow:1px 1px 0 var(--accent); }
+[data-theme="swiss"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) { transform:none; box-shadow:none; }
+
+/* Noche: la celda seleccionada lleva borde azul #60A5FA (jerarquía: relacionadas .15 < iguales .28 < seleccionada .44). */
+[data-theme="night"] .cell.sel:not(.hint):not(.rel) { box-shadow:inset 0 0 0 3px #60A5FA; }
+
+/* ---------- Pulsación física también en Noche y Retro: el botón se hunde hacia su sombra (2px) y la sombra se colapsa.
+   Va después del bloque @media (hover:hover), con igual especificidad, así que también gana con el cursor encima en PC. ---------- */
+:is([data-theme="night"], [data-theme="retro"]) :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) {
+  transform:translate(2px, 2px); box-shadow:0 0 0 transparent; }
+/* Resto de botones con sombra desplazada (menú, modos, dificultades, teclado, herramientas, modales): también ganan al :hover */
+:is([data-theme="night"], [data-theme="retro"]) :is(.m-primary, .m-daily, .m-continue, .mode-list button, .chip.wide, .chip.home-btn, .diffs button, .surv-grid button):active:not(:disabled) {
+  transform:var(--press-tf); box-shadow:var(--sh-press); }
+[data-theme="retro"] :is(.keypad button, .tools button, .tut-opt, .tut-lesson):active:not(:disabled) { transform:translate(2px, 2px); box-shadow:0 0 0 transparent; }

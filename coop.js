@@ -94,8 +94,8 @@
   var BAD_CHARS = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF<>]/g;
 
   // Tipos de mensaje que cada rol acepta del otro lado.
-  var HOST_ACCEPTS = { hello: 1, focus: 1, op: 1, hint: 1, again: 1, bye: 1 };
-  var GUEST_ACCEPTS = { state: 1, cells: 1, clock: 1, won: 1, lost: 1, focus: 1, full: 1, bye: 1 };
+  var HOST_ACCEPTS = { hello: 1, focus: 1, op: 1, hint: 1, again: 1, bye: 1, 'coop-leave': 1 };
+  var GUEST_ACCEPTS = { state: 1, cells: 1, clock: 1, won: 1, lost: 1, focus: 1, full: 1, bye: 1, 'coop-end': 1 };
 
   /* ===========================================================================
    * Utilidades
@@ -388,6 +388,10 @@
       switch (m.type) {
         case 'ping': case 'pong': case 'bye': case 'full': case 'again': case 'hint':
           return { type: m.type };
+        case 'coop-end':
+          return { type: 'coop-end', by: 'host' };
+        case 'coop-leave':
+          return { type: 'coop-leave', by: 'guest' };
         case 'hello':
           return { type: 'hello', alias: sanitizeAlias(m.alias) || 'Amigo', resume: !!m.resume, v: isInt(m.v, 0, 1000) ? m.v : 0 };
         case 'state': {
@@ -691,6 +695,22 @@
     this._rawSend({ type: 'bye' });
     this._setStatus('closed', 'local');
     this._teardown(true);
+  };
+
+  /** Host: avisa que la partida terminó y cierra la conexión tras 150 ms, para que el mensaje alcance a llegar. */
+  Session.prototype.endGame = function () {
+    var self = this;
+    if (this.closed) { return; }
+    this.send({ type: 'coop-end', by: 'host' });
+    setTimeout(function () { self.close(); }, 150);
+  };
+
+  /** Invitado: avisa que sale a propósito y cierra la conexión tras 150 ms. */
+  Session.prototype.leaveRoom = function () {
+    var self = this;
+    if (this.closed) { return; }
+    this.send({ type: 'coop-leave', by: 'guest' });
+    setTimeout(function () { self.close(); }, 150);
   };
 
   /* ----- Peer (señalización) ----- */
@@ -1064,6 +1084,12 @@
     };
     document.addEventListener('visibilitychange', this._onVis);
     window.addEventListener('online', this._onVis);
+    // Cierre definitivo de la pestaña: se avisa como salida voluntaria. Cambiar de app en el celular NO dispara beforeunload.
+    this._onUnload = function () {
+      if (self.closed) { return; }
+      self._rawSend(self.role === 'host' ? { type: 'coop-end', by: 'host' } : { type: 'coop-leave', by: 'guest' });
+    };
+    window.addEventListener('beforeunload', this._onUnload);
   };
 
   Session.prototype._unbindDom = function () {
@@ -1071,6 +1097,7 @@
     try {
       document.removeEventListener('visibilitychange', this._onVis);
       window.removeEventListener('online', this._onVis);
+      window.removeEventListener('beforeunload', this._onUnload);
     } catch (e) { /* ignorar */ }
     this._onVis = null;
   };

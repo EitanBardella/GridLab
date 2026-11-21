@@ -784,7 +784,10 @@
     topBtn = h('button', { class: 'chip', type: 'button', onclick: onBack, text: 'Inicio' });
     topTitle = h('b', { class: 'tut-title', text: 'Tutorial' });
     body = h('div', { class: 'tut-body' });
-    root.append(h('header', { class: 'tut-top' }, topBtn, topTitle, h('span', { class: 'tut-spacer' })), body);
+    const gear = document.querySelector('#btnSet .gear');
+    const setBtn = h('button', { class: 'chip set-btn', type: 'button', 'aria-label': 'Ajustes', 'data-open-settings': true });
+    if (gear) setBtn.appendChild(gear.cloneNode(true));
+    root.append(h('header', { class: 'tut-top' }, topBtn, topTitle, setBtn), body);
   }
 
   function setTop(title, backLabel) { topTitle.textContent = title; topBtn.textContent = '← ' + backLabel; }

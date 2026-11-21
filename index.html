@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v25">
-<link rel="stylesheet" href="tutorial.css?v=ui-v25">
+<link rel="stylesheet" href="style.css?v=ui-v37">
+<link rel="stylesheet" href="tutorial.css?v=ui-v37">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
@@ -59,7 +59,7 @@
 
     <!-- Jugar: modos de juego -->
     <div id="homePlay" class="home-screen" hidden>
-      <div class="sub-top"><button id="btnPlayBack" class="chip back" type="button">← Inicio</button></div>
+      <div class="sub-top"><button id="btnPlayBack" class="chip back" type="button">← Inicio</button><button class="chip set-btn" type="button" aria-label="Ajustes" data-open-settings></button></div>
       <h2 class="sub-title">Jugar</h2>
 
       <button id="btnContinue" class="m-continue" type="button" hidden>
@@ -126,11 +126,11 @@
     <h2>Jugar con amigos</h2>
     <p class="sub">Mismo tablero, tu amigo y vos.</p>
     <button id="btnFriend" class="chip home-btn" type="button">
-      Duelo con amigo
+      <b>Duelo con amigo</b>
       <small>Mismo tablero, al mismo tiempo: gana el más rápido</small>
     </button>
     <button id="btnCoop" class="chip home-btn" type="button">
-      Resolver juntos (Co-op)
+      <b>Resolver juntos (Co-op)</b>
       <small>Mismo tablero, en equipo</small>
     </button>
     <button class="chip wide" data-close>Cancelar</button>
@@ -141,7 +141,7 @@
 <main class="app home" id="stats-view" hidden>
   <div class="home-inner top">
     <div class="home-screen">
-      <div class="sub-top"><button id="statsBack" class="chip back" type="button">← Inicio</button></div>
+      <div class="sub-top"><button id="statsBack" class="chip back" type="button">← Inicio</button><button class="chip set-btn" type="button" aria-label="Ajustes" data-open-settings></button></div>
       <h2 class="sub-title" id="statsTitle">Estadísticas</h2>
       <div id="statsHome" class="vlist"></div>
       <div id="statsDetail" hidden>
@@ -175,7 +175,7 @@
 <main class="app home" id="daily-view" hidden>
   <div class="home-inner top">
     <div class="home-screen">
-      <div class="sub-top"><button id="dailyBack" class="chip back" type="button">← Inicio</button></div>
+      <div class="sub-top"><button id="dailyBack" class="chip back" type="button">← Inicio</button><button class="chip set-btn" type="button" aria-label="Ajustes" data-open-settings></button></div>
       <h2 class="sub-title">Desafío Diario</h2>
       <div class="cal-nav">
         <button type="button" id="dailyPrev" class="chip" aria-label="Mes anterior">&lt;</button>
@@ -228,6 +228,12 @@
     </div>
   </section>
 
+  <!-- Explicación del error (Fácil, Medio y Difícil). -->
+  <section id="errExplain" class="errx" hidden role="status" aria-live="polite">
+    <p id="errExplainTxt"></p>
+    <button id="errExplainClose" class="chip" aria-label="Cerrar aviso">✕</button>
+  </section>
+
   <!-- Zona de juego: estado + tablero + herramientas + teclado, agrupados sin huecos entre sí. -->
   <div class="play">
 
@@ -264,7 +270,11 @@
   <!-- Barra Co-op: solo visible en una sala cooperativa. data-state = estado de la conexión (lo pone app.js). -->
   <div id="coopBar" class="coopbar" hidden data-state="waiting" role="group" aria-label="Sala cooperativa">
     <div class="cstat" role="status" aria-live="polite"><i class="cdot" aria-hidden="true"></i><span id="coopStatus">Esperando a tu amigo...</span></div>
-    <button type="button" id="coopShare" class="chip" title="Volver a compartir el enlace de la sala">Compartir</button>
+    <div class="cbtns">
+      <button type="button" id="coopShare" class="chip" title="Volver a compartir el enlace de la sala">Compartir</button>
+      <button type="button" id="coopSolo" class="chip" hidden>Seguir solo</button>
+      <button type="button" id="coopEnd" class="chip">Terminar partida</button>
+    </div>
     <div class="cplayers">
       <span class="cp me"><i class="pdot p1" id="coopMeDot" aria-hidden="true"></i><span id="coopMeName">Vos</span></span>
       <span class="cp"><i class="pdot p2" id="coopFriendDot" aria-hidden="true"></i><span id="coopFriendName">Amigo</span></span>
@@ -507,6 +517,16 @@
   </div>
 </div>
 
+<!-- Co-op: confirmaciones y decisiones (reemplaza confirm/alert); lo rellena app.js -->
+<div class="modal" id="mCoopAsk" hidden>
+  <div class="sheet center" role="dialog" aria-modal="true" aria-labelledby="coopAskTitle">
+    <p class="duel-title" id="coopAskTitle"></p>
+    <p class="sub" id="coopAskTxt" hidden></p>
+    <button class="chip primary wide" id="coopAskYes"></button>
+    <button class="chip wide" id="coopAskNo"></button>
+  </div>
+</div>
+
 <div class="modal" id="mLoad" hidden>
   <div class="sheet center">
     <p class="sub" id="loadTxt">Generando tablero…</p>
@@ -515,18 +535,18 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v25"></script>
-<script src="engine.js?v=ui-v25"></script>
-<script src="killer-engine.js?v=ui-v25"></script>
-<script src="duel.js?v=ui-v25"></script>
+<script src="sound.js?v=ui-v37"></script>
+<script src="engine.js?v=ui-v37"></script>
+<script src="killer-engine.js?v=ui-v37"></script>
+<script src="duel.js?v=ui-v37"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v25"></script>
+<script src="coop.js?v=ui-v37"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
 <script src="tutorial.js?v=ui-v3"></script>
-<script src="app.js?v=ui-v25"></script>
+<script src="app.js?v=ui-v37"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

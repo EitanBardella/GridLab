@@ -285,3 +285,7 @@
 /* Los botones de abajo van siempre dentro del flujo: nunca fijos ni pegados encima del texto o del tablero */
 .tut-app .tut-cta { position:static; bottom:auto; margin-top:14px; padding:0; background:none; }
 .tut-app .tut-ctrl { position:static; }
+
+/* Scrollbars ocultas en el tutorial (el desplazamiento sigue activo) */
+.tut-app, .tut-body, .tut-sheet, .tut-tabs { scrollbar-width:none; -ms-overflow-style:none; }
+.tut-app::-webkit-scrollbar, .tut-body::-webkit-scrollbar, .tut-sheet::-webkit-scrollbar, .tut-tabs::-webkit-scrollbar { display:none; width:0; height:0; }
