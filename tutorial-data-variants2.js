@@ -271,6 +271,294 @@
     }
   };
 
+  /* =====================================================================
+     SEGUNDO BLOQUE (intermedio/avanzado): d3, a3, n2 y j2
+     ===================================================================== */
+  var DIAG1 = [0, 10, 20, 30, 40, 50, 60, 70, 80];
+
+  var diagTriple = {
+    id: 'diagonal-triple',
+    title: 'Trío desnudo en diagonal (Diagonal Naked Triple)',
+    short: 'Tres celdas de la diagonal, tres candidatos',
+    theory: {
+      what: 'Si tres celdas libres de una misma diagonal tienen entre todas solo tres candidatos distintos (por ejemplo {1,5}, {1,3,5} y {1,3,5}), esos tres números quedan reservados para ellas. Ningún otro lugar de la diagonal puede llevarlos.',
+      detect: 'Anotá los candidatos de las celdas libres de una diagonal. Buscá tres celdas cuya unión sea de exactamente tres dígitos (no hace falta que cada una tenga los tres). Tachá esos dígitos en las demás celdas de la diagonal.',
+      why: 'Con 9 celdas por diagonal y varias ya resueltas, los tríos aparecen seguido. Como las celdas suelen estar lejos, ninguna fila ni caja los muestra: solo la diagonal los une.',
+      faq: [
+        { q: '¿Tienen que compartir los tres dígitos cada una?', a: 'No. Alcanza con que, juntas, usen solo tres dígitos y que cada una tenga al menos dos.' },
+        { q: '¿Cómo lo distingo de un par?', a: 'Si dos de las tres celdas ya tienen los mismos dos candidatos, es un par y el trío sobra. Acá ninguna pareja se resuelve sola.' },
+        { q: '¿Funciona en la diagonal secundaria?', a: 'Sí, igual. Y la celda central puede pertenecer al trío de cualquiera de las dos diagonales.' }
+      ]
+    },
+    example: {
+      mode: 'diagonal',
+      grid: '400500090902360007600408003000704061000000900040000005807000006069187020024003079',
+      steps: [
+        { text: 'Miremos la diagonal principal (↘). Ya tiene el 4, el 7, el 2 y el 9. Mostramos los candidatos de sus cinco celdas libres.',
+          rel: DIAG1, show: { 10: [1, 5, 8], 20: [1, 5], 40: [1, 3, 5], 50: [1, 6], 60: [1, 3, 5] } },
+        { text: 'F3C3, F5C5 y F7C7 solo usan el 1, el 3 y el 5: tres celdas, tres candidatos. Es un Trío desnudo. Ninguna fila ni caja las une: solo la diagonal.',
+          hl: [20, 40, 60], rel: DIAG1, show: { 10: [1, 5, 8], 20: [1, 5], 40: [1, 3, 5], 50: [1, 6], 60: [1, 3, 5] }, keep: { 20: [1, 5], 40: [1, 3, 5], 60: [1, 3, 5] } },
+        { text: 'El 1, el 3 y el 5 de esta diagonal tienen que estar en esas tres celdas. Tachamos el 1 y el 5 de F2C2 y el 1 de F6C6.',
+          hl: [20, 40, 60], rel: DIAG1, show: { 10: [1, 5, 8], 20: [1, 5], 40: [1, 3, 5], 50: [1, 6], 60: [1, 3, 5] },
+          strike: { 10: [1, 5], 50: [1] }, keep: { 20: [1, 5], 40: [1, 3, 5], 60: [1, 3, 5] } },
+        { text: 'F2C2 queda solo con el 8 y F6C6 solo con el 6: dos Únicos desnudos de un solo golpe.',
+          hl: [10, 50], show: { 10: [1, 5, 8], 50: [1, 6] }, strike: { 10: [1, 5], 50: [1] }, keep: { 10: [8], 50: [6] } },
+        { text: 'Colocamos el 8 en F2C2 y el 6 en F6C6.', hl: [10, 50], place: { 10: 8, 50: 6 } }
+      ]
+    },
+    practice: {
+      mode: 'diagonal',
+      grid: '900014603104300000302580194680000007000040200029070300205061000006000400800030006',
+      solution: '978214653154396872362587194683152947517943268429678315235461789796825431841739526',
+      notes: 'auto',
+      goal: { text: 'En la diagonal principal (↘) hay tres celdas libres que juntas solo usan tres candidatos. Tachá (modo Notas) esos tres números en la otra celda libre de la diagonal que los tiene.', elimSets: [[[70, 5], [70, 7], [70, 8]]] },
+      hint: 'Mirá F2C2, F6C6 y F7C7: entre las tres solo aparecen el 5, el 7 y el 8. Revisá F8C8.',
+      hintCells: [10, 50, 60]
+    }
+  };
+
+  var knightBoxElim = {
+    id: 'knight-box-elim',
+    title: 'Doble salto desde una caja (Knight-Box Elimination)',
+    short: 'Todos los lugares de un dígito atacan a la misma celda',
+    theory: {
+      what: 'Si en una caja un dígito solo puede ir en dos (o tres) celdas y una celda de afuera está a salto de caballo de todas ellas, esa celda no puede llevar el dígito: sea cual sea el lugar elegido en la caja, la celda de afuera quedaría atacada.',
+      detect: 'Marcá dónde puede ir un dígito en una caja. Con dos lugares posibles, buscá las celdas que están en L de ambos (suelen ser una o dos). Si alguna tiene ese dígito como candidato, tachalo.',
+      why: 'Es la eliminación típica del Anti-Caballo: no se ve con filas, columnas ni cajas, solo con la geometría del caballo.',
+      faq: [
+        { q: '¿Y si la celda de afuera ataca solo a uno de los dos lugares?', a: 'No hay eliminación segura: el dígito podría ir en el otro lugar y dejar libre a la celda.' },
+        { q: '¿Puede haber más de una celda atacada por ambos?', a: 'Sí. Dos celdas separadas por dos columnas comparten dos celdas en L, una arriba y otra abajo.' },
+        { q: '¿Se diferencia del bloqueo por caja de la lección anterior?', a: 'Es la misma idea con otro orden: antes partíamos de un dígito ya colocado; acá, de un dígito que todavía no tiene lugar fijo.' }
+      ]
+    },
+    example: {
+      mode: 'antiknight',
+      grid: '509000601001030020000060070230619000000002050070403060600040300000080000000190000',
+      steps: [
+        { text: 'Busquemos el 4 en el bloque medio izquierdo (marcado).', rel: [27, 28, 29, 36, 37, 38, 45, 46, 47] },
+        { text: 'El 4 de F6C4 bloquea a F6C1 y F6C3 (misma fila) y, con el caballo, a F4C3 y F5C2. Las marcamos con ✕.',
+          rel: [27, 28, 29, 36, 37, 38, 45, 46, 47], src: [48], same: [48], no: [29, 37, 45, 47] },
+        { text: 'Al 4 de este bloque solo le quedan dos lugares: F5C1 y F5C3.',
+          hl: [36, 38], rel: [27, 28, 29, 36, 37, 38, 45, 46, 47], no: [29, 37, 45, 47], show: { 36: [4], 38: [4] } },
+        { text: 'Ahora miremos afuera: F3C2 está a un salto de caballo de F5C1 y también de F5C3. Sea cual sea la que lleve el 4, F3C2 queda atacada.',
+          hl: [19], rel: [36, 38], src: [36, 38], show: { 36: [4], 38: [4] } },
+        { text: 'Tachamos el 4 de F3C2: de {2, 4, 8} pasa a {2, 8}.',
+          hl: [19], src: [36, 38], show: { 19: [2, 4, 8], 36: [4], 38: [4] }, strike: { 19: [4] }, keep: { 19: [2, 8] } }
+      ]
+    },
+    practice: {
+      mode: 'antiknight',
+      grid: '000007600000640000080005000000009102257001008001800004000520000503908010040006000',
+      solution: '435187629972643581186295347864759132257431968391862754619524873523978416748316295',
+      notes: 'auto',
+      goal: { text: 'En el bloque superior central, el 9 solo puede ir en dos celdas, y una celda de afuera está a salto de caballo de las dos. Tachá (modo Notas) el 9 en esa celda.', elimSets: [[[11, 9]]] },
+      hint: 'El 9 del bloque de arriba al centro cabe en F1C5 y F3C5. Buscá la celda que está en L de las dos, a la izquierda.',
+      hintCells: [4, 22, 11]
+    }
+  };
+
+  var knightCorridor = {
+    id: 'knight-corridor',
+    title: 'Pasillo bloqueado por el caballo (Knight Corridor)',
+    short: 'Un pasillo de 3 celdas y dos saltos que lo cierran',
+    theory: {
+      what: 'Si un dígito, dentro de una caja, solo cabe en las tres celdas de una misma fila (o columna) de la caja, forma un pasillo. Si dos de esas tres celdas están a salto de caballo de dígitos iguales ya colocados, el pasillo se cierra y el dígito va en la tercera.',
+      detect: 'Marcá los lugares del dígito en la caja y tachá lo que bloquean las filas y columnas. Si quedan tres celdas en línea, revisá si hay un mismo dígito a salto de caballo de alguna de ellas. Tachá esas celdas: la que sobrevive es la solución.',
+      why: 'Combina la técnica de Único oculto con el caballo y suele aparecer en la mitad de la partida, cuando ya hay muchos dígitos repartidos.',
+      faq: [
+        { q: '¿Qué diferencia hay con la esquina que ataca al bloque?', a: 'Allí la fuente del ataque está en la esquina de otro bloque. Acá puede estar en cualquier celda: lo que se mira es el pasillo.' },
+        { q: '¿Por qué tiene que haber un pasillo?', a: 'Porque las filas y columnas ya descartaron el resto de la caja. Sin ese paso previo, no hay forma de aislar solo tres celdas.' },
+        { q: '¿Y si el caballo ataca solo a una celda del pasillo?', a: 'Entonces quedan dos candidatos y no hay deducción directa: hay que buscar otra técnica.' }
+      ]
+    },
+    example: {
+      mode: 'antiknight',
+      grid: '700500301010006004020300075040000000800072540275000800007000190004000000080907000',
+      steps: [
+        { text: 'Busquemos el 4 en el bloque central (marcado).', rel: [30, 31, 32, 39, 40, 41, 48, 49, 50] },
+        { text: 'El 4 de F4C2 bloquea la fila 4 y el 4 de F5C8 bloquea la fila 5. Marcamos con ✕ esas celdas: al 4 de este bloque solo le queda la fila 6.',
+          rel: [30, 31, 32, 39, 40, 41, 48, 49, 50], src: [28, 43], same: [28, 43], no: [30, 31, 32, 39, 41], show: { 48: [4], 49: [4], 50: [4] } },
+        { text: 'F6C4, F6C5 y F6C6 forman un pasillo de tres celdas. Ahora el caballo: el 4 de F8C3 ataca a F6C4 y el 4 de F5C8 ataca a F6C6.',
+          hl: [48, 50], src: [65, 43], same: [65, 43], no: [30, 31, 32, 39, 41, 48, 50], show: { 48: [4], 49: [4], 50: [4] } },
+        { text: 'Tachamos el 4 de F6C4 y de F6C6. Solo sobrevive F6C5.', hl: [49], no: [30, 31, 32, 39, 41], show: { 48: [4], 49: [4], 50: [4] }, strike: { 48: [4], 50: [4] }, keep: { 49: [4] } },
+        { text: 'Colocamos el 4 en F6C5.', hl: [49], place: { 49: 4 } }
+      ]
+    },
+    practice: {
+      mode: 'antiknight',
+      grid: '801000000020100800045000016030000160508000290690000000000200600004000001000470002',
+      solution: '861735429729164835345928716437592168518643297692817543973281654284356971156479382',
+      notes: 'none',
+      goal: { text: 'En el bloque superior central, el 8 solo cabe en la fila 3, y dos de esas tres celdas están a salto de caballo de otros 8. Colocá el 8 en la que sobrevive.', place: [[23, 8]] },
+      hint: 'El 8 de F5C3 ataca a F3C4 y el 8 de F2C7 ataca a F3C5: queda F3C6.',
+      hintCells: [21, 22, 23, 38, 15]
+    }
+  };
+
+  var jigLineRegion = {
+    id: 'jigsaw-line-region',
+    title: 'Reducción línea–región (Line-Region Reduction)',
+    short: 'Un dígito de una fila que cae dentro de una sola región',
+    theory: {
+      what: 'Si todos los lugares posibles de un dígito en una fila (o columna) pertenecen a la misma región irregular, ese dígito de la región está en esa línea. Por eso el resto de la región, fuera de la línea, no puede llevarlo.',
+      detect: 'Elegí una fila o columna y un dígito que le falte. Marcá sus lugares posibles. Si todos están en la misma región, tachá el dígito en las demás celdas de esa región.',
+      why: 'Es el camino inverso a la intersección región–línea. Con formas libres, una región se estira sobre varias filas y esta técnica la vacía rápido.',
+      faq: [
+        { q: '¿Cuántos lugares suelen ser?', a: 'Dos o tres. Con uno solo ya es un Único oculto.' },
+        { q: '¿Y si los lugares de la línea están en dos regiones?', a: 'No se puede eliminar nada con esta técnica.' },
+        { q: '¿Se parece al clásico?', a: 'Sí: es el Caja–Línea (Box-Line) del clásico, pero con regiones de forma libre.' }
+      ]
+    },
+    example: {
+      mode: 'jigsaw',
+      regions: JM,
+      grid: '027050010030008462100020000053004890005860000064000000090005700701002086080001520',
+      steps: [
+        { text: 'Miremos la fila 2 y busquemos el 7.', rel: [9, 10, 11, 12, 13, 14, 15, 16, 17] },
+        { text: 'En la fila 2, el 7 no cabe en F2C1 (hay un 7 en la columna 1) ni en F2C3 (hay un 7 en F1C3). Las demás celdas ya tienen número. Quedan F2C4 y F2C5.',
+          rel: [9, 10, 11, 12, 13, 14, 15, 16, 17], src: [63, 2], same: [63, 2], no: [9, 11], show: { 12: [7], 13: [7] } },
+        { text: 'Las dos celdas están en la misma región (arriba al centro, borde grueso). El 7 de esa región tiene que estar en la fila 2.',
+          hl: [12, 13], rel: [3, 4, 5, 12, 13, 14, 21, 22, 23], show: { 12: [7], 13: [7] } },
+        { text: 'Entonces las demás celdas de la región no pueden llevar el 7. F3C4 y F3C6 lo tenían como candidato: los tachamos.',
+          hl: [12, 13], rel: [3, 4, 5, 12, 13, 14, 21, 22, 23], show: { 12: [7], 13: [7], 21: [7], 23: [7] }, strike: { 21: [7], 23: [7] } }
+      ]
+    },
+    practice: {
+      mode: 'jigsaw',
+      regions: JM,
+      grid: '506180730000056020007093060000000890160009570000821300719000000384200000000000400',
+      solution: '596182734431756928827493165243675891168349572975821346719564283384217659652938417',
+      notes: 'auto',
+      goal: { text: 'En la fila 7, el 2 solo puede ir en celdas de una misma región. Tachá (modo Notas) el 2 en la celda de esa región que queda fuera de la fila.', elimSets: [[[80, 2]]] },
+      hint: 'En la fila 7, el 2 cabe en F7C6, F7C7 y F7C9, todas de la región de abajo a la derecha. Buscá otra celda de esa región con el 2.',
+      hintCells: [59, 60, 62, 80]
+    }
+  };
+
+  var jigHiddenPair = {
+    id: 'jigsaw-hidden-pair',
+    title: 'Par oculto en una región (Hidden Pair)',
+    short: 'Dos dígitos que solo caben en las mismas dos celdas',
+    theory: {
+      what: 'Si dos dígitos de una región solo pueden ir en las mismas dos celdas, esas celdas son suyas: se quedan únicamente con esos dos dígitos. Todos los demás candidatos de esas dos celdas se tachan.',
+      detect: 'En una región, marcá dónde puede ir cada dígito. Si dos dígitos comparten exactamente las mismas dos celdas (y ningún otro lugar), esas dos celdas están "ocupadas" por ellos: borrá el resto de candidatos que tengan.',
+      why: 'Convierte celdas llenas de candidatos en un Par desnudo limpio, y en regiones alargadas es más fácil de ver que mirando celda por celda.',
+      faq: [
+        { q: '¿En qué se diferencia del Par desnudo?', a: 'El desnudo ya muestra solo dos candidatos por celda. El oculto está "escondido" entre otros candidatos y hay que mirar por dígito.' },
+        { q: '¿Sirve en filas y columnas?', a: 'Sí, y en este modo también en las regiones irregulares.' },
+        { q: '¿Qué pasa con tres dígitos?', a: 'El Trío oculto funciona igual con tres celdas.' }
+      ]
+    },
+    example: {
+      mode: 'jigsaw',
+      regions: JM,
+      grid: '027050010030008462100020000053004890005860000064000000090005700701002086080001520',
+      steps: [
+        { text: 'Miremos la región de la derecha (borde grueso) y busquemos dónde van el 1 y el 2.', rel: [15, 16, 24, 25, 33, 42, 43, 51, 52] },
+        { text: 'El 1 solo puede ir en F5C7 o F6C7. El 2 también. Ninguna otra celda de la región admite el 1 ni el 2.',
+          hl: [42, 51], rel: [15, 16, 24, 25, 33, 42, 43, 51, 52], show: { 42: [1, 2], 51: [1, 2] } },
+        { text: 'Dos números que solo caben en las mismas dos celdas: es un Par oculto. Esas dos celdas se quedan con el 1 y el 2.',
+          hl: [42, 51], keep: { 42: [1, 2], 51: [1, 2] }, show: { 42: [1, 2, 3, 9], 51: [1, 2, 3, 9] } },
+        { text: 'Tachamos el resto de sus candidatos: el 3 y el 9 en las dos celdas.',
+          hl: [42, 51], show: { 42: [1, 2, 3, 9], 51: [1, 2, 3, 9] }, strike: { 42: [3, 9], 51: [3, 9] }, keep: { 42: [1, 2], 51: [1, 2] } }
+      ]
+    },
+    practice: {
+      mode: 'jigsaw',
+      regions: JM,
+      grid: '300007802070500039800403000060000510400000000190000680000039058000246000000705300',
+      solution: '345197862671582439859463127263978514426851793197324685714639258538246971982715346',
+      notes: 'auto',
+      goal: { text: 'En la región de abajo a la izquierda, el 3 y el 8 solo caben en dos celdas. Tachá (modo Notas) todos los demás candidatos de esas dos celdas.', elimSets: [[[64, 5], [65, 5], [65, 7], [65, 9]]] },
+      hint: 'Buscá en la región de abajo a la izquierda dónde puede ir el 3 y dónde el 8: son las mismas dos celdas de la fila 8.',
+      hintCells: [64, 65]
+    }
+  };
+
+  var ncCross = {
+    id: 'nc-cross',
+    title: 'Encrucijada ortogonal (Orthogonal Cross)',
+    short: 'Tres vecinos conocidos que descartan casi todo',
+    theory: {
+      what: 'Cuando una celda tiene tres (o cuatro) vecinos ortogonales ya resueltos, cada uno le prohíbe los números inmediatamente anterior y posterior al suyo. Sumadas esas prohibiciones a la fila, columna y caja, la celda suele quedarse con un único candidato.',
+      detect: 'Elegí una celda libre con tres vecinos conocidos. Anotá sus candidatos del clásico y, por cada vecino n, tachá n−1 y n+1. Si queda uno, es tuyo.',
+      why: 'Es el Único desnudo de esta variante: una celda rodeada casi siempre se resuelve y desbloquea a sus vecinas.',
+      faq: [
+        { q: '¿Y si un vecino es el 1 o el 9?', a: 'Solo descarta un número (el 2 o el 8). Los vecinos del medio descartan dos, así que rinden más.' },
+        { q: '¿Hace falta que los tres vecinos sean distintos?', a: 'No. Dos vecinos iguales descartan los mismos números: en el tablero de práctica hay dos 4.' },
+        { q: '¿Cuenta la diagonal?', a: 'No: solo arriba, abajo, izquierda y derecha.' }
+      ]
+    },
+    example: {
+      mode: 'nonconsecutive',
+      grid: '000000062206001805500000000000200907024709500000005240030800094862097351090103628',
+      steps: [
+        { text: 'Tomemos F7C3. Tiene tres vecinos resueltos: un 3 a la izquierda, un 8 a la derecha y un 2 abajo. Arriba todavía no hay nada.',
+          hl: [56], rel: [47, 55, 57, 65], src: [55, 57, 65] },
+        { text: 'Primero lo de siempre: con fila, columna y caja solo quedan el 1, el 5 y el 7.',
+          hl: [56], show: { 56: A9 }, strike: { 56: [2, 3, 4, 6, 8, 9] }, keep: { 56: [1, 5, 7] } },
+        { text: 'El 2 de abajo prohíbe el 1 y el 3. Tachamos el 1.',
+          hl: [56], src: [65], same: [65], show: { 56: A9 }, strike: { 56: [1, 2, 3, 4, 6, 8, 9] }, keep: { 56: [5, 7] } },
+        { text: 'El 8 de la derecha prohíbe el 7 y el 9. Tachamos el 7. (El 3 de la izquierda prohíbe el 2 y el 4: ya estaban fuera.)',
+          hl: [56], src: [57, 55], same: [57, 55], show: { 56: A9 }, strike: { 56: [1, 2, 3, 4, 6, 7, 8, 9] }, keep: { 56: [5] } },
+        { text: 'Solo queda el 5. Colocamos el 5 en F7C3.', hl: [56], place: { 56: 5 } }
+      ]
+    },
+    practice: {
+      mode: 'nonconsecutive',
+      grid: '500000003360000040809100075690051000000004690000629357750860004184000006036410000',
+      solution: '527948163361572849849136275693751428275384691418629357752863914184295736936417582',
+      notes: 'none',
+      goal: { text: 'Hay una celda con tres vecinos resueltos que, con la regla de los consecutivos, queda con un único candidato. Encontrala y colocá su número.', place: [[66, 2]] },
+      hint: 'Mirá F8C4: tiene un 8 arriba, un 4 a la izquierda y un 4 abajo. Descartá lo del clásico y después los consecutivos.',
+      hintCells: [66, 57, 65, 75]
+    }
+  };
+
+  var M135 = mapOf('000000000' + '111111111' + '222222233' + '444442233' + '445555333' + '445555533' + '666677888' + '666777888' + '667777888');
+  var ROWS3 = (function () { var o = []; for (var i = 0; i < 27; i++) o.push(i); return o; }());
+
+  var jig135 = {
+    id: 'jigsaw-45-pair',
+    title: 'Ley del 45 en 3 líneas (Sum of Two)',
+    short: 'Tres filas y tres regiones: la suma de dos celdas',
+    theory: {
+      what: 'Tres filas suman 3 × 45 = 135, igual que tres regiones completas. Si las tres regiones ocupan casi las mismas celdas que las tres filas, lo que sobra de cada lado vale lo mismo: con dos celdas que sobresalen de las filas (outies) y dos celdas de las filas que no pertenecen a esas regiones (innies), la suma de las dos primeras es igual a la suma de las otras dos.',
+      detect: 'Tomá k filas seguidas y buscá k regiones que las cubran casi del todo. Anotá qué celdas se salen (outies) y qué celdas faltan (innies). Si conocés tres de las cuatro, la cuarta sale de la igualdad outies = innies.',
+      why: 'Permite deducir un número sin anotar candidatos y se apoya en la forma exacta de las regiones, que en Jigsaw cambia de partida en partida.',
+      faq: [
+        { q: '¿Siempre hay la misma cantidad de innies y de outies?', a: 'Sí: las filas y las regiones tienen las mismas 27 celdas, así que lo que entra y lo que sale se compensa en cantidad.' },
+        { q: '¿Y si la suma no cabe en un dígito?', a: 'Entonces lo que sobra tiene que estar repartido de otra forma: usá los candidatos para descartar. Acá la cuenta da un dígito.' },
+        { q: '¿Sirve con columnas?', a: 'Sí, con cualquier grupo de filas o columnas que coincida con regiones.' }
+      ]
+    },
+    example: {
+      mode: 'jigsaw',
+      regions: M135,
+      grid: '000700001100004900079000246302006000000000830004680000008000050760000000013000004',
+      steps: [
+        { text: 'Las filas 1, 2 y 3 tienen 27 celdas: entre las tres suman 3 × 45 = 135.', rel: ROWS3 },
+        { text: 'Las tres regiones de arriba (la fila 1, la fila 2 y F3C1–F3C7 con dos celdas de la fila 4) también suman 135. Casi son las mismas celdas.',
+          rel: ROWS3.slice(0, 25).concat([32, 33]) },
+        { text: 'Las diferencias: la región de la fila 3 se sale en F4C6 y F4C7 (outies), y las filas 1–3 incluyen F3C8 y F3C9 (innies), que son de otra región.',
+          hl: [32, 33, 25, 26], rel: ROWS3.slice(0, 25).concat([32, 33]) },
+        { text: 'Como las dos sumas son 135, lo que sobra de cada lado vale lo mismo: F4C6 + F4C7 = F3C8 + F3C9.', hl: [32, 33, 25, 26] },
+        { text: 'F3C8 es 4 y F3C9 es 6: suman 10. F4C6 es 6, así que F4C7 vale 10 − 6 = 4.', hl: [33], src: [25, 26, 32], same: [25], show: { 33: [1, 4, 5] }, strike: { 33: [1, 5] }, keep: { 33: [4] } },
+        { text: 'Colocamos el 4 en F4C7.', hl: [33], place: { 33: 4 } }
+      ]
+    },
+    practice: {
+      mode: 'jigsaw',
+      regions: M135,
+      grid: '714060020040750010000000065020006090008000207050010480690070000000002030080049100',
+      solution: '714965328342758619839124765427836591168593247956217483693471852571682934285349176',
+      notes: 'none',
+      goal: { text: 'Las filas 1–3 y tres regiones de arriba casi coinciden: dos celdas se salen (F4C6 y F4C7) y dos celdas de las filas son de otra región (F3C8 y F3C9). Usá la igualdad de sumas para colocar el número de F4C7.', place: [[33, 5]] },
+      hint: 'F4C6 + F4C7 = F3C8 + F3C9. Ya conocés F4C6 (6), F3C8 (6) y F3C9 (5).',
+      hintCells: [33, 32, 25, 26]
+    }
+  };
+
   /* ---------------- Registro ---------------- */
   function chaptersOf(variant) {
     var reg = R[variant];
@@ -293,4 +581,8 @@
   addLessons('antiknight', 'a2', 'Eliminaciones a distancia', 'Candidatos que el caballo descarta.', [knightCorner]);
   addLessons('nonconsecutive', 'n1', 'Vecinos que no se tocan', 'El 1 y el 9 aislados y los pares consecutivos.', [ncIso, ncPair]);
   addLessons('jigsaw', 'j1', 'Regiones irregulares', 'Región–línea y la Regla del 45 con formas libres.', [jigLine, jig45]);
+  addLessons('diagonal', 'd3', 'Diagonal avanzada', 'Grupos desnudos sobre las diagonales.', [diagTriple]);
+  addLessons('antiknight', 'a3', 'Caballo avanzado', 'Cajas y pasillos atacados por el caballo.', [knightBoxElim, knightCorridor]);
+  addLessons('nonconsecutive', 'n2', 'Vecinos avanzados', 'Celdas rodeadas de vecinos conocidos.', [ncCross]);
+  addLessons('jigsaw', 'j2', 'Jigsaw avanzado', 'Línea–región, pares ocultos y sumas de filas.', [jigLineRegion, jigHiddenPair, jig135]);
 }());
