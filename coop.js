@@ -180,7 +180,7 @@
 
   /** URL completa de la app (sin hash previo) con `#coop=XXXX`. */
   function buildLink(code, kind) {
-    return String(window.location.href).split('#')[0] + '#coop=' + code + (kind === 'duel' ? '&k=d' : '');
+    return String(window.location.href).split('#')[0] + '#coop=' + code + (kind === 'duel' ? '&k=d' : (kind === 'race' ? '&k=r' : ''));
   }
 
   /**
@@ -192,7 +192,7 @@
     var m = /(?:^|[#&])coop=([^&#\s]*)/.exec(h);
     if (!m) { return null; }
     var code = normalizeCode(decodeURIComponent_safe(m[1]));
-    return isValidCode(code) ? { ok: true, code: code, kind: /[#&]k=d(?:&|$)/.test(h) ? 'duel' : 'coop' } : { ok: false, error: 'code' };
+    return isValidCode(code) ? { ok: true, code: code, kind: /[#&]k=d(?:&|$)/.test(h) ? 'duel' : (/[#&]k=r(?:&|$)/.test(h) ? 'race' : 'coop') } : { ok: false, error: 'code' };
   }
 
   function decodeURIComponent_safe(s) {
@@ -1179,6 +1179,7 @@
     OWNER: OWNER,
     CODE_CHARS: CODE_CHARS,
     ICE_SERVERS: ICE_SERVERS.slice(),
+    ID_PREFIX: ID_PREFIX,
 
     // Disponibilidad
     available: function () { return !!peerCtor(); },

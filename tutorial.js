@@ -332,6 +332,14 @@
       'Si el anfitrión termina la partida, o alguien sale de la sala, la app te deja elegir si seguir en solitario o volver al inicio.',
       'Mientras esperan al invitado podés volver a tocar "Compartir" para reenviar el enlace de la sala.'
     ], tip: 'Una buena división: uno busca únicos ocultos por números y el otro únicos desnudos por celdas.' },
+    { tag: 'Carrera', title: 'Carrera grupal (3–8 jugadores)', steps: [
+      'En "Jugar con amigos" elegí "Carrera grupal", el modo y la dificultad, y tocá "Crear sala y compartir enlace". Vos sos el anfitrión y también corrés.',
+      'Tus amigos entran con el enlace y ven la lista de participantes. Hacen falta entre 3 y 8 jugadores contándote a vos; con 8 la sala se llena y a un noveno se le avisa.',
+      'Cuando estén todos, tocá "Iniciar carrera": cada uno recibe el mismo tablero y el reloj arranca en 00:00 para todos a la vez. Nadie puede entrar después.',
+      'Arriba ves tu puesto (#1, #2…), tu avance y tu barra. "Tabla" despliega el ranking en vivo, ordenado por celdas completas y, a igualdad, por menos errores.',
+      'Tenés 3 vidas y no hay pistas: al tercer error quedás eliminado, tu tablero se bloquea y seguís mirando la tabla hasta el final. "Salir de la carrera" te marca como abandonado sin frenar a los demás.',
+      'La carrera termina cuando alguien completa las 81 celdas, o cuando queda un solo jugador activo. Todos ven el podio con el 1.º, 2.º y 3.º y el resto de los participantes.'
+    ], tip: 'No mires solo el primer puesto: si vas segundo con cero errores, un error ajeno puede darte la ventaja.' },
     { tag: 'Consejos', title: 'Antes de empezar', steps: [
       'Los dos necesitan conexión a internet para crear o unirse a la sala; el resto de la app funciona sin conexión.',
       'Si estás en una partida, aceptar un duelo o unirte a una sala te avisa que se perderá la partida en curso.',
@@ -534,17 +542,18 @@
     duels: {
       label: 'Jugar con amigos', map: null,
       title: 'Jugar con amigos (Multijugador)',
-      tagline: 'Tres formas: duelo en vivo • duelo fantasma • Co-op',
-      intro: 'Tres formas de jugar con un amigo, sin cuentas: el Duelo 1v1 en vivo (los dos a la vez, ven el avance del otro y gana el más rápido), el Duelo fantasma (jugás a tu ritmo y tu amigo compite después contra tu recorrido grabado) y el Co-op (resuelven juntos un único tablero).',
+      tagline: 'Duelo en vivo • Duelo fantasma • Co-op • Carrera grupal',
+      intro: 'Cuatro formas de jugar con amigos, sin cuentas: el Duelo 1v1 en vivo (los dos a la vez, ven el avance del otro y gana el más rápido), el Duelo fantasma (jugás a tu ritmo y tu amigo compite después contra tu recorrido grabado) y el Co-op (resuelven juntos un único tablero) y la Carrera grupal (de 3 a 8 jugadores, todos contra todos, con ranking en vivo y podio).',
       exTitle: 'Paso a paso',
       example: null, steps: DUEL_GUIDE,
       rules: [
         'Duelo en vivo: gana quien completa primero las 81 celdas, o quien sobrevive si el otro agota sus 3 vidas o abandona.',
+        'Carrera grupal: 3 a 8 jugadores a la vez; gana quien completa primero el tablero y con 3 errores quedás eliminado.',
         'Hay 3 vidas: en los duelos cada uno tiene las suyas; en el Co-op son compartidas entre los dos.',
         'Pistas: ninguna en el duelo en vivo, 2 en el fantasma (+30 s cada una) y 3 compartidas en el Co-op.'
       ],
       routine: [
-        { t: 'Elegí la variante', d: 'En vivo si pueden jugar a la vez, fantasma si no coinciden en horario, Co-op si prefieren colaborar. Creá el enlace o la sala y compartilo.' },
+        { t: 'Elegí la variante', d: 'En vivo (2) o carrera (3 a 8) si juegan a la vez, fantasma si no coinciden en horario, Co-op si prefieren colaborar. Creá el enlace o la sala y compartilo.' },
         { t: 'Coordiná la estrategia', d: 'En Duelo, concentrate en tu tablero y ganá por tiempo. En Co-op, repartan el trabajo: uno por números y otro por celdas.' },
         { t: 'Confirmá antes de colocar', d: 'Un error cuesta una vida: en Co-op la pierden los dos. Dudá, comentá y recién después poné el número.' }
       ],
@@ -834,7 +843,7 @@
 
   /* ---------- Cómo jugar ---------- */
   const GUIDE_SUB = { classic: 'Filas, columnas y bloques', killer: 'Jaulas con suma', diagonal: 'Las dos diagonales',
-    antiknight: 'Sin saltos de caballo', nonconsecutive: 'Sin números seguidos pegados', jigsaw: 'Regiones irregulares de 9 celdas', duels: 'Duelo en vivo, fantasma y Co-op' };
+    antiknight: 'Sin saltos de caballo', nonconsecutive: 'Sin números seguidos pegados', jigsaw: 'Regiones irregulares de 9 celdas', duels: 'Duelo en vivo, fantasma, Co-op y carrera' };
 
   // Tarjeta vertical de ancho completo (mismo estilo que el submenú Jugar).
   function vcard(title, sub, right, done, onclick, pct, big) {

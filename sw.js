@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sudoku-v53';
+const CACHE_NAME = 'sudoku-v56';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [
@@ -10,6 +10,7 @@ const ASSETS = [
   './worker.js',
   './duel.js',
   './coop.js',
+  './race.js',
   './app.js',
   './sound.js',
   './tutorial.css',

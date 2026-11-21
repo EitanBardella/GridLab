@@ -1155,3 +1155,55 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
 #mFriends .sheet { display:flex; flex-direction:column; gap:12px; }
 #mFriends .sheet > h2, #mFriends .sheet > .sub { margin:0; }
 #mFriends .sheet > .chip, #mFriends .sheet > .home-btn { margin:0; flex:none; }
+
+/* ---------- Carrera grupal: lobby, tarjeta superior, tabla en vivo y podio ---------- */
+.race-list, .race-table, .pod-list { list-style:none; margin:4px 0 8px; padding:0; text-align:left; }
+.race-li { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--thin); border-radius:10px; background:var(--panel); margin:0 0 6px; }
+.rl-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+.rl-tag { flex:none; font-style:normal; font-size:.68rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:1px 6px; border:1px solid var(--thin); border-radius:99px; color:var(--muted); margin-left:6px; }
+.rl-tag.me { color:var(--coop-p1); border-color:var(--coop-p1); }
+#raceStart:disabled { opacity:.45; }
+
+.racebar { display:flex; flex-direction:column; gap:5px; padding:6px 10px 7px; border:1px solid var(--thin); border-radius:12px; background:var(--panel); font-variant-numeric:tabular-nums; }
+.racebar[hidden] { display:none; }
+.rb-top { display:flex; align-items:baseline; gap:8px; font-size:.86rem; }
+.rb-top #raceRank { font-size:1.05rem; color:var(--coop-p1); }
+.rb-name { flex:1; font-weight:700; color:var(--coop-p1); }
+.rb-time { color:var(--muted); font-weight:600; }
+.racebar .dprog { margin-top:0; }
+.racebar .dprog i { background:var(--coop-p1); }
+.rb-actions { display:flex; gap:6px; }
+.rb-actions .chip { flex:1; min-height:30px; padding:0 10px; font-size:.76rem; font-weight:700; }
+.rb-actions .chip[hidden] { display:none; }
+.racebar.elim .rb-top, .racebar.elim .dprog { opacity:.55; }
+.race-table { margin:2px 0 0; max-height:30dvh; overflow-y:auto; }
+.rt-row, .pod-row { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:8px; font-size:.84rem; }
+.rt-row + .rt-row, .pod-row + .pod-row { border-top:1px dashed var(--thin); }
+.rt-row.you, .pod-row.you { background:color-mix(in srgb, var(--coop-p1) 14%, transparent); font-weight:700; }
+.rt-pos, .pod-pos { flex:none; min-width:2.2em; font-weight:800; }
+.rt-name, .pod-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rt-st, .pod-st { flex:none; color:var(--muted); font-size:.78rem; }
+.rt-row.out .rt-name, .pod-row.out .pod-name { text-decoration:line-through; opacity:.7; }
+.rt-row.out .rt-pos, .pod-row.out .pod-pos { opacity:.6; }
+
+/* Podio: 1.º, 2.º y 3.º destacados con su metal; el resto, filas normales. */
+.pod-row { padding:8px 10px; font-size:.92rem; }
+.pod-row.p1 { --medal:#D4AF37; } .pod-row.p2 { --medal:#94A3B8; } .pod-row.p3 { --medal:#B45309; }
+.pod-row.p1, .pod-row.p2, .pod-row.p3 { border-left:5px solid var(--medal); background:color-mix(in srgb, var(--medal) 12%, transparent); }
+.pod-row.p1 .pod-pos, .pod-row.p2 .pod-pos, .pod-row.p3 .pod-pos { color:var(--medal); font-size:1.05rem; }
+.pod-row.p1 .pod-name { font-weight:800; }
+[data-theme="night"] .pod-row.p1, [data-theme="night"] .pod-row.p2, [data-theme="night"] .pod-row.p3 { box-shadow:0 0 10px color-mix(in srgb, var(--medal) 30%, transparent); }
+[data-theme="swiss"] .pod-row.p1, [data-theme="swiss"] .pod-row.p2, [data-theme="swiss"] .pod-row.p3 { border-left-width:3px; background:none; }
+[data-theme="swiss"] .race-li, [data-theme="retro"] .race-li, [data-theme="swiss"] .racebar, [data-theme="retro"] .racebar,
+[data-theme="swiss"] .rt-row, [data-theme="retro"] .rt-row, [data-theme="swiss"] .pod-row, [data-theme="retro"] .pod-row { border-radius:0; }
+[data-theme="retro"] .pod-row.p1, [data-theme="retro"] .pod-row.p2, [data-theme="retro"] .pod-row.p3 { background:none; border:2px solid var(--ink); border-left-width:6px; margin-bottom:4px; }
+[data-theme="retro"] .pod-row.p1 { --medal:var(--ink); } [data-theme="retro"] .pod-row.p2, [data-theme="retro"] .pod-row.p3 { --medal:var(--accent); }
+
+/* ---------- Aviso de hitos de la carrera: misma estructura que el de error, color destacado propio de cada tema ---------- */
+:root, [data-theme="paper"] { --ms-color:#1D4ED8; --ms-bg:rgba(29, 78, 216, 0.08); }
+[data-theme="night"] { --ms-color:#60A5FA; --ms-bg:rgba(96, 165, 250, 0.12); }
+[data-theme="swiss"] { --ms-color:#000000; --ms-bg:rgba(0, 0, 0, 0.05); }
+[data-theme="retro"] { --ms-color:#232B12; --ms-bg:rgba(35, 43, 18, 0.14); }
+.errx.milestone { border-color:var(--ms-color); background:linear-gradient(var(--ms-bg), var(--ms-bg)), var(--panel); }
+.errx.milestone .errx-bar { background:var(--ms-color); }
+[data-theme="night"] .errx.milestone .errx-bar { box-shadow:0 0 8px rgba(96, 165, 250, 0.45); }

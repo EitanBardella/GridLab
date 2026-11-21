@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v41">
-<link rel="stylesheet" href="tutorial.css?v=ui-v41">
+<link rel="stylesheet" href="style.css?v=ui-v44">
+<link rel="stylesheet" href="tutorial.css?v=ui-v44">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
@@ -137,6 +137,10 @@
       <b>Resolver juntos (Co-op)</b>
       <small>Mismo tablero, en equipo y vidas compartidas</small>
     </button>
+    <button id="btnRace" class="chip home-btn" type="button">
+      <b>Carrera grupal (3–8 jugadores)</b>
+      <small>Todos contra todos en vivo: gana quien completa primero el tablero</small>
+    </button>
     <button class="chip wide" data-close>Cancelar</button>
   </div>
 </div>
@@ -239,6 +243,13 @@
     <i class="errx-bar" aria-hidden="true"></i>
   </section>
 
+  <!-- Aviso de hitos de la carrera (50 % y 80 %): misma forma que el de error, en el color destacado del tema. -->
+  <section id="raceAlert" class="errx milestone" hidden role="status" aria-live="polite">
+    <p id="raceAlertTxt"></p>
+    <button id="raceAlertClose" class="chip" aria-label="Cerrar aviso">✕</button>
+    <i class="errx-bar" aria-hidden="true"></i>
+  </section>
+
   <!-- Zona de juego: estado + tablero + herramientas + teclado, agrupados sin huecos entre sí. -->
   <div class="play">
 
@@ -271,6 +282,17 @@
       <div class="dtop"><span class="dname" id="duelRivalName">Rival</span><b id="duelRival">0/81</b><span class="dtime" id="duelRivalT"></span></div>
       <div class="dprog"><i id="duelRivalBar"></i></div>
     </div>
+  </div>
+
+  <!-- Tarjeta de carrera grupal: puesto, avance, tabla desplegable y salida. La rellena app.js. -->
+  <div id="raceBar" class="racebar" hidden role="group" aria-label="Carrera grupal">
+    <div class="rb-top"><b id="raceRank">#1</b><span class="rb-name">Vos</span><b id="raceFilled">0/81</b><span id="raceTime" class="rb-time">00:00</span></div>
+    <div class="dprog"><i id="raceBarFill"></i></div>
+    <div class="rb-actions">
+      <button type="button" id="raceTableBtn" class="chip" aria-expanded="false" aria-controls="raceTable">Tabla</button>
+      <button type="button" id="raceQuit" class="chip">Salir de la carrera</button>
+    </div>
+    <ol id="raceTable" class="race-table" hidden></ol>
   </div>
 
   <!-- Barra Co-op: solo visible en una sala cooperativa. data-state = estado de la conexión (lo pone app.js). -->
@@ -474,6 +496,59 @@
   </div>
 </div>
 
+<!-- Carrera grupal: elegir tablero y crear la sala (Host, que también juega) -->
+<div class="modal" id="mRace" hidden>
+  <div class="sheet center">
+    <h2>Carrera grupal</h2>
+    <p class="sub">De 3 a 8 jugadores, todos contra todos y a la vez, cada uno con su copia del mismo tablero. Vos jugás igual que los demás. Gana quien completa primero las 81 celdas; con 3 errores quedás eliminado. Sin pistas.</p>
+    <p class="sub warn" id="raceWarn" hidden>Se perderá la partida en curso.</p>
+    <p class="friend-label">Modo</p>
+    <div class="modes six" id="raceModes" role="radiogroup" aria-label="Modo de la carrera">
+      <button type="button" role="radio" class="on" aria-checked="true" data-rmode="classic">Clásico</button>
+      <button type="button" role="radio" aria-checked="false" data-rmode="killer">Killer</button>
+      <button type="button" role="radio" aria-checked="false" data-rmode="diagonal">Diagonal</button>
+      <button type="button" role="radio" aria-checked="false" data-rmode="antiknight">Anti-Caballo</button>
+      <button type="button" role="radio" aria-checked="false" data-rmode="nonconsecutive">Sin Consec.</button>
+      <button type="button" role="radio" aria-checked="false" data-rmode="jigsaw">Jigsaw</button>
+    </div>
+    <p class="friend-label">Dificultad</p>
+    <div class="diffs" id="raceDiffs" role="radiogroup" aria-label="Dificultad de la carrera">
+      <button type="button" role="radio" aria-checked="false" data-rdiff="facil">Fácil</button>
+      <button type="button" role="radio" class="on" aria-checked="true" data-rdiff="medio">Medio</button>
+      <button type="button" role="radio" aria-checked="false" data-rdiff="dificil">Difícil</button>
+      <button type="button" role="radio" aria-checked="false" data-rdiff="experto">Experto</button>
+      <button type="button" role="radio" aria-checked="false" data-rdiff="maestro">Maestro</button>
+      <button type="button" role="radio" aria-checked="false" data-rdiff="extremo">Extremo</button>
+    </div>
+    <button class="chip primary wide" id="raceGo">Crear sala y compartir enlace</button>
+    <button class="chip wide" data-close>Cancelar</button>
+  </div>
+</div>
+
+<!-- Carrera grupal: lobby (no se cierra tocando el fondo) -->
+<div class="modal" id="mRaceLobby" hidden>
+  <div class="sheet center" role="dialog" aria-modal="true" aria-labelledby="raceLobbyTitle">
+    <p class="duel-title" id="raceLobbyTitle">Sala de carrera</p>
+    <p class="sub" id="raceLobbyInfo"></p>
+    <ol id="raceList" class="race-list"></ol>
+    <button class="chip wide" id="raceCopy">Copiar enlace</button>
+    <button class="chip primary wide" id="raceStart" disabled>Iniciar carrera</button>
+    <button class="chip wide" id="raceLobbyLeave">Cancelar</button>
+  </div>
+</div>
+
+<!-- Carrera grupal: podio final -->
+<div class="modal" id="mRacePodium" hidden>
+  <div class="sheet center">
+    <div id="podIcon" class="res-icon" hidden></div>
+    <h2 id="podTitle">Podio</h2>
+    <p id="podTxt" class="sub"></p>
+    <ol id="podList" class="pod-list"></ol>
+    <button class="chip primary wide" id="podHome">Volver al inicio</button>
+    <button class="chip wide" id="podView">Ver tablero</button>
+  </div>
+</div>
+
 <!-- Duelo 1v1 en vivo: elegir tablero y crear la sala (Host) -->
 <div class="modal" id="mLive" hidden>
   <div class="sheet center">
@@ -582,18 +657,19 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v41"></script>
-<script src="engine.js?v=ui-v41"></script>
-<script src="killer-engine.js?v=ui-v41"></script>
-<script src="duel.js?v=ui-v41"></script>
+<script src="sound.js?v=ui-v44"></script>
+<script src="engine.js?v=ui-v44"></script>
+<script src="killer-engine.js?v=ui-v44"></script>
+<script src="duel.js?v=ui-v44"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v41"></script>
+<script src="coop.js?v=ui-v44"></script>
+<script src="race.js?v=ui-v44"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
-<script src="tutorial.js?v=ui-v4"></script>
-<script src="app.js?v=ui-v41"></script>
+<script src="tutorial.js?v=ui-v5"></script>
+<script src="app.js?v=ui-v44"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

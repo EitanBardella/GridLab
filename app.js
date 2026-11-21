@@ -133,7 +133,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v41';
+  const BUILD = 'ui-v44';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { haptic(name); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -189,7 +189,7 @@
   const inCoop = () => !!(G && G.coop && co && co.session);
 
   // ¿La partida terminó (ganada o perdida)? Con la partida terminada no se acepta más entrada.
-  const isOver = () => !!(G && (G.won || G.lost));
+  const isOver = () => !!(G && (G.won || G.lost || (G.race && G.race.over)));
 
   /* ---------- Vidas ---------- */
   // Vidas infinitas: Fácil (maxLives 0).
@@ -424,7 +424,7 @@
     if (!G.won && !G.lost && !lifeInf() && G.lives <= 0) { G.lost = true; sel = -1; defeat = true; }
     if (defeat) statLoss(G);
     sfx(sfxFor(defeat));
-    if (inLive()) sendLiveProg();
+    if (inLive()) sendLiveProg(); else if (inRace()) raceReport();
     render(); persist();
     if (defeat) showLose();
   }
@@ -506,7 +506,7 @@
       // Solo un dígito definitivo erróneo resta vida (nunca notas ni borrar). Volver a tocar el mismo dígito ya puesto no entra aquí.
       const bad = n !== G.solution[r][c];
       if (G.rec && bad) G.rec.addError(); // error cometido (cuenta aunque no se marque en pantalla)
-      if (G.live && bad) G.errs = (G.errs | 0) + 1;
+      if ((G.live || G.race) && bad) G.errs = (G.errs | 0) + 1;
       if (bad && !lifeInf()) {
         G.lives = Math.max(0, G.lives - 1);
         pulseLives();
@@ -862,7 +862,7 @@
 
     // Etiquetas superiores, modo en tablero y barra de estado
     const ml = G.surv ? '\uD83D\uDD25 ' + (MODE_NAMES[mode] || 'Sudoku') : (G.daily ? 'Diario' : (MODE_NAMES[mode] || 'Sudoku'));
-    setText('#modeLabel', (G.duel || G.live ? '⚔ ' : (coop ? '👥 ' : '')) + ml);
+    setText('#modeLabel', (G.duel || G.live ? '⚔ ' : (G.race ? '🏁 ' : (coop ? '👥 ' : ''))) + ml);
     setText('#diffLabel', G.zen ? (NAMES[G.diff] || 'Sudoku') + ' · Zen' : G.surv ? '#' + G.surv.n + ' ' + (NAMES[G.diff] || '') : (G.daily ? dateLabel(G.daily) : (NAMES[G.diff] || 'Sudoku')));
     setText('#clock', fmt(coop ? G.secs : showSecs()));
     // Modo Zen: sin cronómetro ni vidas (queda una etiqueta tranquila en su lugar).
@@ -969,6 +969,7 @@
       else bu.disabled = !G.hist.length || G.lost;
     }
     updateDuelBar();
+    updateRaceBar();
     updateCoopBar();
     syncFocus();
   }
@@ -1327,7 +1328,7 @@
         errMsg = 'No se pudo reconstruir el mismo tablero del duelo. ¿Ambos tienen la app actualizada?';
         throw new Error('duel-mismatch');
       }
-      if (co) leaveCoop(); // empezar otra partida cierra la sala Co-op
+      if (co || rc) leaveCoop(); // empezar otra partida cierra la sala Co-op
       const prevG = G;
       const zen = !!opts.zen && !opts.daily && !opts.duel && !opts.invite && !opts.surv;
       const rules = rulesFor(diff, Object.assign({}, opts, { zen: zen }));
@@ -1412,7 +1413,7 @@
       }
       // La conexión de una sala Co-op no sobrevive a un reinicio: la partida sigue como partida normal.
       const coopHints = s.hints | 0;
-      delete s.coop; delete s.owners; delete s.hints; delete s.live; delete s.lv; delete s.errs;
+      delete s.coop; delete s.owners; delete s.hints; delete s.live; delete s.lv; delete s.errs; delete s.race;
       s.mode = mode; s.variant = mode; s.secs = s.secs | 0; s.won = !!s.won; s.lost = !!s.lost;
       s.counted = !!s.counted || s.won;
       if (typeof s.daily !== 'string') delete s.daily;
@@ -1462,7 +1463,7 @@
   }
   // Derrota o abandono: corta la racha de victorias de esa dificultad (una sola vez por partida).
   function statLoss(g) {
-    if (!g || g.statLost || g.surv || g.coop || g.live || g.zen) return;
+    if (!g || g.statLost || g.surv || g.coop || g.live || g.race || g.zen) return;
     g.statLost = true;
     statKeys(g).forEach(k => { gStat(k).cs = 0; });
     saveStats();
@@ -1500,6 +1501,7 @@
   function finishGame() {
     if (G.surv) { survWin(); return; }
     if (G.live && G.lv && !G.lv.over) { liveWin(); return; }
+    if (G.race && !G.race.over && rc) { raceWin(); return; }
     recordWin();
     G.finalTime = eff();
     if (G.duel && !G.duel.open && D) {
@@ -1604,6 +1606,7 @@
   function showLose() {
     if (!G) return;
     if (G.live && G.lv && !G.lv.over) { liveEliminated(); return; }
+    if (G.race && !G.race.over) { raceEliminated(); return; }
     if (G.surv) { showSurvEnd(); return; }
     const team = inCoop();
     setResIcon('#loseIcon', G.duel && !G.duel.open ? 'swords' : null);
@@ -2032,7 +2035,7 @@
     const seed = toSeed();
     let ok = false;
     genPuzzle(diff, mode, seed, false).then(g => {
-      if (co) leaveCoop();
+      if (co || rc) leaveCoop();
       const killer = mode === 'killer';
       buildLiveGame({ mode: mode, puzzle: killer ? g.board : g.puzzle, solution: g.solution, diff: g.difficulty, req: diff, seed: seed, cages: g.cages, regions: g.regions });
       co = newCoop('host', alias);
@@ -2193,6 +2196,7 @@
       return;
     }
     updateDuelBar();
+    updateRaceBar();
   }
 
   // "Salir del duelo": confirmación propia; el rival recibe la victoria.
@@ -2211,6 +2215,451 @@
     });
   }
 
+
+  /* ===========================================================================
+   * Carrera grupal (todos contra todos, 3 a 8 jugadores, P2P con PeerJS en estrella) — transporte en race.js
+   * ---------------------------------------------------------------------------
+   *  - El Host crea la sala y es un jugador más: juega su tablero y figura en la tabla. También es el nodo central:
+   *    recibe `rprog` de cada invitado y retransmite `race-leaderboard` a todos.
+   *  - Al tocar "Iniciar carrera" (3 a 8 jugadores) el Host genera el tablero y envía `race-start` con el tablero; todos
+   *    arrancan el reloj en 00:00 al recibirlo.
+   *  - 3 errores = eliminado: el tablero se bloquea y se sigue viendo la tabla hasta el final. "Salir de la carrera" abandona.
+   *  - Termina cuando alguien completa 81/81 o queda un solo jugador activo: `race-finish` con el podio.
+   *  - `G.race` = { me, rows (ranking vigente), over, tableOpen, winnerId }.  `rc` = sala de ejecución (no se guarda).
+   * ========================================================================= */
+  const SR = window.SudokuRace || null;
+  let raceMode = 'classic', raceDiff = 'medio';
+  let rc = null;
+  const raceOk = () => !!(SR && SR.available());
+  const inRace = () => !!(G && G.race && !G.race.over && rc && rc.net);
+
+  function setRaceSel() {
+    document.querySelectorAll('#raceModes [data-rmode]').forEach(b => {
+      const on_ = b.dataset.rmode === raceMode;
+      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
+    });
+    document.querySelectorAll('#raceDiffs [data-rdiff]').forEach(b => {
+      const on_ = b.dataset.rdiff === raceDiff;
+      b.classList.toggle('on', on_); b.setAttribute('aria-checked', on_ ? 'true' : 'false');
+    });
+  }
+
+  function openRace() {
+    if (!raceOk()) { toast('Falta peerjs.min.js: la carrera grupal no está disponible.'); return; }
+    raceMode = selMode;
+    setRaceSel();
+    const w = $('#raceWarn'); if (w) w.hidden = !hasProgress();
+    const m = $('#mRace'); if (m) m.hidden = false;
+  }
+
+  function raceNotice(title, text) {
+    coopAsk({ title: title, text: text || '', yes: 'Entendido', single: true });
+  }
+
+  function hideRaceLobby() { const m = $('#mRaceLobby'); if (m) m.hidden = true; hideRaceAlert(); }
+
+  function leaveRace() {
+    const r = rc;
+    rc = null;
+    if (G && G.race) G.race.over = true;
+    hideRaceLobby();
+    if (r && r.net) { try { r.net.close(); } catch (e) { /* ignorar */ } }
+  }
+
+  /* ----- Lobby ----- */
+  function renderRaceLobby(list) {
+    if (!rc) return;
+    rc.lobby = list;
+    const ul = $('#raceList'); if (ul) {
+      ul.textContent = '';
+      list.forEach(p => {
+        const li = mk('li', 'race-li');
+        li.appendChild(mk('span', 'rl-name', p.alias));
+        if (p.host) li.appendChild(mk('em', 'rl-tag', 'Anfitrión'));
+        if (p.id === rc.id) li.appendChild(mk('em', 'rl-tag me', 'Vos'));
+        ul.appendChild(li);
+      });
+    }
+    const n = list.length, host = rc.role === 'host';
+    setText('#raceLobbyInfo', host ? n + ' de ' + SR.MAX_PLAYERS + ' jugadores · mínimo ' + SR.MIN_PLAYERS + ' para empezar'
+      : n + ' de ' + SR.MAX_PLAYERS + ' jugadores · esperando a que el anfitrión inicie la carrera…');
+    const st = $('#raceStart'); if (st) { st.hidden = !host; st.disabled = !(n >= SR.MIN_PLAYERS && n <= SR.MAX_PLAYERS); }
+    const cp = $('#raceCopy'); if (cp) cp.hidden = !host;
+    setText('#raceLobbyLeave', host ? 'Cancelar' : 'Salir de la sala');
+    if (!rc.started) { const m = $('#mRaceLobby'); if (m) m.hidden = false; }
+  }
+
+  /* ----- Host: crear la sala ----- */
+  function startRaceHost(mode, diff) {
+    if (!raceOk()) { toast('Falta peerjs.min.js: la carrera grupal no está disponible.'); return; }
+    const alias = C.getAlias();
+    if (!alias) { askAlias(() => startRaceHost(mode, diff), COOP_ALIAS); return; }
+    if (busy) return;
+    if (co || rc) leaveCoop();
+    closeModals();
+    const net = SR.createHost({ alias: alias });
+    rc = { role: 'host', net: net, id: 0, mode: validMode(mode), diff: diff, started: false, table: {}, voluntary: {}, code: '' };
+    const me = rc;
+    net.on('ready', code => { if (rc !== me) return; me.code = code; shareRace(); });
+    net.on('lobby', list => { if (rc === me) renderRaceLobby(list); });
+    net.on('message', (m, id) => { if (rc === me) onRaceHostMessage(m, id); });
+    net.on('dropped', id => { if (rc === me && me.started && me.table[id]) { me.table[id].left = true; raceHostUpdated(); } });
+    net.on('rejoin', id => {
+      if (rc !== me || !me.started) return;
+      const e = me.table[id];                       // volvió antes de que termine la carrera: si no se había ido a propósito, vuelve a estar activo
+      if (e && e.left && !me.voluntary[id]) { e.left = false; raceHostUpdated(); }
+      net.send(id, me.startMsg);
+      net.send(id, { type: 'race-leaderboard', rankings: Object.values(me.table) });
+    });
+    net.on('error', reason => {
+      if (rc !== me) return;
+      leaveRace(); updateHome();
+      toast(reason === 'no-peerjs' ? 'Falta peerjs.min.js.' : 'No se pudo crear la sala. Probá de nuevo.');
+    });
+    renderRaceLobby(net.lobby());
+    net.start();
+  }
+
+  function shareRace() {
+    if (!rc || rc.role !== 'host') return;
+    rc.net.share({ text: rc.net.alias + ' te invita a una carrera de Sudoku (' + MODE_NAMES[rc.mode] + ' • ' + NAMES[rc.diff] + '). Entrá con el enlace.' }).then(res => {
+      if (res === 'copied') toast('Enlace copiado: mandalo a tus amigos');
+      else if (res === 'failed') { try { window.prompt('Copiá este enlace:', rc ? rc.net.link() : ''); } catch (e) { toast('No se pudo compartir el enlace.'); } }
+    });
+  }
+
+  function raceCopyLink() {
+    if (!rc || rc.role !== 'host') return;
+    rc.net.copy().then(ok => { if (ok) toast('Enlace copiado'); else shareRace(); });
+  }
+
+  // Cancelar desde el lobby: el Host avisa a los que ya entraron; el invitado simplemente sale.
+  function raceLobbyLeave() {
+    const r = rc;
+    if (!r) { hideRaceLobby(); return; }
+    if (r.role === 'host') r.net.finish({ type: 'race-closed', reason: 'host-quit' });
+    else { r.net.sendHost({ type: 'rleave' }); }
+    leaveRace(); updateHome();
+  }
+
+  /* ----- Arranque ----- */
+  // Arma la partida de carrera (Host e Invitados): vidas 3, sin pistas, sin estadísticas.
+  function buildRaceGame(src, players, me) {
+    buildLiveGame(src);
+    G.live = false; delete G.lv;
+    G.race = { me: me, rows: [], over: false, tableOpen: false, winnerId: -1, mode: src.mode };
+    G.race.rows = SR.rank(players.map(p => ({ id: p.id, alias: p.alias, filled: givensN, mistakes: 0, time: 0, eliminated: false, left: false, done: false, host: !!p.host })));
+  }
+
+  function raceBegin() {
+    rc.started = true; rc.t0 = Date.now();
+    G.secs = 0;
+    hideLoad(); hideRaceLobby(); closeModals();
+    showView('game'); render(); persist();
+  }
+
+  function raceStartNow() {
+    if (!rc || rc.role !== 'host' || rc.started || busy) return;
+    const list = rc.net.lobby();
+    if (list.length < SR.MIN_PLAYERS || list.length > SR.MAX_PLAYERS) return;
+    const me = rc, mode = rc.mode, diff = rc.diff;
+    me.net.lock();                                  // nadie más entra mientras se genera el tablero
+    busy = true; hideRaceLobby();
+    showLoad('Generando tablero…', false);
+    const seed = toSeed();
+    let ok = false;
+    genPuzzle(diff, mode, seed, false).then(g => {
+      if (rc !== me) return;
+      const killer = mode === 'killer';
+      buildRaceGame({ mode: mode, puzzle: killer ? g.board : g.puzzle, solution: g.solution, diff: g.difficulty, req: diff, seed: seed, cages: g.cages, regions: g.regions }, list, 0);
+      list.forEach(p => { me.table[p.id] = { id: p.id, alias: p.alias, filled: givensN, mistakes: 0, time: 0, eliminated: false, left: false, done: false, host: !!p.host }; });
+      me.startMsg = {
+        type: 'race-start', seed: seed, mode: mode, difficulty: diff, players: list,
+        state: C.buildState({
+          alias: me.net.alias, mode: mode, diff: g.difficulty, req: diff, seed: seed, puzzle: G.puzzle, solution: G.solution,
+          cages: G.cages, regions: G.regions, board: G.puzzle, notes: emptyNotes(), owners: C.emptyOwners(),
+          secs: 0, hints: 0, lives: FRIEND_LIVES, won: false, fresh: true
+        })
+      };
+      me.givens = givensN; me.ms = {};
+      me.net.broadcast(me.startMsg);
+      ok = true;
+    }).catch(() => { /* se informa abajo */ }).then(() => {
+      busy = false;
+      if (rc !== me) { hideLoad(); return; }
+      if (!ok) {
+        hideLoad(); me.net.locked = false;
+        toast('No se pudo generar el tablero.');
+        renderRaceLobby(me.net.lobby());
+        return;
+      }
+      raceBegin();
+      raceHostUpdated();
+    });
+  }
+
+  /* ----- Invitado: unirse ----- */
+  function joinRace(code) {
+    if (!raceOk()) { toast('Falta peerjs.min.js: la carrera grupal no está disponible.'); return; }
+    if (busy) { toast('Esperá un momento…'); return; }
+    const alias = C.getAlias();
+    if (!alias) { askAlias(() => joinRace(code), COOP_ALIAS); return; }
+    if (co || rc) leaveCoop();
+    let net;
+    try { net = SR.join(code, { alias: alias }); } catch (e) { toast('El código de sala no es válido.'); return; }
+    const me = rc = { role: 'guest', net: net, id: -1, started: false, code: code };
+    closeModals();
+    showLoad('Conectando con la sala…', true);
+    net.on('message', m => { if (rc === me) onRaceGuestMessage(m); });
+    net.on('reconnecting', () => { if (rc === me) { me.reconnecting = true; updateRaceBar(); } });
+    net.on('closed', () => { if (rc === me) raceLost('Se perdió la conexión con la sala.'); });
+    net.on('error', reason => {
+      if (rc !== me) return;
+      hideLoad(); leaveRace(); updateHome();
+      raceNotice(reason === 'not-found' ? 'No se encontró la sala' : 'No se pudo conectar',
+        reason === 'not-found' ? '¿El enlace sigue activo?' : 'Revisá tu conexión e intentá de nuevo.');
+    });
+    net.start();
+  }
+
+  // El Host se fue o se perdió la conexión: la carrera termina para este jugador.
+  function raceLost(text) {
+    const inGame = !!(G && G.race && rc && rc.started);
+    hideLoad(); leaveRace();
+    if (inGame) { render(); persist(); }
+    updateHome();
+    raceNotice('La carrera terminó', text);
+    if (inGame) goHome();
+  }
+
+  function onRaceGuestMessage(m) {
+    rc.reconnecting = false;
+    switch (m.type) {
+      case 'race-lobby':
+        rc.id = m.you; hideLoad();
+        if (!rc.started) renderRaceLobby(m.players); else raceReport();   // reconexión: vuelve a informar su avance actual
+        break;
+      case 'race-start': {
+        if (rc.started) break;                                     // reenvío tras una reconexión
+        const s = m.state;
+        buildRaceGame({ mode: s.mode, puzzle: s.puzzle, solution: s.solution, diff: s.diff, req: s.req, seed: s.seed, cages: s.cages, regions: s.regions }, m.players, rc.id);
+        raceBegin();
+        break;
+      }
+      case 'race-milestone':
+        raceMilestoneBanner(m);
+        break;
+      case 'race-leaderboard':
+        if (G && G.race) { G.race.rows = SR.rank(m.rankings); updateRaceBar(); }
+        break;
+      case 'race-finish':
+        if (G && G.race && !G.race.over) {
+          G.race.over = true; G.race.rows = SR.rank(m.rankings); G.race.winnerId = m.winnerId;
+          raceShowPodium();
+        }
+        break;
+      case 'race-full':
+        hideLoad(); leaveRace(); updateHome();
+        raceNotice('La sala está llena', 'La sala está llena (máximo 8 jugadores).');
+        break;
+      case 'race-closed':
+        if (m.reason === 'started') { hideLoad(); leaveRace(); updateHome(); raceNotice('La carrera ya empezó', 'No se puede entrar a una carrera en curso.'); }
+        else raceLost('El anfitrión cerró la sala.');
+        break;
+      default: break;
+    }
+  }
+
+  /* ----- Hitos del líder (50 % y 80 %): aviso con el mismo diseño que el del error, en color de acento ----- */
+  let msTimer = 0;
+  function hideRaceAlert() { clearTimeout(msTimer); const b = $('#raceAlert'); if (b) b.hidden = true; }
+  function showRaceAlert(msg) {
+    const b = $('#raceAlert'); if (!b || !G || !G.race || G.race.over) return;
+    setText('#raceAlertTxt', msg); b.hidden = false;
+    const bar = b.querySelector('.errx-bar');
+    if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }   // reinicia la barra de 4 s
+    clearTimeout(msTimer);
+    msTimer = setTimeout(hideRaceAlert, 4000);
+    sfx('line');
+  }
+  function raceMilestoneBanner(m) {
+    if (!G || !G.race) return;
+    const mine = m.playerId === G.race.me, who = m.playerName;
+    showRaceAlert(m.milestone === 50
+      ? (mine ? '¡Ya completaste el 50 % del tablero!' : who + ' ya completó el 50 % del tablero')
+      : (mine ? '¡Recta final! Ya llevás el 80 % completado' : '¡Atención! ' + who + ' ya lleva el 80 % completado'));
+  }
+  // Host: la primera vez que alguien completa el 50 % o el 80 % de las celdas jugables lo anuncia a todos, una sola vez por partida.
+  function raceMilestones(rows) {
+    if (!rc.ms) rc.ms = {};
+    // Porcentaje sobre las celdas que había que completar: (filled - dadas) / (81 - dadas), no sobre el tablero entero.
+    const g0 = rc.givens | 0, span = Math.max(1, 81 - g0);
+    [[50, 0.5], [80, 0.8]].forEach(pair => {
+      const ms = pair[0], th = pair[1];
+      if (rc.ms[ms]) return;
+      const lead = rows.filter(r => !r.left && r.filled > g0 && (r.filled - g0) / span >= th).sort((a, b) => b.filled - a.filled)[0];
+      if (!lead) return;
+      rc.ms[ms] = true;
+      const msg = { type: 'race-milestone', milestone: ms, playerId: lead.id, playerName: lead.alias };
+      rc.net.broadcast(msg);
+      raceMilestoneBanner(msg);
+    });
+  }
+
+  /* ----- Host: tabla y fin ----- */
+  function onRaceHostMessage(m, id) {
+    if (!rc || !rc.started || !G || !G.race || G.race.over) return;
+    const e = rc.table[id];
+    if (!e || e.left) return;
+    if (m.type === 'rprog') {
+      if (!e.done) { e.filled = m.filled; e.mistakes = m.mistakes; e.time = m.time; e.eliminated = e.eliminated || m.eliminated; }
+    } else if (m.type === 'rwin') {
+      e.done = true; e.filled = 81; e.time = m.time;
+    } else if (m.type === 'rleave') {
+      e.left = true; rc.voluntary[id] = true;   // salió a propósito: no se reactiva al reconectar
+    } else return;
+    raceHostUpdated();
+  }
+
+  function raceHostUpdated() {
+    if (!rc || rc.role !== 'host' || !G || !G.race || G.race.over) return;
+    const rows = Object.values(rc.table);
+    G.race.rows = SR.rank(rows);
+    rc.net.broadcast({ type: 'race-leaderboard', rankings: rows });
+    raceMilestones(rows);
+    updateRaceBar();
+    // Fin: alguien completó 81/81, o quedó un solo jugador activo (o ninguno).
+    const done = rows.find(r => r.done);
+    if (done) { raceFinishHost(done.id); return; }
+    const active = rows.filter(r => !r.eliminated && !r.left);
+    if (active.length <= 1) raceFinishHost(active.length ? active[0].id : -1);
+  }
+
+  function raceFinishHost(winnerId) {
+    if (!rc || G.race.over) return;
+    const rows = SR.rank(Object.values(rc.table));
+    G.race.over = true; G.race.rows = rows; G.race.winnerId = winnerId;
+    rc.net.finish({ type: 'race-finish', rankings: rows, finalTime: G.secs, winnerId: winnerId });   // envía y cierra 150 ms después
+    raceShowPodium();
+  }
+
+  /* ----- Avance propio ----- */
+  function raceMine() {
+    return { filled: liveFilled(), mistakes: G.errs | 0, time: G.secs, eliminated: !!G.lost && !G.won };
+  }
+
+  function raceReport() {
+    if (!inRace() || !rc.started) return;
+    const mine = raceMine();
+    if (rc.role === 'host') {
+      const e = rc.table[0]; if (!e) return;
+      e.filled = mine.filled; e.mistakes = mine.mistakes; e.time = mine.time; e.eliminated = mine.eliminated;
+      raceHostUpdated();
+    } else {
+      rc.net.sendHost({ type: 'rprog', filled: mine.filled, mistakes: mine.mistakes, time: mine.time, eliminated: mine.eliminated, left: false });
+    }
+  }
+
+  // Yo completé 81/81 (se llama desde finishGame).
+  function raceWin() {
+    sfx('win');
+    if (rc.role === 'host') {
+      const e = rc.table[0]; e.filled = 81; e.time = G.secs; e.done = true;
+      raceHostUpdated();
+    } else {
+      rc.net.sendHost({ type: 'rwin', time: G.secs });
+      toast('¡Completaste el tablero! Esperando el resultado…');
+    }
+    render();
+  }
+
+  // Me quedé sin vidas (se llama desde showLose): tablero bloqueado, sigo mirando la tabla hasta el final.
+  function raceEliminated() {
+    if (G.race) G.race.tableOpen = true;
+    toast('Quedaste eliminado. Seguís viendo la tabla en vivo.');
+    render();
+  }
+
+  function raceQuit() {
+    if (!inRace()) return;
+    const host = rc.role === 'host';
+    coopAsk({
+      title: '¿Salir de la carrera?', text: host ? 'La sala se cerrará para todos los jugadores.' : 'Quedás fuera y el resto sigue jugando.',
+      yes: 'Sí, salir', no: 'Cancelar',
+      onYes: () => {
+        if (!inRace()) return;
+        const r = rc;
+        if (host) r.net.finish({ type: 'race-closed', reason: 'host-quit' });
+        else { r.net.sendHost({ type: 'rleave' }); setTimeout(() => r.net.close(), 150); }
+        rc = null; G.race.over = true; G.lost = true;
+        goHome(); updateHome();
+        toast('Saliste de la carrera.');
+      }
+    });
+  }
+
+  /* ----- Tarjeta superior y tabla ----- */
+  function raceStatus(r) {
+    if (r.done) return fmt(r.time);
+    if (r.left) return 'Abandonó';
+    if (r.eliminated) return 'Eliminado';
+    return r.filled + '/81';   // el tiempo de un jugador activo solo se actualiza con sus jugadas: no se muestra para no confundir
+  }
+
+  function updateRaceBar() {
+    const bar = $('#raceBar'); if (!bar) return;
+    const on = !!(G && G.race);
+    bar.hidden = !on;
+    if (!on) return;
+    const rows = G.race.rows || [], me = rows.find(r => r.id === G.race.me);
+    const filled = liveFilled();
+    setText('#raceRank', '#' + (me ? me.pos : 1));
+    setText('#raceFilled', filled + '/81');
+    setText('#raceTime', rc && rc.reconnecting ? 'Reconectando…' : fmt(G.secs));
+    const f = $('#raceBarFill'); if (f) f.style.width = (filled / 81 * 100) + '%';
+    bar.classList.toggle('elim', !!(G.lost && !G.won));
+    const tb = $('#raceTableBtn'); if (tb) { tb.textContent = 'Tabla (' + rows.length + ')'; tb.setAttribute('aria-expanded', G.race.tableOpen ? 'true' : 'false'); }
+    const q = $('#raceQuit'); if (q) q.hidden = !!G.race.over;
+    const tbl = $('#raceTable'); if (!tbl) return;
+    tbl.hidden = !G.race.tableOpen;
+    if (!G.race.tableOpen) return;
+    tbl.textContent = '';
+    rows.forEach(r => {
+      const li = mk('li', 'rt-row' + (r.id === G.race.me ? ' you' : '') + (r.eliminated || r.left ? ' out' : ''));
+      li.appendChild(mk('span', 'rt-pos', '#' + r.pos));
+      const nm = mk('span', 'rt-name', r.id === G.race.me ? 'Vos' : r.alias);
+      if (r.host) nm.appendChild(mk('em', 'rl-tag', 'Anfitrión'));
+      li.appendChild(nm);
+      li.appendChild(mk('span', 'rt-st', raceStatus(r) + (r.mistakes ? ' · ' + r.mistakes + ' err' : '')));
+      tbl.appendChild(li);
+    });
+  }
+
+  /* ----- Podio final ----- */
+  function raceShowPodium() {
+    const rows = G.race.rows || [], me = rows.find(r => r.id === G.race.me);
+    const iWon = !!me && G.race.winnerId === me.id;
+    setResIcon('#podIcon', iWon ? 'trophy' : null);
+    setText('#podTitle', G.race.winnerId < 0 ? 'Carrera terminada' : (iWon ? '¡Ganaste la carrera!' : (me ? 'Terminaste ' + me.pos + '.º' : 'Carrera terminada')));
+    setText('#podTxt', (MODE_NAMES[G.mode] || '') + ' • ' + (NAMES[G.diff] || '') + ' • ' + rows.length + ' jugadores');
+    const ol = $('#podList'); if (ol) {
+      ol.textContent = '';
+      rows.forEach(r => {
+        const li = mk('li', 'pod-row' + (r.pos <= 3 && G.race.winnerId >= 0 ? ' p' + r.pos : '') + (r.id === G.race.me ? ' you' : '') + (r.eliminated || r.left ? ' out' : ''));
+        li.appendChild(mk('span', 'pod-pos', r.pos + '.º'));
+        const nm = mk('span', 'pod-name', r.id === G.race.me ? 'Vos' : r.alias);
+        if (r.host) nm.appendChild(mk('em', 'rl-tag', 'Anfitrión'));
+        li.appendChild(nm);
+        li.appendChild(mk('span', 'pod-st', raceStatus(r) + (r.mistakes ? ' · ' + r.mistakes + ' err' : '')));
+        ol.appendChild(li);
+      });
+    }
+    G.race.tableOpen = false;
+    sel = -1; hideHint(); render(); persist();
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mRacePodium') m.hidden = true; });
+    hideRaceAlert();
+    const m = $('#mRacePodium'); if (m) m.hidden = false;
+  }
 
   /* ===========================================================================
    * Co-op: resolver juntos (2 jugadores, mismo tablero, P2P con PeerJS)
@@ -2256,6 +2705,7 @@
 
   // Cierra la sala (avisa al compañero) y deja la partida como partida normal.
   function leaveCoop() {
+    if (rc) leaveRace();
     const rt = co;
     co = null;
     if (G) G.coop = false;
@@ -2270,6 +2720,7 @@
     setText('#coopAskTitle', o.title);
     const t = $('#coopAskTxt'); if (t) { t.textContent = o.text || ''; t.hidden = !o.text; }
     setText('#coopAskYes', o.yes); setText('#coopAskNo', o.no);
+    const nb = $('#coopAskNo'); if (nb) nb.hidden = !!o.single;
     askCb = { yes: o.onYes, no: o.onNo }; askSticky = !!o.sticky;
     const m = $('#mCoopAsk'); if (m) m.hidden = false;
   }
@@ -2369,7 +2820,7 @@
     const seed = toSeed();
     let ok = false;
     genPuzzle(diff, mode, seed, false).then(g => {
-      if (co) leaveCoop();
+      if (co || rc) leaveCoop();
       setCoopGame(g, mode, diff, seed);
       co = newCoop('host', alias);
       ok = true;
@@ -2627,7 +3078,7 @@
     if (busy) { toast('Esperá un momento…'); return; }
     const alias = C.getAlias();
     if (!alias) { askAlias(() => joinCoop(code), COOP_ALIAS); return; }
-    if (co) leaveCoop();
+    if (co || rc) leaveCoop();
     const rt = newCoop('guest', alias);
     rt.code = code;
     let s;
@@ -2642,6 +3093,7 @@
   }
 
   function cancelJoin() {
+    if (rc && rc.role === 'guest' && !rc.started) { leaveRace(); hideLoad(); updateHome(); return; }
     if (co && co.joining) {
       const s = co.session;
       co = null;
@@ -2831,6 +3283,19 @@
     if (!r) return;
     C.clearHash();
     if (!r.ok) { toast('El enlace de sala no es válido.'); return; }
+    if (r.kind === 'race') {            // carrera grupal: ruta propia
+      if (!raceOk()) { toast('Falta peerjs.min.js: la carrera grupal no está disponible.'); return; }
+      if (rc && rc.code === r.code) { toast(rc.role === 'host' ? 'Esa es tu propia sala: mandale el enlace a tus amigos.' : 'Ya estás en esa sala.'); return; }
+      if (hasProgress()) {
+        pendingCoop = r.code; pendingCoopKind = 'race';
+        setText('#coopJoinKind', 'Te invitaron a una carrera grupal');
+        setText('#coopJoinCode', r.code);
+        const w = $('#coopJoinWarn'); if (w) w.hidden = false;
+        document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mCoopJoin') m.hidden = true; });
+        const m = $('#mCoopJoin'); if (m) m.hidden = false;
+      } else joinRace(r.code);
+      return;
+    }
     if (!coopOk()) { toast('Falta peerjs.min.js: el modo Co-op no está disponible.'); return; }
     if (co && co.code === r.code) {
       if (co.role === 'host') toast('Esa es tu propia sala: mandale el enlace a tu amigo.');
@@ -2856,7 +3321,7 @@
     const cj = $('#mCoopJoin');
     if (cj && !cj.hidden) pendingCoop = null;                                              // invitación Co-op descartada
     aliasCb = null;
-    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mLiveWait' && !(m.id === 'mCoopAsk' && askSticky)) m.hidden = true; });
+    document.querySelectorAll('.modal').forEach(m => { if (m.id !== 'mLoad' && m.id !== 'mLiveWait' && m.id !== 'mRaceLobby' && !(m.id === 'mCoopAsk' && askSticky)) m.hidden = true; });
   }
   const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
   const openSettings = () => { const m = $('#mSet'); if (m) m.hidden = false; };
@@ -2973,6 +3438,19 @@
     document.querySelectorAll('#coopDiffs [data-cdiff]').forEach(b => b.addEventListener('click', () => { coopDiff = b.dataset.cdiff; setCoopSel(); }));
     on('coopShare', 'click', shareCoopLink);
     on('coopEnd', 'click', coopEndOrLeave);
+    // Carrera grupal
+    on('btnRace', 'click', () => { const m = $('#mFriends'); if (m) m.hidden = true; openRace(); });
+    on('raceGo', 'click', () => startRaceHost(raceMode, raceDiff));
+    document.querySelectorAll('#raceModes [data-rmode]').forEach(b => b.addEventListener('click', () => { raceMode = b.dataset.rmode; setRaceSel(); }));
+    document.querySelectorAll('#raceDiffs [data-rdiff]').forEach(b => b.addEventListener('click', () => { raceDiff = b.dataset.rdiff; setRaceSel(); }));
+    on('raceCopy', 'click', raceCopyLink);
+    on('raceStart', 'click', raceStartNow);
+    on('raceLobbyLeave', 'click', raceLobbyLeave);
+    on('raceQuit', 'click', raceQuit);
+    on('raceAlertClose', 'click', hideRaceAlert);
+    on('raceTableBtn', 'click', () => { if (G && G.race) { G.race.tableOpen = !G.race.tableOpen; updateRaceBar(); } });
+    on('podHome', 'click', () => { leaveRace(); closeModals(); goHome(); });
+    on('podView', 'click', () => { const m = $('#mRacePodium'); if (m) m.hidden = true; });
     // Duelo 1v1 en vivo
     on('btnLive', 'click', () => { const m = $('#mFriends'); if (m) m.hidden = true; openLive(); });
     on('liveGo', 'click', () => startLiveHost(liveMode, liveDiff));
@@ -2986,7 +3464,7 @@
     on('coopAskNo', 'click', () => coopAskAnswer('no'));
     on('errExplainClose', 'click', hideErrExplain);
     on('winCoopAgain', 'click', coopAgain);
-    on('coopJoinGo', 'click', () => { const code = pendingCoop; closeModals(); if (code) joinCoop(code); });
+    on('coopJoinGo', 'click', () => { const code = pendingCoop, kind = pendingCoopKind; closeModals(); if (code) { if (kind === 'race') joinRace(code); else joinCoop(code); } });
     on('coopJoinCancel', 'click', closeModals);
     on('loadCancel', 'click', cancelJoin);
     on('loadRetry', 'click', () => { const rb = $('#loadRetry'); const code = rb && rb.dataset.code; hideLoad(); if (code) joinCoop(code); });
@@ -3039,7 +3517,7 @@
     // Modales y ajustes
     document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModals));
     document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
-      if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext' || (m.id === 'mCoopAsk' && askSticky) || m.id === 'mLiveWait') return;
+      if (e.target !== m || m.id === 'mLoad' || m.id === 'mSurvNext' || (m.id === 'mCoopAsk' && askSticky) || m.id === 'mLiveWait' || m.id === 'mRaceLobby') return;
       if (m.id === 'mAlias') hideAlias(); else closeModals();
     }));
     document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => {
@@ -3094,6 +3572,11 @@
     // En una sala Co-op manda el reloj del Host: corre mientras el Invitado esté conectado (aunque el Host esté en el inicio),
     // lo difunde cada segundo y el Invitado solo lo muestra (si el Host se pausa, el reloj del Invitado también).
     setInterval(() => {
+      if (inRace() && rc.started && !G.won && !G.lost) {
+        G.secs = Math.max(0, Math.floor((Date.now() - rc.t0) / 1000));
+        if (view === 'game') { setText('#clock', fmt(G.secs)); updateRaceBar(); }
+        return;
+      }
       if (inLive() && co.started && !G.won && !G.lost) {
         G.secs = Math.max(0, Math.floor((Date.now() - co.t0) / 1000));
         if (view === 'game') { setText('#clock', fmt(G.secs)); updateDuelBar(); }
