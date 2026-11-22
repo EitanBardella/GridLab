@@ -46,6 +46,10 @@ section('1. Sincronización de versión');
     else if (m[1] !== bSw) fail(f + '?v=' + m[1] + ' ≠ ' + bSw);
   });
   if (failures === before) ok('?v= de los archivos propios alineado con ' + bSw);
+  // Ajustes: cierre × en el encabezado y salida de la app con su modal de confirmación
+  /class="chip set-x"[^>]*data-close/.test(html) ? ok('Ajustes tiene el cierre ×') : fail('Ajustes no tiene el botón × de cierre');
+  ['btnQuit', 'mQuit', 'quitOk'].forEach(id => { if (!html.includes('id="' + id + '"')) fail('falta #' + id + ' en index.html'); });
+  if (/<button[^>]*data-close[^>]*>Listo<\/button>/.test(html.slice(html.indexOf('id="mSet"'), html.indexOf('id="mQuit"')))) fail('Ajustes conserva el botón redundante Listo');
   const cl = (app.match(/const CHANGELOG = \[\s*\{\s*v:\s*'([^']+)'/) || [])[1];
   cl === bSw ? ok('CHANGELOG abre con la versión actual') : fail('la primera entrada del CHANGELOG (' + cl + ') no es ' + bSw);
 }

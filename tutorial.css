@@ -518,3 +518,28 @@
 }
 /* El mapa de capítulos conserva su ancho natural aunque la lectura sea más ancha en horizontal */
 .tut-map { max-width:520px; }
+
+/* =====================================================================
+   Horizontal móvil: teclado de práctica en 5 + 4 y "Cómo jugar" en dos columnas
+   ===================================================================== */
+@media (orientation:landscape) and (max-height:520px) {
+  /* Teclado 1–9 en dos filas (5 + 4, centradas) de 38 px mínimo: nunca se aplasta, con la consigna abierta o cerrada */
+  .tut-body.tut-fixed > .tut-goal, .tut-body.tut-fixed > .tut-goal.coll.open { max-height:100px; }
+  .tut-body.tut-fixed > .tut-pkeys { grid-template-columns:repeat(10, minmax(0, 1fr)); grid-template-rows:none; grid-auto-rows:38px; align-self:start; gap:4px; }
+  .tut-body.tut-fixed > .tut-pkeys button { grid-column:span 2; min-height:38px; height:38px; font-size:1.2rem; padding:0 0 10px; }
+  .tut-body.tut-fixed > .tut-pkeys button:nth-child(6) { grid-column:2 / span 2; }
+  .tut-body.tut-fixed > .tut-pkeys .rem { bottom:2px; font-size:.58rem; }
+
+  /* Cómo jugar: reglas y pasos de rutina en 2 columnas, cada ítem como tarjeta propia */
+  .tut-guide .tut-card ol.tut-rules:not(.tut-errors), .tut-guide .tut-card ol.tut-routine {
+    display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; align-items:stretch; }
+  .tut-guide .tut-rules:not(.tut-errors) li, .tut-guide .tut-routine li {
+    padding:10px 12px 10px 46px; border:1px solid var(--thin); border-radius:12px; background:var(--bg); min-width:0; }
+  .tut-guide .tut-rules:not(.tut-errors) li::before { left:10px; top:10px; }
+  .tut-guide .tut-routine li { padding-left:12px; }
+}
+
+/* Horizontal: la consigna plegable (Entrenamiento) debe seguir replegándose pese a las reglas compactas */
+@media (orientation:landscape) and (max-height:520px) {
+  .tut-body.tut-fixed > .tut-goal.coll:not(.open) { max-height:0; padding-top:0; padding-bottom:0; margin-bottom:-6px; border-top-width:0; border-bottom-width:0; opacity:0; }
+}

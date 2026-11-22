@@ -136,7 +136,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v66';
+  const BUILD = 'ui-v67';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3651,6 +3651,21 @@
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
     on('optHaptic', 'change', e => { set.haptic = e.target.checked; saveSet(); triggerHaptic('tap'); });
     on('optBigNums', 'change', e => { set.bigNums = e.target.checked; saveSet(); applyTheme(); });
+    // Salir de la app: confirmación propia; si el navegador no deja cerrar la pestaña, se explica cómo salir.
+    const quitReset = () => {
+      setText('#quitTitle', '¿Seguro que querés salir?');
+      setText('#quitTxt', 'Tu progreso y tu partida en curso quedan guardados en este dispositivo.');
+      [['#quitOk', false], ['#quitCancel', false], ['#quitDone', true]].forEach(p => { const b = $(p[0]); if (b) b.hidden = p[1]; });
+    };
+    on('btnQuit', 'click', () => { sfx('tap'); closeModals(); quitReset(); const m = $('#mQuit'); if (m) m.hidden = false; });
+    on('quitOk', 'click', () => {
+      try { window.close(); } catch (e) { /* ignorar */ }
+      setTimeout(() => {   // si seguimos acá, el navegador bloqueó el cierre
+        setText('#quitTitle', 'Ya podés cerrar la app');
+        setText('#quitTxt', 'Tu navegador no permite cerrar esta pestaña desde acá. Cerrala vos mismo o volvé al inicio de tu dispositivo: tu progreso está guardado.');
+        [['#quitOk', true], ['#quitCancel', true], ['#quitDone', false]].forEach(p => { const b = $(p[0]); if (b) b.hidden = p[1]; });
+      }, 250);
+    });
     on('btnExport', 'click', () => { sfx('tap'); exportBackup(); });
     on('btnImport', 'click', () => { sfx('tap'); $('#fileImport').click(); });
     on('fileImport', 'change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; importBackup(f); });
@@ -3740,6 +3755,10 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v67', title: 'Horizontal más cómodo y salida de la app', items: [
+      'En móvil horizontal: el teclado de la práctica va en dos filas (5 + 4), Cómo jugar muestra reglas y pasos en dos columnas, y Estadísticas y Desafío Diario se reorganizan en dos columnas para evitar desplazamiento.',
+      'Ajustes se cierra con una × arriba a la derecha, y al final hay un botón Salir de la app con confirmación.'
+    ] },
     { v: 'ui-v66', title: 'Pulido final: horizontal, modos y offline', items: [
       'En el Tutorial, las Técnicas y las Estadísticas se puede deslizar desde cualquier parte de la pantalla, también desde los márgenes laterales, y en horizontal la lectura aprovecha más ancho.',
       'Práctica y Entrenamiento en móvil horizontal pasan a dos columnas sin scroll: tablero a la izquierda; Objetivo, herramientas y teclado 3×3 a la derecha.',

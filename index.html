@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v66">
-<link rel="stylesheet" href="tutorial.css?v=ui-v66">
+<link rel="stylesheet" href="style.css?v=ui-v67">
+<link rel="stylesheet" href="tutorial.css?v=ui-v67">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
@@ -333,7 +333,7 @@
 <!-- ===================== MODALES ===================== -->
 <div class="modal" id="mSet" hidden>
   <div class="sheet">
-    <h2>Ajustes</h2>
+    <div class="sheet-head"><h2>Ajustes</h2><button type="button" class="chip set-x" data-close aria-label="Cerrar ajustes">×</button></div>
     <div class="row-col"><span>Tema</span>
       <div class="themes" role="radiogroup" aria-label="Tema">
         <button type="button" role="radio" data-theme-set="paper"><i class="sw sw-paper">Aa</i><span>Papel</span></button>
@@ -386,8 +386,19 @@
       <button class="chip" id="btnImport" type="button">Importar progreso</button>
     </div>
     <input type="file" id="fileImport" accept=".json,application/json" hidden>
-    <button class="chip wide" data-close>Listo</button>
+    <button class="chip wide quit" id="btnQuit" type="button">Salir de la app</button>
     <p class="credit">GridLab v1.1 · © 2026 Eitan Bardella · Uso no comercial</p>
+  </div>
+</div>
+
+<!-- Confirmación de salida: window.close() solo funciona si el navegador lo permite; si no, se explica cómo salir. -->
+<div class="modal result" id="mQuit" hidden>
+  <div class="sheet center" role="alertdialog" aria-labelledby="quitTitle" aria-describedby="quitTxt">
+    <h2 id="quitTitle">¿Seguro que querés salir?</h2>
+    <p id="quitTxt" class="sub">Tu progreso y tu partida en curso quedan guardados en este dispositivo.</p>
+    <button class="chip primary wide" id="quitOk" type="button">Aceptar</button>
+    <button class="chip wide" id="quitCancel" type="button" data-close>Cancelar</button>
+    <button class="chip primary wide" id="quitDone" type="button" data-close hidden>Entendido</button>
   </div>
 </div>
 
@@ -707,21 +718,21 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v66"></script>
-<script src="engine.js?v=ui-v66"></script>
-<script src="killer-engine.js?v=ui-v66"></script>
-<script src="duel.js?v=ui-v66"></script>
+<script src="sound.js?v=ui-v67"></script>
+<script src="engine.js?v=ui-v67"></script>
+<script src="killer-engine.js?v=ui-v67"></script>
+<script src="duel.js?v=ui-v67"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v66"></script>
-<script src="race.js?v=ui-v66"></script>
+<script src="coop.js?v=ui-v67"></script>
+<script src="race.js?v=ui-v67"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
-<script src="tutorial-transform.js?v=ui-v66"></script>
-<script src="tutorial-data-classic.js?v=ui-v66"></script>
-<script src="tutorial-data-killer.js?v=ui-v66"></script>
-<script src="tutorial-data-variants.js?v=ui-v66"></script>
-<script src="tutorial-data-variants2.js?v=ui-v66"></script>
-<script src="tutorial.js?v=ui-v66"></script>
-<script src="app.js?v=ui-v66"></script>
+<script src="tutorial-transform.js?v=ui-v67"></script>
+<script src="tutorial-data-classic.js?v=ui-v67"></script>
+<script src="tutorial-data-killer.js?v=ui-v67"></script>
+<script src="tutorial-data-variants.js?v=ui-v67"></script>
+<script src="tutorial-data-variants2.js?v=ui-v67"></script>
+<script src="tutorial.js?v=ui-v67"></script>
+<script src="app.js?v=ui-v67"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

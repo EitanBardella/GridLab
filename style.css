@@ -1392,6 +1392,70 @@ html.big-nums .tut-board .nt { font-size:3.3cqw; }
 .mode-list button small { max-width:100%; overflow-wrap:anywhere; }
 
 /* ---------- Pantallas con lista (Inicio, Estadísticas, Diario): el contenedor con scroll ocupa todo el ancho, así deslizar en los márgenes también desplaza ---------- */
-.app.home { max-width:none; margin:0;
-  padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - 520px) / 2 + 10px));
-  padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - 520px) / 2 + 10px)); }
+.app.home { --hw:520px; max-width:none; margin:0;
+  padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--hw)) / 2 + 10px));
+  padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--hw)) / 2 + 10px)); }
+
+/* =====================================================================
+   Horizontal móvil: Estadísticas y Desafío Diario en dos columnas (la partida normal no cambia)
+   ===================================================================== */
+@media (orientation:landscape) and (max-height:520px) {
+  /* Estadísticas — pantalla principal: tarjetas de modo en 2 columnas */
+  #statsHome.vlist { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 12px; }
+  #statsHome.vlist > * { margin:0; }
+
+  /* Estadísticas por modo: izquierda dificultades + resumen circular; derecha las métricas */
+  #statsDetail:not([hidden]) { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.15fr); column-gap:16px; align-items:start; }
+  #statsDetail #statsBody { display:contents; }
+  #statsDetail .stat-diffs { grid-column:1; grid-row:1; margin:0 0 10px; }
+  #statsDetail .stat-hero { grid-column:1; grid-row:2; }
+  #statsDetail .stat-grid { grid-column:2; grid-row:1 / span 3; gap:6px; }
+  #statsDetail .stat-card { padding:7px 10px; }
+  #statsDetail .stat-card .sv { font-size:1.2rem; }
+  #statsDetail .stat-card .sl { font-size:.62rem; }
+  #statsDetail .stat-card .ss { font-size:.66rem; line-height:1.2; }
+  #statsDetail .stats-sum { grid-column:1; grid-row:3; margin:8px 0 0; }
+
+  /* Desafío Diario: izquierda mes, contador, leyenda y aviso; derecha el calendario compacto */
+  #daily-view .home-screen { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 380px); column-gap:18px; align-content:start; }
+  #daily-view .home-screen > .sub-top, #daily-view .home-screen > .sub-title { grid-column:1 / -1; }
+  #daily-view .home-screen > .cal-nav, #daily-view .home-screen > .cal-count, #daily-view .home-screen > .cal-cup,
+  #daily-view .home-screen > .cal-legend, #daily-view .home-screen > .cal-warn { grid-column:1; }
+  #daily-view .home-screen > .cal-wrap { grid-column:2; grid-row:3 / span 6; max-width:380px; }
+  #daily-view .cal-legend { margin-top:8px; }
+  #daily-view .dday { aspect-ratio:auto; height:30px; min-height:0; border-radius:8px; font-size:.85rem; }
+  #daily-view .cal-dow, #daily-view .cal-grid { gap:3px; }
+  #daily-view .cal-dow { margin-bottom:3px; }
+}
+
+/* ---------- Ajustes: cierre × arriba a la derecha y salida de la app ---------- */
+.sheet-head { display:flex; align-items:center; justify-content:space-between; gap:8px; position:sticky; top:-18px; z-index:2;
+  margin:-18px -16px 6px; padding:14px 16px 8px; background:var(--bg); }
+.sheet-head h2 { margin:0; }
+.sheet-head .set-x { flex:none; width:40px; height:40px; min-width:40px; min-height:40px; padding:0; font-size:1.6rem; line-height:1; font-weight:500;
+  display:inline-flex; align-items:center; justify-content:center; }
+.chip.quit { margin-top:10px; color:var(--err); }
+#mQuit [hidden] { display:none !important; }
+
+/* Horizontal móvil: Estadísticas y Diario usan más ancho y un encabezado más bajo para evitar desplazamiento */
+@media (orientation:landscape) and (max-height:520px) {
+  #stats-view, #daily-view { --hw:700px; }
+  #stats-view .home-inner, #daily-view .home-inner { padding-top:2px; padding-bottom:6px; }
+  #stats-view .sub-title, #daily-view .sub-title { margin:0 0 6px; font-size:1.3rem; }
+  #stats-view .sub-top, #daily-view .sub-top { margin-bottom:4px; }
+  #statsDetail .stat-diffs { gap:6px; margin-bottom:8px; }
+  #statsDetail .stat-diffs button { min-height:34px; font-size:.78rem; }
+  #statsDetail .stat-hero { padding:8px 12px; gap:12px; margin:0; }
+  #statsDetail .stat-hero .ring { width:62px; height:62px; }
+  #statsDetail .stat-hero .ring b { width:46px; height:46px; font-size:.85rem; }
+  #statsDetail .hero-txt b { font-size:1.1rem; }
+  #statsDetail .hero-txt span { font-size:.76rem; }
+  #statsDetail .stat-card { padding:4px 9px; }
+  #statsDetail .stat-grid { gap:5px; }
+  #statsDetail .stat-card .sv { font-size:1.1rem; line-height:1.1; }
+  #statsDetail .stats-sum { font-size:.68rem; margin-top:6px; }
+}
+@media (orientation:landscape) and (max-height:520px) {
+  #daily-view { padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--hw)) / 2 + 10px)); padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--hw)) / 2 + 10px)); }
+  #daily-view .home-screen > .cal-warn { margin-top:8px; }
+}
