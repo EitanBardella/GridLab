@@ -3768,12 +3768,12 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
-    { v: 'ui-v71', title: 'Diseño adaptativo para tablet y escritorio', items: [
-      'Pantallas secundarias (Desafío Diario, Estadísticas, Jugar, Tutorial y Ajustes) con diseño adaptativo en tablets y escritorio; el tablero de juego va siempre centrado arriba, con herramientas y teclado debajo, en todos los dispositivos.',
-      'Estadísticas más prolijas: Supervivencia con sus 6 variantes en una fila y tarjetas 2 × 2 con el pie centrado, Desafíos diarios en 3 columnas y separadores limpios.',
-      'Modales anclados al borde inferior con cierre ×: dificultad de los modos individuales en 3 × 2 (tablet) y 2 × 3 (PC), Jugar con amigos en una columna y configuración multijugador con Modo y Dificultad sin scroll interno.',
-      'Cabeceras superiores fijas en tablet y PC, con sangrado inferior para cubrir las sombras al scrollear y siempre por debajo de los modales.',
-      'Cómo jugar, Técnicas y Solución optimizadas: bloques conceptuales en 3 columnas, tableros centrados y más grandes, encabezados reforzados y sin botones redundantes.'
+    { v: 'ui-v71', title: 'Navegación y diseño adaptativo', items: [
+      'El botón y el gesto de volver atrás del sistema cierran primero el modal abierto y retroceden pantalla por pantalla antes de salir desde Inicio.',
+      'Layout adaptativo en tablet y PC: dos columnas en las pantallas secundarias, cabecera superior fija con sangrado inferior para cubrir las sombras al scrollear, siempre por debajo de los modales.',
+      'Estadísticas refinadas (Supervivencia con 6 variantes y tarjetas 2 × 2, Desafíos diarios en 3 columnas) y modales anclados al borde inferior con grillas compactas, sin scroll interno.',
+      'Cómo jugar, Técnicas, Entrenamiento y Solución: bloques conceptuales en 3 columnas, tableros centrados y más grandes, controles paso a paso con flecha completa y sin saltos de altura.',
+      'Pulido móvil: HUD de partida con más jerarquía, símbolo ∞ normalizado en Retro y Minimalista, y encabezados centrados en Desafío Diario y Tutorial.'
     ] },
     { v: 'ui-v69', title: 'Pulido horizontal y color del sistema', items: [
       'El color de la barra del sistema y el fondo de la página se actualizan con cada cambio de tema, para que no asome una franja de otro color.',
@@ -4034,6 +4034,46 @@
     initUpdates();
     initInstall();
   }
+
+  /* ---------- Botón / gesto "atrás" del sistema (History API) ----------
+     Mientras la app esté "adentro" (otra vista, subpantalla de Jugar o algún modal abierto) hay una entrada extra en el historial.
+     Al retroceder se consume esa entrada y se hace UN paso lógico hacia atrás (cierra el modal más reciente o sube un nivel de pantalla);
+     si todavía queda algo por cerrar se vuelve a registrar la entrada. En Inicio, sin modales, no queda entrada: el siguiente gesto sale de la app. */
+  const navDeep = () => modalOpen() || view !== 'home' || (!!$('#homePlay') && !$('#homePlay').hidden);
+  let navTrap = false, navIgnore = 0;
+  function navSync() {
+    const deep = navDeep();
+    if (deep && !navTrap) { try { history.pushState({ gl: 1 }, '', location.href); navTrap = true; } catch (e) { /* sin History API */ } }
+    else if (!deep && navTrap) { navTrap = false; navIgnore++; try { history.back(); } catch (e) { navIgnore--; } }
+  }
+  function navBackStep() {
+    // 1) modal abierto: se cierra el más reciente sin salir de la vista
+    const open = Array.from(document.querySelectorAll('.modal:not([hidden])'));
+    if (open.length) {
+      const m = open[open.length - 1];
+      const btn = m.id === 'mNews' ? $('#newsBack') : m.querySelector('[data-close]');
+      if (btn) btn.click(); else closeModals();
+      return;
+    }
+    // 2) misma lógica que el botón "←" de la vista actual
+    if (view === 'tutorial') { if (window.Tutorial && window.Tutorial.step) window.Tutorial.step(); return; }
+    if (view === 'game') { const b = $('#btnHome'); if (b) b.click(); return; }
+    if (view === 'stats') { const b = $('#statsBack'); if (b) b.click(); return; }
+    if (view === 'daily') { const b = $('#dailyBack'); if (b) b.click(); return; }
+    const hp = $('#homePlay');
+    if (hp && !hp.hidden) { const b = $('#btnPlayBack'); if (b) b.click(); }
+  }
+  window.addEventListener('popstate', () => {
+    if (navIgnore > 0) { navIgnore--; return; }   // retroceso provocado por la propia app al quitar su entrada
+    navTrap = false;                                // el gesto consumió la entrada
+    navBackStep();
+    navSync();                                      // si sigue "adentro", se vuelve a registrar la entrada
+  });
+  let navQueued = false;
+  new MutationObserver(() => {
+    if (navQueued) return; navQueued = true;
+    Promise.resolve().then(() => { navQueued = false; navSync(); });
+  }).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

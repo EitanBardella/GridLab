@@ -1507,3 +1507,25 @@ html.big-nums .tut-board .nt { font-size:3.3cqw; }
   [data-theme="swiss"] #homePlay > .sub-title, [data-theme="swiss"] #stats-view .home-screen > .sub-title { --sbw:1px; }
   [data-theme="retro"] #homePlay > .sub-title, [data-theme="retro"] #stats-view .home-screen > .sub-title { --sbw:3px; }
 }
+
+/* HUD de la partida: Modo • Dificultad y Tiempo • Vidas con más presencia, sin aumentar el alto de la barra */
+.app.game > .top .title { min-width:0; line-height:1.08; }
+.app.game > .top .title b { font-size:clamp(1rem, 4.3vw, 1.2rem); font-weight:700; line-height:1.08; min-width:0; }
+.app.game > .top .title .subline { min-width:0; line-height:1.08; }
+.app.game > .top .title .subline > span { font-size:clamp(1.05rem, 4.6vw, 1.25rem); font-weight:700; font-variant-numeric:tabular-nums; line-height:1.08; }
+.app.game > .top .title .subline .lives:not(.inf) { font-size:.95rem; font-weight:700; }
+.app.game > .top .title .zen-tag { font-size:.9rem; font-weight:700; font-variant-numeric:normal; }
+@media (max-width:380px) {
+  .app.game > .top .title b { font-size:clamp(.82rem, 4.3vw, 1.2rem); letter-spacing:0; }
+  [data-theme="retro"] .app.game > .top .title b { font-size:.8rem; }
+}
+
+/* ∞ (vidas infinitas): misma presencia visual que los dígitos en los 4 temas. `.title span` fijaba 0.9rem y pisaba la escala del glifo. */
+.inf-symbol, .title .lives .inf-symbol { display:inline-block; font-size:1.35em; font-weight:700; line-height:.75; vertical-align:middle; }
+[data-theme="swiss"] .inf-symbol, [data-theme="swiss"] .title .lives .inf-symbol { font-size:1.78em; line-height:.55; }
+[data-theme="retro"] .inf-symbol, [data-theme="retro"] .title .lives .inf-symbol { font-size:1.9em; line-height:.55; }
+
+/* Desafío Diario en móvil: título centrado y con más aire respecto a la fila ← INICIO / Ajustes */
+@media (max-width:819px) {
+  #daily-view .sub-title { text-align:center; margin-top:14px; }
+}

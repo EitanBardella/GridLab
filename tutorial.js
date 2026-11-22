@@ -1376,10 +1376,15 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     const given = digits81(ex.grid);
     const steps = ex.steps, total = steps.length;
     let k = 0;
-    const cap = h('p', { class: 'tut-cap', role: 'status', 'aria-live': 'polite' });
+    // Todos los textos comparten la misma celda de una grilla: la caja siempre mide lo que el paso más largo y los controles no se mueven.
+    const capTxt = steps.map(s => h('span', { class: 'cp', text: s.text || '' }));
+    const cap = h('div', { class: 'tut-cap', role: 'status', 'aria-live': 'polite' }, capTxt);
     const stepLbl = h('span', { class: 'tut-step' });
-    const prev = h('button', { class: 'chip', type: 'button', text: '‹ Anterior', onclick: () => go(k - 1) });
-    const next = h('button', { class: 'chip', type: 'button', text: 'Siguiente ›', onclick: () => go(k + 1) });
+    // Etiqueta arriba y flecha completa debajo (en tablet/PC se reacomodan en una línea: ← Anterior · Siguiente →)
+    const prev = h('button', { class: 'chip tut-nav prev', type: 'button', 'aria-label': 'Paso anterior', onclick: () => go(k - 1) },
+      h('span', { class: 'nv-l', text: 'Anterior' }), h('span', { class: 'nv-a', 'aria-hidden': 'true', text: '←' }));
+    const next = h('button', { class: 'chip tut-nav next', type: 'button', 'aria-label': 'Paso siguiente', onclick: () => go(k + 1) },
+      h('span', { class: 'nv-l', text: 'Siguiente' }), h('span', { class: 'nv-a', 'aria-hidden': 'true', text: '→' }));
     const dots = h('div', { class: 'tut-dots', 'aria-hidden': 'true' });
     steps.forEach(() => dots.append(h('i')));
 
@@ -1405,7 +1410,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
           keep: st.keep && st.keep[i] ? new Set(st.keep[i]) : null
         });
       }
-      cap.textContent = st.text || '';
+      capTxt.forEach((el, n) => { el.classList.toggle('on', n === k); });
       stepLbl.textContent = 'Paso ' + (k + 1) + ' / ' + total;
       prev.disabled = k === 0; next.disabled = k === total - 1;
       Array.prototype.forEach.call(dots.children, (d, j) => { d.className = j === k ? 'on' : (j < k ? 'past' : ''); });
@@ -1680,6 +1685,12 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     },
     close() { runCleanup(); closeSheet(); closeCelebrate(); hideBanner(); ui.train = null; },
     back: onBack,
+    // Retroceso jerárquico (Escape / gesto atrás): primero cierra la hoja o la celebración abiertas; si no hay, retrocede una pantalla.
+    step() {
+      if (sheetEl) { closeSheet(); ui.selCh = null; showMapKeepScroll(); }
+      else if (celebEl) closeCelebrate();
+      else onBack();
+    },
     progress() { return prog || loadProg(); }
   };
   window.Tutorial = Tutorial;
@@ -1687,8 +1698,6 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
   // Escape: cierra hoja/celebración o retrocede una pantalla (solo con el tutorial visible).
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || !root || root.hidden || modalOpen()) return;
-    if (sheetEl) { closeSheet(); ui.selCh = null; showMapKeepScroll(); }
-    else if (celebEl) closeCelebrate();
-    else onBack();
+    Tutorial.step();
   });
 }());
