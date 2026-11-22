@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v57';
+  const BUILD = 'ui-v58';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -1532,6 +1532,8 @@
       }
     });
     if (!G.zen) {
+      const prevBest = stats.best[key];
+      G.newRecord = prevBest && G.secs < prevBest ? prevBest - G.secs : 0;   // mejora respecto a la marca previa de este Modo + Dificultad
       if (!stats.best[key] || G.secs < stats.best[key]) stats.best[key] = G.secs;
       if (G.daily) {
         const ds = G.daily, first = !stats.daily[ds], e = G.rec ? G.rec.errors : 0, pe = stats.dd[ds] ? stats.dd[ds].e : 0;
@@ -1604,7 +1606,12 @@
   function showWin() {
     setResIcon('#winIcon', null);
     setText('#winNew', 'Nueva partida');
+    const rb = $('#winRecord'); if (rb) rb.hidden = true;
     if (inCoop()) { showCoopWin(); return; }
+    if (rb && G.newRecord > 0 && !G.zen) {
+      setText('#winRecordTxt', '−' + fmt(G.newRecord) + ' respecto a tu marca anterior');
+      rb.hidden = false;
+    }
     const cr = $('#coopResult'); if (cr) { cr.textContent = ''; cr.hidden = true; }
     const ba = $('#winCoopAgain'); if (ba) ba.hidden = true;
     const live = !!(G.duel && G.duel.open && D);
@@ -1644,6 +1651,30 @@
     }
     const br = $('#winRematch'); if (br) br.hidden = !duel;
     const m = $('#mWin'); if (m) m.hidden = false;
+  }
+
+  /* ---------- Copiar resultado ---------- */
+  function resultText(lost) {
+    const errors = G.rec ? G.rec.errors : (G.errs | 0);
+    const secs = lost ? showSecs() : (typeof G.finalTime === 'number' ? G.finalTime : G.secs);
+    const lines = ['GridLab · ' + (MODE_NAMES[G.mode] || '') + ' · ' + (NAMES[G.diff] || '') + (lost ? ' · Derrota' : (G.zen ? ' · Modo Zen' : '')),
+      'Tiempo: ' + fmt(secs), 'Errores: ' + errors];
+    if (!lost && G.newRecord > 0 && !G.zen) lines.push('Nuevo récord personal (−' + fmt(G.newRecord) + ')');
+    return lines.join('\n');
+  }
+  async function copyResult(btn) {
+    if (!G) return;
+    const txt = resultText(btn.dataset.copy === 'lose');
+    let ok = false;
+    try { await navigator.clipboard.writeText(txt); ok = true; } catch (e) {
+      try {   // respaldo para navegadores sin API del portapapeles
+        const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove();
+      } catch (e2) { ok = false; }
+    }
+    const orig = btn.dataset.label || (btn.dataset.label = btn.textContent);
+    btn.textContent = ok ? '¡Copiado! ✓' : 'No se pudo copiar';
+    clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = orig; }, 1600);
   }
 
   /* ---------- Derrota por vidas ---------- */
@@ -3588,6 +3619,7 @@
       if (!G || view !== 'game') return;
       if (G.won && !G.surv) showWin(); else if (G.lost) showLose();
     }));
+    document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => copyResult(b)));
     on('winNew', 'click', () => { if (inCoop() || (co && co.kind === 'duel')) leaveCoop(); closeModals(); goHome(); setHomeScreen('play'); });
     on('winChallenge', 'click', challengeFriend);
     on('winRematch', 'click', rematch);
@@ -3702,6 +3734,12 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v58', title: 'Resultados, récords y Entrenamiento', items: [
+      'La tarjeta de resultados aparece centrada en pantalla. Si batís tu mejor tiempo de ese modo y dificultad, suma la insignia ¡NUEVO RÉCORD PERSONAL! con cuánto mejoraste.',
+      'Nuevo botón Copiar resultado en las tarjetas de victoria y derrota.',
+      'Nuevo Entrenamiento en el Tutorial: tandas de 5 ejercicios que priorizan las técnicas pendientes o donde más fallaste.',
+      'En la práctica de Técnicas, el aviso de "celda correcta pero no es la técnica" usa el mismo banner flotante con barra de tiempo que los errores.'
+    ] },
     { v: 'ui-v57', title: 'Destello y práctica más estricta', items: [
       'Al completar una fila, columna, caja o región, esas 9 celdas hacen un destello breve con el color de tu tema (se desactiva con "reducir movimiento").',
       'En la práctica de Técnicas, resolver otra celda ya no aprueba la lección: hay que aplicar la técnica enseñada, y un aviso te lo recuerda.',

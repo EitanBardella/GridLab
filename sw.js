@@ -1,6 +1,6 @@
-const CACHE_NAME = 'sudoku-v69';
+const CACHE_NAME = 'sudoku-v70';
 // Versión que ve el jugador en el aviso de actualización. Mantenerla igual que BUILD en app.js.
-const BUILD = 'ui-v57';
+const BUILD = 'ui-v58';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [

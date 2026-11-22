@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v57">
-<link rel="stylesheet" href="tutorial.css?v=ui-v57">
+<link rel="stylesheet" href="style.css?v=ui-v58">
+<link rel="stylesheet" href="tutorial.css?v=ui-v58">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
@@ -423,8 +423,16 @@
   </div>
 </div>
 
-<div class="modal" id="mWin" hidden>
+<div class="modal result" id="mWin" hidden>
   <div class="sheet center">
+    <div id="winRecord" class="rec-badge" hidden role="status">
+      <svg class="rec-ic" viewBox="0 0 24 24" aria-hidden="true">
+        <g class="rc-smooth"><path d="M9.5 2h5M12 2v3"/><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M12 13.5l3 2"/><path d="M18.6 6.4l1.4-1.4"/></g>
+        <path class="rc-pixel" d="M8 1h8v2h-6zM11 3h2v2h-2zM8 5h8v1h2v1h1v1h1v1h1v8h-1v1h-1v1h-1v1h-2v1H9v-1H7v-1H6v-1H5v-1H4V9h1V8h1V7h1V6h1zM11 9h2v4l2 2h-2l-2-2z" fill-rule="evenodd"/>
+      </svg>
+      <b>¡NUEVO RÉCORD PERSONAL!</b>
+      <small id="winRecordTxt"></small>
+    </div>
     <div id="winIcon" class="res-icon" hidden></div>
     <h2 id="winTitle">¡Resuelto!</h2>
     <p id="winTxt" class="sub"></p>
@@ -435,12 +443,13 @@
     <button class="chip primary wide" id="winChallenge">Desafiar a un amigo</button>
     <button class="chip wide" id="winRematch" hidden>Devolver desafío</button>
     <button class="chip wide" id="winNew">Nueva partida</button>
+    <button class="chip wide" id="winCopy" data-copy="win">Copiar resultado</button>
     <button class="chip wide" data-close>Ver tablero</button>
   </div>
 </div>
 
 <!-- Derrota por vidas (partida en solitario, duelo o Co-op) -->
-<div class="modal" id="mLose" hidden>
+<div class="modal result" id="mLose" hidden>
   <div class="sheet center">
     <div id="loseIcon" class="res-icon" hidden></div>
     <h2 id="loseTitle">Derrota</h2>
@@ -448,6 +457,7 @@
     <p id="loseNote" class="sub" hidden></p>
     <button class="chip primary wide" id="loseRetry">Reintentar el mismo tablero</button>
     <button class="chip wide" id="loseHome">Volver al inicio</button>
+    <button class="chip wide" id="loseCopy" data-copy="lose">Copiar resultado</button>
     <button class="chip wide" data-close>Ver tablero</button>
   </div>
 </div>
@@ -482,7 +492,7 @@
 </div>
 
 <!-- Supervivencia: fin de la racha -->
-<div class="modal" id="mSurvEnd" hidden>
+<div class="modal result" id="mSurvEnd" hidden>
   <div class="sheet center">
     <h2 id="seTitle">Fin de la racha</h2>
     <p id="seTxt" class="duel-title"></p>
@@ -575,7 +585,7 @@
 </div>
 
 <!-- Carrera grupal: podio final -->
-<div class="modal" id="mRacePodium" hidden>
+<div class="modal result" id="mRacePodium" hidden>
   <div class="sheet center">
     <div id="podIcon" class="res-icon" hidden></div>
     <h2 id="podTitle">Podio</h2>
@@ -694,20 +704,20 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v57"></script>
-<script src="engine.js?v=ui-v57"></script>
-<script src="killer-engine.js?v=ui-v57"></script>
-<script src="duel.js?v=ui-v57"></script>
+<script src="sound.js?v=ui-v58"></script>
+<script src="engine.js?v=ui-v58"></script>
+<script src="killer-engine.js?v=ui-v58"></script>
+<script src="duel.js?v=ui-v58"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v57"></script>
-<script src="race.js?v=ui-v57"></script>
+<script src="coop.js?v=ui-v58"></script>
+<script src="race.js?v=ui-v58"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
 <script src="tutorial-data-classic.js?v=tut-v4"></script>
 <script src="tutorial-data-killer.js?v=tut-v4"></script>
 <script src="tutorial-data-variants.js?v=tut-v4"></script>
 <script src="tutorial-data-variants2.js?v=tut-v6"></script>
 <script src="tutorial.js?v=ui-v6"></script>
-<script src="app.js?v=ui-v57"></script>
+<script src="app.js?v=ui-v58"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>

@@ -289,3 +289,12 @@
 /* Scrollbars ocultas en el tutorial (el desplazamiento sigue activo) */
 .tut-app, .tut-body, .tut-sheet, .tut-tabs { scrollbar-width:none; -ms-overflow-style:none; }
 .tut-app::-webkit-scrollbar, .tut-body::-webkit-scrollbar, .tut-sheet::-webkit-scrollbar, .tut-tabs::-webkit-scrollbar { display:none; width:0; height:0; }
+
+/* Entrenamiento: etiqueta de la técnica, botón Saltar y resumen de la tanda */
+.tut-goal { position:relative; }
+.tut-goal .tut-train-lbl { font-style:normal; font-weight:700; color:var(--ink); }
+.tut-goal .tut-skip { position:absolute; top:6px; right:8px; min-height:26px; padding:0 10px; font-size:.72rem; }
+.tut-trainsum { display:flex; flex-direction:column; gap:8px; }
+.tut-trainsum h2 { margin:6px 0 0; font-size:1.25rem; }
+.tut-trainsum .tut-trow { cursor:default; }
+.tut-trainsum .tut-cta { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:6px; }

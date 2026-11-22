@@ -1331,3 +1331,39 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
 }
 .cell.unit-flash { animation:unitFlash .4s ease-out 1; }
 @media (prefers-reduced-motion:reduce) { .cell.unit-flash { animation:none; } }
+
+/* ---------- Tarjeta de resultados: centrada en pantalla, con entrada suave de escala ---------- */
+.modal.result { align-items:center; padding:max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom)); }
+.modal.result .sheet { max-width:420px; max-height:calc(100dvh - 24px); border-radius:18px; box-shadow:0 12px 36px var(--shadow);
+  padding:18px 16px 16px; animation:resPop .24s cubic-bezier(.2,.9,.3,1.1) both; }
+[data-theme="swiss"] .modal.result .sheet { border-radius:0; border:1px solid #000; box-shadow:0 6px 0 rgba(0,0,0,.15); }
+[data-theme="retro"] .modal.result .sheet { border-radius:0; border:3px solid var(--ink); box-shadow:5px 5px 0 var(--ink); }
+[data-theme="night"] .modal.result .sheet { border:1px solid #334155; box-shadow:0 12px 36px rgba(0,0,0,.7); }
+@keyframes resPop { from { opacity:0; transform:scale(.9); } to { opacity:1; transform:none; } }
+@media (orientation:landscape) and (max-height:540px) {
+  .modal.result .sheet { max-width:min(520px, 80vw); padding:12px 14px; }
+  .modal.result .sheet .chip.wide { min-height:36px; }
+}
+@media (prefers-reduced-motion:reduce) { .modal.result .sheet { animation:none; } }
+
+/* ---------- Insignia de Nuevo Récord (cronómetro) ---------- */
+.rec-badge { display:flex; flex-direction:column; align-items:center; gap:2px; margin:0 0 10px; padding:8px 12px; border:1px solid var(--star-gold, #D9A21B);
+  border-radius:12px; background:color-mix(in srgb, var(--star-gold, #D9A21B) 16%, var(--bg)); color:var(--ink); animation:recPulse 1.4s ease-in-out 2; }
+.rec-badge[hidden] { display:none; }
+.rec-badge b { font-size:.86rem; letter-spacing:.07em; }
+.rec-badge small { color:var(--muted); font-size:.76rem; font-variant-numeric:tabular-nums; }
+.rec-ic { width:34px; height:34px; color:var(--star-gold, #D9A21B); }
+.rec-ic .rc-smooth { fill:color-mix(in srgb, currentColor 18%, transparent); stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.rec-ic .rc-pixel { display:none; fill:currentColor; }
+[data-theme="night"] .rec-badge { box-shadow:0 0 14px rgba(242,193,78,.25); }
+[data-theme="night"] .rec-ic { filter:drop-shadow(0 0 4px rgba(242,193,78,.55)); }
+[data-theme="swiss"] .rec-badge { border-radius:0; border:2px solid #000; background:var(--bg); }
+[data-theme="swiss"] .rec-ic { color:var(--accent); }
+[data-theme="swiss"] .rec-ic .rc-smooth { fill:none; stroke-width:2.4; stroke-linecap:butt; stroke-linejoin:miter; }
+[data-theme="retro"] .rec-badge { border-radius:0; border:2px solid var(--ink); box-shadow:3px 3px 0 var(--ink); background:var(--panel); }
+[data-theme="retro"] .rec-ic { color:var(--ink); shape-rendering:crispEdges; }
+[data-theme="retro"] .rec-ic .rc-smooth { display:none; }
+[data-theme="retro"] .rec-ic .rc-pixel { display:inline; }
+@keyframes recPulse { 50% { transform:scale(1.035); } }
+@media (prefers-reduced-motion:reduce) { .rec-badge { animation:none; } }
+@media (orientation:landscape) and (max-height:540px) { .rec-badge { flex-direction:row; flex-wrap:wrap; justify-content:center; gap:2px 8px; padding:4px 10px; margin-bottom:6px; } .rec-ic { width:24px; height:24px; } }

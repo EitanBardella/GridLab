@@ -810,7 +810,7 @@
      7. ESTADO DE LA INTERFAZ Y RENDER
      ===================================================================== */
   let root = null, body = null, topTitle = null, topBtn = null;
-  const ui = { variant: 'classic', gv: 'classic', screen: 'hub', ch: null, ls: null, selCh: null, cleanup: null };
+  const ui = { variant: 'classic', gv: 'classic', screen: 'hub', ch: null, ls: null, selCh: null, cleanup: null, train: null };
 
   function exitTutorial() {
     if (root) root.dispatchEvent(new CustomEvent('tutorial:exit', { bubbles: true }));
@@ -835,7 +835,8 @@
   function onBack() {
     closeSheet(); closeCelebrate();
     switch (ui.screen) {
-      case 'practice': showLesson(ui.ch, ui.ls); return;
+      case 'practice': if (ui.train) { showHub(); return; } showLesson(ui.ch, ui.ls); return;
+      case 'trainSum': showHub(); return;
       case 'lesson': showMap(); return;
       case 'map': showMapList(); return;
       case 'guide': showGuideList(); return;
@@ -847,19 +848,102 @@
 
   /* ---------- Pantalla principal: dos secciones ---------- */
   function showHub() {
-    runCleanup(); closeSheet(); closeCelebrate();
-    ui.screen = 'hub'; ui.ch = null; ui.ls = null; ui.selCh = null;
+    runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
+    ui.screen = 'hub'; ui.ch = null; ui.ls = null; ui.selCh = null; ui.train = null;
     setTop('Tutorial', 'Inicio');
     clear(body); body.classList.remove('tut-fixed');
     body.scrollTop = 0;
 
-    const gs = guideStats(), ts = allTechStats();
+    const gs = guideStats(), ts = allTechStats(), pend = Math.max(0, ts.n - ts.done);
     body.append(h('div', { class: 'vlist tut-hub' },
       h('p', { class: 'tut-hub-intro', text: 'Elegí por dónde empezar.' }),
       vcard('Cómo jugar', 'Reglas, rutina segura y errores comunes', gs.done + ' / ' + gs.n + ' completadas',
         gs.n > 0 && gs.done === gs.n, () => showGuideList(), gs.pct, true),
       vcard('Técnicas', 'Rutas de maestría, técnica por técnica', ts.done + ' / ' + ts.n + ' técnicas',
-        ts.n > 0 && ts.done === ts.n, () => showMapList(), ts.pct, true)));
+        ts.n > 0 && ts.done === ts.n, () => showMapList(), ts.pct, true),
+      vcard('Entrenamiento', 'Una tanda de 5 ejercicios a tu medida', pend ? pend + ' por hacer' : 'Repaso libre',
+        false, () => startTraining(), undefined, true)));
+  }
+
+  /* ---------- Banner flotante (mismo componente .errx con barra de tiempo que las alertas de error de la partida) ---------- */
+  let bannerEl = null, bannerTxt = null, bannerT = 0;
+  function hideBanner() { clearTimeout(bannerT); if (bannerEl) bannerEl.hidden = true; }
+  function banner(msg) {
+    if (!root) return;
+    if (!bannerEl || !bannerEl.isConnected) {
+      bannerTxt = h('p');
+      bannerEl = h('section', { class: 'errx', role: 'status', 'aria-live': 'polite', hidden: true }, bannerTxt,
+        h('button', { class: 'chip', type: 'button', 'aria-label': 'Cerrar aviso', onclick: hideBanner, text: '✕' }),
+        h('i', { class: 'errx-bar', 'aria-hidden': 'true' }));
+      root.append(bannerEl);
+    }
+    bannerTxt.textContent = msg; bannerEl.hidden = false;
+    const bar = bannerEl.querySelector('.errx-bar');   // reinicia la barra desde cero
+    if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }
+    clearTimeout(bannerT);
+    bannerT = setTimeout(hideBanner, 4000);
+  }
+
+  /* ---------- Entrenamiento: tanda de 5 ejercicios ---------- */
+  const TRAIN_N = 5;
+  const lstat = (variant, ch, ls) => { const s = prog && prog.stats && prog.stats[lkey(variant, ch, ls)]; return { f: s ? s.f | 0 : 0, h: s ? s.h | 0 : 0 }; };
+  function bumpStat(variant, ch, ls, what) {
+    if (!prog.stats) prog.stats = {};
+    const k = lkey(variant, ch, ls), s = prog.stats[k] || (prog.stats[k] = { f: 0, h: 0 });
+    s[what] = (s[what] | 0) + 1; saveProg();
+  }
+  // Prioriza lecciones sin completar y las de más fallos/pistas; si no hay, sortea de variantes distintas.
+  function pickTraining() {
+    const pool = [];
+    VARIANTS.forEach(v => getChapters(v).forEach(ch => ch.lessons.forEach(ls => {
+      if (!ls.practice) return;
+      const st = lstat(v, ch, ls);
+      pool.push({ variant: v, ch: ch, ls: ls, base: (lstate(v, ch, ls) === 'done' ? 0 : 100) + 4 * st.f + 2 * st.h });
+    })));
+    const out = [], used = {};
+    while (out.length < TRAIN_N && pool.length) {
+      let bi = 0, bs = -1e9;
+      pool.forEach((p, i) => { const s = p.base - 3 * (used[p.variant] | 0) + Math.random() * 5; if (s > bs) { bs = s; bi = i; } });
+      const p = pool.splice(bi, 1)[0]; used[p.variant] = (used[p.variant] | 0) + 1; out.push(p);
+    }
+    return out;
+  }
+  function startTraining() {
+    prog = loadProg();
+    const items = pickTraining();
+    if (!items.length) { toast('Todavía no hay ejercicios disponibles.'); return; }
+    ui.train = { items: items, idx: 0, res: [] };
+    openTrainItem();
+  }
+  function openTrainItem() {
+    const t = ui.train, it = t.items[t.idx];
+    ui.variant = it.variant;
+    showPractice(it.ch, it.ls);
+  }
+  function trainAdvance(entry) {
+    const t = ui.train; if (!t) return;
+    t.res.push(entry);
+    t.idx++;
+    if (t.idx < t.items.length) openTrainItem(); else showTrainSummary();
+  }
+  function showTrainSummary() {
+    runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
+    const t = ui.train; ui.screen = 'trainSum';
+    setTop('Entrenamiento', 'Tutorial');
+    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
+    const done = t.res.filter(r => !r.skipped).length;
+    const fails = t.res.reduce((n, r) => n + r.f, 0), hints = t.res.reduce((n, r) => n + r.h, 0);
+    const list = h('div', { class: 'vlist tut-trainsum' },
+      h('h2', { class: 'tut-hub-intro', text: '¡Tanda terminada!' }),
+      h('p', { class: 'tut-hub-intro', text: done + ' de ' + t.res.length + ' ejercicios resueltos · ' + fails + (fails === 1 ? ' error' : ' errores') + ' · ' + hints + (hints === 1 ? ' pista' : ' pistas') }));
+    t.res.forEach((r, i) => list.append(h('div', { class: 'vcard tut-trow' + (r.skipped ? '' : ' done') },
+      h('span', { class: 'vc-main' }, h('b', { class: 'vc-t', text: (i + 1) + '. ' + r.title }),
+        h('small', { class: 'vc-s', text: r.skipped ? 'Saltado' : (r.f + ' errores · ' + r.h + ' pistas') })),
+      h('span', { class: 'vc-r', text: r.skipped ? '—' : '✓' }))));
+    list.append(h('div', { class: 'tut-cta' },
+      h('button', { class: 'chip primary', type: 'button', text: 'Otra tanda', onclick: () => startTraining() }),
+      h('button', { class: 'chip', type: 'button', text: 'Volver al menú', onclick: () => showHub() })));
+    body.append(list);
   }
 
   /* ---------- Cómo jugar ---------- */
@@ -1134,7 +1218,7 @@
     }
     body.append(renderExample(ls.example));
     if (ls.practice) {
-      body.append(h('div', { class: 'tut-cta' }, h('button', { class: 'chip primary', type: 'button', onclick: () => showPractice(ch, ls), text: 'Practicar ahora' })));
+      body.append(h('div', { class: 'tut-cta' }, h('button', { class: 'chip primary', type: 'button', onclick: () => { ui.train = null; showPractice(ch, ls); }, text: 'Practicar ahora' })));
     }
   }
 
@@ -1189,10 +1273,11 @@
 
   /* ---------- Práctica ---------- */
   function showPractice(ch, ls) {
-    runCleanup(); closeSheet(); closeCelebrate();
+    runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
     ui.screen = 'practice'; ui.ch = ch; ui.ls = ls;
     const pr = ls.practice;
-    setTop(ls.title, 'Lección');
+    const T = ui.train, tv = ui.variant, run = { f: 0, h: 0 };   // run: errores y pistas de este intento (para el resumen)
+    if (T) setTop('Ejercicio ' + (T.idx + 1) + ' / ' + T.items.length, 'Tutorial'); else setTop(ls.title, 'Lección');
     clear(body); body.classList.add('tut-fixed'); body.scrollTop = 0;
 
     const mode = pr.mode || 'classic';
@@ -1216,7 +1301,9 @@
     const goalTxt = h('span', { text: goal.text || 'Aplicá la técnica de esta lección.' });
     const progTxt = h('span', { class: 'tut-prog', hidden: true });
     const hintTxt = h('span', { class: 'tut-hint-txt', hidden: true, text: pr.hint || '' });
-    const goalBox = h('div', { class: 'tut-goal', role: 'status', 'aria-live': 'polite' }, h('b', { text: 'Objetivo' }), goalTxt, progTxt, hintTxt);
+    const goalBox = h('div', { class: 'tut-goal', role: 'status', 'aria-live': 'polite' }, h('b', { text: 'Objetivo' }),
+      T ? h('em', { class: 'tut-train-lbl', text: ls.title + ' · ' }) : null, goalTxt, progTxt, hintTxt,
+      T ? h('button', { class: 'chip tut-skip', type: 'button', text: 'Saltar', onclick: () => trainAdvance({ title: ls.title, f: run.f, h: run.h, skipped: true }) }) : null);
 
     const tools = h('nav', { class: 'tools tut-ptools', 'aria-label': 'Herramientas de práctica' });
     const mkTool = (act, ic, label) => h('button', { type: 'button', 'data-act': act }, h('span', { class: 'ic', text: ic }), h('span', { class: 'lbl', text: label }));
@@ -1270,7 +1357,7 @@
     }
     const sfx = n => { try { if (window.Sound) window.Sound.play(n); } catch (e) { /* ignorar */ } };
     const flash = (i, msg) => {
-      sfx('error');
+      sfx('error'); run.f++; bumpStat(tv, ch, ls, 'f');
       const c = b.cells[i];
       c.classList.add('tut-shake', 'err');
       setTimeout(() => { c.classList.remove('tut-shake', 'err'); }, 420);
@@ -1284,7 +1371,11 @@
       let ok = false;
       if (goal.place) ok = goal.place.some(x => P.val[x[0]] === x[1] && !given[x[0]]);
       if (!ok && goal.elimSets) ok = goal.elimSets.some(set => set.every(x => P.val[x[0]] === 0 && !P.notes[x[0]].has(x[1])));
-      if (ok) { P.won = true; sfx('win'); markDone(ui.variant, ch, ls); paintAll(); setTimeout(() => celebrate(ch, ls), 350); }
+      if (ok) {
+        P.won = true; sfx('win'); markDone(ui.variant, ch, ls); paintAll();
+        if (T) setTimeout(() => { if (ui.train === T && ui.screen === 'practice') trainAdvance({ title: ls.title, f: run.f, h: run.h, skipped: false }); }, 900);
+        else setTimeout(() => celebrate(ch, ls), 350);
+      }
     }
 
     function applyToCell(i, d) {
@@ -1306,7 +1397,7 @@
         const inGoal = goal.place && goal.place.some(x => x[0] === i && x[1] === d);
         if (goal.place ? !inGoal : !!goal.elimSets) {
           sfx('tap');
-          toast('Esa celda es correcta, pero primero encontrá dónde aplicar ' + ls.title + '.');
+          banner('Esa celda es correcta, pero primero encontrá dónde aplicar ' + ls.title + '.');
           return;
         }
         pushHist(i);
@@ -1342,7 +1433,7 @@
         if (!P.val[i] && !P.notes[i].size) return;
         pushHist(i); P.val[i] = 0; P.notes[i].clear(); paintAll();
       } else if (a === 'pencil') { P.pencil = !P.pencil; paintAll(); }
-      else if (a === 'hint') { P.hintOn = !P.hintOn; hintTxt.hidden = !P.hintOn || !pr.hint; paintAll(); }
+      else if (a === 'hint') { P.hintOn = !P.hintOn; if (P.hintOn) { run.h++; bumpStat(tv, ch, ls, 'h'); } hintTxt.hidden = !P.hintOn || !pr.hint; paintAll(); }
       else if (a === 'inputmode') {
         P.inputMode = P.inputMode === 'digit-first' ? 'cell-first' : 'digit-first';
         store.set(KEY_INPUT, P.inputMode); P.digit = null; paintAll();
@@ -1427,7 +1518,7 @@
       build();
       showHub();
     },
-    close() { runCleanup(); closeSheet(); closeCelebrate(); },
+    close() { runCleanup(); closeSheet(); closeCelebrate(); hideBanner(); ui.train = null; },
     back: onBack,
     progress() { return prog || loadProg(); }
   };
