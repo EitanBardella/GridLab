@@ -136,7 +136,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v67';
+  const BUILD = 'ui-v68';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3755,6 +3755,11 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v68', title: 'Horizontal: ronda final de pulido', items: [
+      'En móvil horizontal, Estadísticas y Desafío Diario llevan el título en la misma fila que los botones; el Tutorial, las listas de Técnicas y Cómo jugar usan dos columnas; y los selectores de dificultad y de partidas con amigos también.',
+      'Las barras de Duelo, Carrera y Co-op pasan a la columna derecha y dejan el tablero libre.',
+      'Práctica y Entrenamiento: tablero más grande, notas más legibles, dígitos que no tapan la suma de las jaulas Killer, modal de cierre que entra completo y Solución en dos columnas.'
+    ] },
     { v: 'ui-v67', title: 'Horizontal más cómodo y salida de la app', items: [
       'En móvil horizontal: el teclado de la práctica va en dos filas (5 + 4), Cómo jugar muestra reglas y pasos en dos columnas, y Estadísticas y Desafío Diario se reorganizan en dos columnas para evitar desplazamiento.',
       'Ajustes se cierra con una × arriba a la derecha, y al final hay un botón Salir de la app con confirmación.'

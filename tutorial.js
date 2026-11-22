@@ -858,7 +858,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     body.scrollTop = 0;
 
     const gs = guideStats(), ts = allTechStats();
-    body.append(h('div', { class: 'vlist tut-hub' },
+    body.append(h('div', { class: 'vlist tut-hub tut-vgrid' },
       h('p', { class: 'tut-hub-intro', text: 'Elegí por dónde empezar.' }),
       vcard('Cómo jugar', 'Reglas, rutina segura y errores comunes', gs.done + ' / ' + gs.n + ' completadas',
         gs.n > 0 && gs.done === gs.n, () => showGuideList(), gs.pct, true),
@@ -924,7 +924,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     ui.screen = 'trainLevel'; ui.train = null;
     setTop('Entrenamiento', 'Tutorial');
     clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
-    const list = h('div', { class: 'vlist tut-hub tut-levels' }, h('p', { class: 'tut-hub-intro', text: 'Elegí el nivel de tu tanda de 5 ejercicios.' }));
+    const list = h('div', { class: 'vlist tut-hub tut-vgrid tut-levels' }, h('p', { class: 'tut-hub-intro', text: 'Elegí el nivel de tu tanda de 5 ejercicios.' }));
     LEVELS.forEach(l => list.append(vcard(l.title, l.blurb, l.sub, false, () => startTraining(l.id), undefined, true)));
     body.append(list);
   }
@@ -1057,7 +1057,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     clear(body); body.classList.remove('tut-fixed');
     body.scrollTop = 0;
     const gs = guideStats();
-    const list = h('div', { class: 'vlist' }, h('p', { class: 'tut-hub-intro', text: gs.done + ' de ' + gs.n + ' guías completadas' }));
+    const list = h('div', { class: 'vlist tut-vgrid' }, h('p', { class: 'tut-hub-intro', text: gs.done + ' de ' + gs.n + ' guías completadas' }));
     GUIDE_VARIANTS.forEach(k => {
       const d = gdone(k);
       list.append(vcard(GUIDES[k].label, GUIDE_SUB[k] || '', d ? 'Completada ✓' : 'Pendiente', d, () => showGuide(k)));
@@ -1097,7 +1097,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
       });
     }
 
-    wrap.append(h('section', { class: 'tut-card' }, h('h3', { text: 'Las 3 reglas que siempre se aplican' }),
+    wrap.append(h('section', { class: 'tut-card rules' }, h('h3', { text: 'Las 3 reglas que siempre se aplican' }),
       h('ol', { class: 'tut-rules' }, g.rules.map(t => h('li', { text: t })))));
     wrap.append(h('section', { class: 'tut-card why' }, h('h3', { text: 'Tu rutina de resolución segura' }),
       h('ol', { class: 'tut-routine' }, g.routine.map((r, k) => h('li', null,
@@ -1166,7 +1166,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     clear(body); body.classList.remove('tut-fixed');
     body.scrollTop = 0;
     const ts = allTechStats();
-    const list = h('div', { class: 'vlist' }, h('p', { class: 'tut-hub-intro', text: ts.done + ' de ' + ts.n + ' técnicas completadas' }));
+    const list = h('div', { class: 'vlist tut-vgrid' }, h('p', { class: 'tut-hub-intro', text: ts.done + ' de ' + ts.n + ' técnicas completadas' }));
     VARIANTS.forEach(v => {
       const vs = varStats(v), nCh = getChapters(v).length;
       list.append(vcard(META[v].label, nCh + (nCh === 1 ? ' capítulo' : ' capítulos'),
