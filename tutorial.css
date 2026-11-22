@@ -187,7 +187,7 @@
 .tut-board.pencil { outline:3px dashed var(--accent); outline-offset:3px; }
 .tut-board .cell.hint { box-shadow:inset 0 0 0 3px var(--accent); }
 .tut-board .cell.user { color:var(--user); font-weight:600; }
-.tut-ptools { margin-top:2px; }
+.tut-ptools { margin-top:2px; grid-template-columns:repeat(5, minmax(0,1fr)); } /* 5 botones (sin Rewind): ocupan todo el ancho del tablero */
 .tut-pkeys { margin-bottom:2px; }
 .tut-ptools button.dfirst { background:var(--user); border-color:var(--user); color:var(--on-user); }
 

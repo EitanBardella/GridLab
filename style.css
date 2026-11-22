@@ -1324,3 +1324,10 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
   .app.game .keypad button { min-height:0; font-size:1.5rem; padding:0 0 11px; }
   .app.game .keypad .rem { bottom:2px; font-size:.62rem; }
 }
+
+/* ---------- Destello al completar fila, columna, caja o región (≈400 ms, con el acento de cada tema) ---------- */
+@keyframes unitFlash {
+  35%  { background-color:color-mix(in srgb, var(--accent) 38%, var(--bg)); transform:scale(1.04); z-index:2; }
+}
+.cell.unit-flash { animation:unitFlash .4s ease-out 1; }
+@media (prefers-reduced-motion:reduce) { .cell.unit-flash { animation:none; } }

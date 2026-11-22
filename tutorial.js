@@ -1233,7 +1233,7 @@
       if (goal.elimSets && goal.elimSets.length) {
         let best = null;
         goal.elimSets.forEach(set => {
-          const done = set.filter(x => P.val[x[0]] !== 0 || !P.notes[x[0]].has(x[1])).length;
+          const done = set.filter(x => P.val[x[0]] === 0 && !P.notes[x[0]].has(x[1])).length;
           if (!best || done / set.length > best.done / best.total) best = { done: done, total: set.length };
         });
         progTxt.hidden = false; progTxt.textContent = 'Candidatos eliminados: ' + best.done + ' / ' + best.total;
@@ -1283,7 +1283,7 @@
       if (P.won) return;
       let ok = false;
       if (goal.place) ok = goal.place.some(x => P.val[x[0]] === x[1] && !given[x[0]]);
-      if (!ok && goal.elimSets) ok = goal.elimSets.some(set => set.every(x => P.val[x[0]] !== 0 || !P.notes[x[0]].has(x[1])));
+      if (!ok && goal.elimSets) ok = goal.elimSets.some(set => set.every(x => P.val[x[0]] === 0 && !P.notes[x[0]].has(x[1])));
       if (ok) { P.won = true; sfx('win'); markDone(ui.variant, ch, ls); paintAll(); setTimeout(() => celebrate(ch, ls), 350); }
     }
 
@@ -1302,11 +1302,16 @@
         if (sol) ok = sol[i] === d;
         else { ok = true; peers[i].forEach(p => { if (P.val[p] === d) ok = false; }); if (ok && isNC && ncBlocked(P.val, i, d)) ok = false; }
         if (!ok) { flash(i, 'Ese número no encaja ahí. Probá otra deducción.'); return; }
+        // Validación estricta: una jugada correcta que no es la de la técnica no se coloca ni hace avanzar la lección.
+        const inGoal = goal.place && goal.place.some(x => x[0] === i && x[1] === d);
+        if (goal.place ? !inGoal : !!goal.elimSets) {
+          sfx('tap');
+          toast('Esa celda es correcta, pero primero encontrá dónde aplicar ' + ls.title + '.');
+          return;
+        }
         pushHist(i);
         sfx('correct');
         P.val[i] = d; P.notes[i].clear();
-        const inGoal = goal.place && goal.place.some(x => x[0] === i && x[1] === d);
-        if (goal.place && !inGoal) toast('Correcto, pero buscá la técnica de esta lección.');
       }
       paintAll(); checkWin();
     }

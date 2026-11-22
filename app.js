@@ -135,7 +135,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v56';
+  const BUILD = 'ui-v57';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -146,7 +146,7 @@
   }
   let keyMemo = { g: null, rem: [] };       // restantes por dígito en el render anterior (detecta cuándo se agota uno)
   let pendingSfx = null;                    // sonido de la jugada en curso; afterChange decide el definitivo
-  let unitsMemo = { g: null, n: 0 };        // filas/columnas/cajas completas y correctas (para el sonido de "completaste")
+  let unitsMemo = { g: null, k: new Set() };        // filas/columnas/cajas completas y correctas (para el sonido de "completaste")
   // Enlaza un evento a un id; si el id no existe lo avisa en consola (antes el ?. lo ocultaba).
   const on = (id, ev, fn) => {
     const el = document.getElementById(id);
@@ -380,9 +380,11 @@
   }
 
   // Filas, columnas y cajas completas y correctas.
-  function unitsDone() {
+  function unitsDone() { return unitMap().size; }
+  // Mapa clave de unidad ('r3', 'c0', 'b5') → índices de sus 9 celdas, solo de las completas y correctas.
+  function unitMap() {
     const ok = (r, c) => G.board[r][c] && G.board[r][c] === G.solution[r][c];
-    let n = 0;
+    const done = new Map();
     let regCells = null;
     if (G.mode === 'jigsaw' && Array.isArray(G.regions)) {
       regCells = Array.from({ length: 9 }, () => []);
@@ -390,26 +392,48 @@
     }
     for (let a = 0; a < 9; a++) {
       let row = true, col = true, box = true;
+      const bc = [];
       for (let b = 0; b < 9; b++) {
         if (!ok(a, b)) row = false;
         if (!ok(b, a)) col = false;
         if (regCells) {
-          const q = regCells[a][b];
+          const q = regCells[a][b]; bc.push(q);
           if (!ok(Math.floor(q / 9), q % 9)) box = false;
-        } else if (!ok(Math.floor(a / 3) * 3 + Math.floor(b / 3), (a % 3) * 3 + (b % 3))) box = false;
+        } else {
+          const br = Math.floor(a / 3) * 3 + Math.floor(b / 3), bcol = (a % 3) * 3 + (b % 3);
+          bc.push(br * 9 + bcol);
+          if (!ok(br, bcol)) box = false;
+        }
       }
-      n += (row ? 1 : 0) + (col ? 1 : 0) + (box ? 1 : 0);
+      if (row) done.set('r' + a, Array.from({ length: 9 }, (_, b) => a * 9 + b));
+      if (col) done.set('c' + a, Array.from({ length: 9 }, (_, b) => b * 9 + a));
+      if (box) done.set('b' + a, bc);
     }
-    return n;
+    return done;
+  }
+
+  // Destello suave sobre las 9 celdas de una unidad recién completada (se aplica tras render()).
+  let pendingFlash = null;
+  function flashUnits() {
+    const cells = pendingFlash; pendingFlash = null;
+    if (!cells || !cells.size) return;
+    const boardEl = $('#board'); if (!boardEl) return;
+    const els = [];
+    cells.forEach(i => { const el = boardEl.querySelector('.cell[data-i="' + i + '"]'); if (el) { el.classList.remove('unit-flash'); els.push(el); } });
+    void boardEl.offsetWidth; // reinicia la animación si ya estaba corriendo
+    els.forEach(el => { el.classList.add('unit-flash'); setTimeout(() => el.classList.remove('unit-flash'), 480); });
   }
 
   // Un único sonido por jugada: victoria > derrota > unidad completada > el de la propia acción (nota, acierto, error).
   function sfxFor(defeat) {
     const fromAction = pendingSfx; pendingSfx = null;
-    let units = unitsMemo.n;
-    try { units = G.solution ? unitsDone() : 0; } catch (e) { units = 0; }
-    const grew = unitsMemo.g === G && units > unitsMemo.n;
-    unitsMemo = { g: G, n: units };
+    let map = new Map();
+    try { map = G.solution ? unitMap() : map; } catch (e) { map = new Map(); }
+    const fresh = new Set();
+    if (unitsMemo.g === G) map.forEach((cells, k) => { if (!unitsMemo.k.has(k)) cells.forEach(i => fresh.add(i)); });
+    const grew = fresh.size > 0;
+    if (grew && !G.won) pendingFlash = fresh;
+    unitsMemo = { g: G, k: new Set(map.keys()) };
     if (G.won) return 'win';
     if (defeat) return 'lose';
     if (fromAction === 'error') return 'error';
@@ -429,6 +453,7 @@
     sfx(sfxFor(defeat));
     if (inLive()) sendLiveProg(); else if (inRace()) raceReport();
     render(); persist();
+    flashUnits();
     if (defeat) showLose();
   }
 
@@ -3677,6 +3702,11 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v57', title: 'Destello y práctica más estricta', items: [
+      'Al completar una fila, columna, caja o región, esas 9 celdas hacen un destello breve con el color de tu tema (se desactiva con "reducir movimiento").',
+      'En la práctica de Técnicas, resolver otra celda ya no aprueba la lección: hay que aplicar la técnica enseñada, y un aviso te lo recuerda.',
+      'La barra de herramientas de la práctica ocupa todo el ancho del tablero.'
+    ] },
     { v: 'ui-v56', title: 'Horizontal más equilibrado', items: [
       'En móvil horizontal el tablero crece y el panel de controles se acota: herramientas y teclado quedan compactos en vez de estirarse a lo ancho.'
     ] },
