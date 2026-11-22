@@ -614,6 +614,7 @@
     for (let i = 2; i < arguments.length; i++) { const c = arguments[i]; if (c == null) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
     return e;
   }
+const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
   const clear = el => { while (el.firstChild) el.removeChild(el.firstChild); };
   const pad2 = n => String(n).padStart(2, '0');
   const digits81 = str => { const a = []; for (let i = 0; i < 81; i++) { const c = String(str || '').charAt(i); a.push(c >= '1' && c <= '9' ? +c : 0); } return a; };
@@ -1595,7 +1596,7 @@
       }
     });
     const onKey = e => {
-      if (ui.screen !== 'practice' || P.won || sheetEl || celebEl) return;
+      if (ui.screen !== 'practice' || P.won || sheetEl || celebEl || modalOpen()) return;   // con Ajustes (u otro modal) abierto, el teclado no toca el tablero
       if (e.key >= '1' && e.key <= '9') {
         const d = +e.key;
         if (P.inputMode === 'digit-first') { P.digit = P.digit === d ? null : d; paintAll(); }
@@ -1681,7 +1682,7 @@
 
   // Escape: cierra hoja/celebración o retrocede una pantalla (solo con el tutorial visible).
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape' || !root || root.hidden) return;
+    if (e.key !== 'Escape' || !root || root.hidden || modalOpen()) return;
     if (sheetEl) { closeSheet(); ui.selCh = null; showMapKeepScroll(); }
     else if (celebEl) closeCelebrate();
     else onBack();

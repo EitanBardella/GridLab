@@ -2,7 +2,7 @@
   "id": "./",
   "name": "GridLab Sudoku",
   "short_name": "GridLab",
-  "description": "Sudoku Clásico, Killer, Diagonal y Anti-Caballo offline",
+  "description": "Sudoku offline: Clásico, Killer, Diagonal, Anti-Caballo, Sin Consecutivos y Jigsaw",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

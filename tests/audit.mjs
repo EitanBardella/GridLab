@@ -28,9 +28,18 @@ section('1. Sincronización de versión');
   const bApp = (app.match(/const BUILD\s*=\s*'([^']+)'/) || [])[1];
   cache && /\d/.test(cache) ? ok('CACHE_NAME = ' + cache) : fail('CACHE_NAME ausente o sin número en sw.js');
   bSw && bSw === bApp ? ok('BUILD coincide en sw.js y app.js (' + bSw + ')') : fail('BUILD distinto: sw.js=' + bSw + ' app.js=' + bApp);
-  // Los ?v= de los archivos propios deben usar el BUILD (los de terceros y los datos del tutorial tienen su propia marca).
-  const own = ['style.css', 'tutorial.css', 'sound.js', 'engine.js', 'killer-engine.js', 'duel.js', 'coop.js', 'race.js', 'tutorial-transform.js', 'app.js'];
-  if (!sw.includes("'./tutorial-transform.js'")) fail('tutorial-transform.js no está en ASSETS de sw.js');
+  // Los ?v= de los archivos propios deben usar el BUILD (solo el PeerJS vendorizado tiene su propia marca).
+  const dataFiles = fs.readdirSync(root).filter(f => /^tutorial-data.*\.js$/.test(f));
+  const own = ['style.css', 'tutorial.css', 'sound.js', 'engine.js', 'killer-engine.js', 'duel.js', 'coop.js', 'race.js', 'tutorial-transform.js', 'tutorial.js', 'app.js'].concat(dataFiles);
+  // Precaché: todo lo que index.html carga (salvo PeerJS, opcional), más el worker, el manifest y los íconos, debe estar en ASSETS.
+  const assetsBlock = (sw.match(/const ASSETS = \[([\s\S]*?)\];/) || [])[1] || '';
+  const inAssets = f => assetsBlock.includes("'./" + f + "'");
+  own.concat(['index.html', 'worker.js', 'manifest.json', 'favicon.svg', 'favicon.png', 'icon-192.png', 'icon-512.png']).forEach(f => { if (!inAssets(f)) fail(f + ' no está en ASSETS de sw.js (no funcionaría offline)'); });
+  dataFiles.forEach(f => { if (new RegExp("OPTIONAL_ASSETS[\s\S]*?'\./" + f.replace('.', '\.') + "'").test(sw.split('OPTIONAL_ASSETS')[1] || '')) fail(f + ' sigue como opcional en sw.js'); });
+  try {
+    const man = JSON.parse(read('manifest.json'));
+    ['Clásico', 'Killer', 'Diagonal', 'Anti-Caballo', 'Sin Consecutivos', 'Jigsaw'].forEach(m => { if (!(man.description || '').includes(m)) fail('manifest.json: la descripción no menciona ' + m); });
+  } catch (e) { fail('manifest.json inválido: ' + e.message); }
   own.forEach(f => {
     const m = html.match(new RegExp('(?:href|src)="' + f.replace('.', '\\.') + '\\?v=([^"]+)"'));
     if (!m) fail(f + ' no tiene ?v= en index.html');

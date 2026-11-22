@@ -1,6 +1,6 @@
-const CACHE_NAME = 'sudoku-v77';
+const CACHE_NAME = 'sudoku-v78';
 // Versión que ve el jugador en el aviso de actualización. Mantenerla igual que BUILD en app.js.
-const BUILD = 'ui-v65';
+const BUILD = 'ui-v66';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [
@@ -18,6 +18,10 @@ const ASSETS = [
   './tutorial.css',
   './tutorial.js',
   './tutorial-transform.js',
+  './tutorial-data-classic.js',
+  './tutorial-data-killer.js',
+  './tutorial-data-variants.js',
+  './tutorial-data-variants2.js',
   './manifest.json',
   './favicon.svg',
   './favicon.png',
@@ -26,13 +30,9 @@ const ASSETS = [
 ];
 
 // Solo el modo Co-op depende de PeerJS: si falta el archivo, el resto de la app se instala igual.
-// Los archivos de datos del tutorial también son opcionales: se cachean en cuanto existan.
+// (Los datos de las técnicas del Tutorial son obligatorios: están en ASSETS para que las 71 lecciones funcionen offline.)
 const OPTIONAL_ASSETS = [
-  './peerjs.min.js',
-  './tutorial-data-classic.js',
-  './tutorial-data-killer.js',
-  './tutorial-data-variants.js',
-  './tutorial-data-variants2.js'
+  './peerjs.min.js'
 ];
 
 // Avisa a todas las ventanas abiertas (incluso las que todavía no controla este worker).

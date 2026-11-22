@@ -165,7 +165,7 @@ button:disabled { cursor:default; }
   font-size:2.5rem; font-weight:700; line-height:1; letter-spacing:-.01em; }
 .sec-label { margin:20px 0 10px; font-size:.7rem; font-weight:800; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); }
 .home-screen > .m-list { margin-top:0; }
-.mode-list { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.mode-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
 .mode-list button { min-height:92px; padding:12px 14px; flex-direction:column; align-items:flex-start; justify-content:space-between;
   gap:6px; background:var(--panel); box-shadow:var(--sh2); }
 .mode-list b { font-family:var(--font-head); font-size:1.2rem; font-weight:700; }
@@ -1385,3 +1385,13 @@ html.big-nums .tut-board .nt { font-size:3.3cqw; }
 /* El velo es translúcido: las notas (z-index propio) quedan siempre por encima y legibles. */
 .cell.hint .nt, .cell.hint .tv { position:relative; z-index:1; }
 .cell.hint .nt { position:absolute; }
+
+/* ---------- Selector de modos: ninguna columna se corta en 360 px (títulos largos con fuente fluida y quiebre de palabra) ---------- */
+.mode-list button { min-width:0; padding-left:12px; padding-right:12px; }
+.mode-list button b { max-width:100%; font-size:clamp(.78rem, 3.8vw, 1.05rem); letter-spacing:.04em; overflow-wrap:anywhere; hyphens:auto; }
+.mode-list button small { max-width:100%; overflow-wrap:anywhere; }
+
+/* ---------- Pantallas con lista (Inicio, Estadísticas, Diario): el contenedor con scroll ocupa todo el ancho, así deslizar en los márgenes también desplaza ---------- */
+.app.home { max-width:none; margin:0;
+  padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - 520px) / 2 + 10px));
+  padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - 520px) / 2 + 10px)); }

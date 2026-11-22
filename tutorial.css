@@ -483,3 +483,38 @@
 [data-theme="paper"] .tut-node .chk circle { fill:var(--accent); stroke:var(--bg); stroke-width:2; }
 [data-theme="paper"] .tut-node .chk path { stroke:var(--on-accent); }
 .tut-node.st-locked .pp-seal { stroke-dasharray:5 4; fill:none; }
+
+/* =====================================================================
+   Tutorial: scroll en todo el ancho + lectura cómoda en horizontal + práctica en dos columnas
+   ===================================================================== */
+/* El contenedor ocupa el 100 % del ancho y el contenido se centra con relleno lateral: se desliza también desde los márgenes. */
+.tut-app { --tut-w:520px; max-width:none; margin:0; padding-left:0; padding-right:0; }
+.tut-top, .tut-body {
+  padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--tut-w)) / 2 + 10px));
+  padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--tut-w)) / 2 + 10px)); }
+
+@media (orientation:landscape) and (max-height:520px) {
+  /* Lectura: teoría y listas más anchas */
+  .tut-app { --tut-w:680px; }
+
+  /* Práctica y Entrenamiento: tablero a la izquierda; Objetivo/Saltar, herramientas y teclado 3×3 a la derecha, sin scroll */
+  .tut-app:has(.tut-body.tut-fixed) { --tut-w:2400px; }
+  .tut-body.tut-fixed { --bs:calc(100dvh - 86px - env(safe-area-inset-bottom)); display:grid; overflow:hidden; padding-bottom:0;
+    grid-template-columns:var(--bs) minmax(0, 340px); grid-template-rows:auto auto auto minmax(0, 1fr); column-gap:14px; row-gap:6px;
+    justify-content:center; align-content:start; }
+  .tut-body.tut-fixed > .tut-pstage { grid-column:1; grid-row:1 / -1; width:var(--bs); height:var(--bs); align-self:start; }
+  .tut-body.tut-fixed .tut-pstage .tut-board { width:100%; max-width:none; }
+  .tut-body.tut-fixed > .tut-actions { grid-column:2; grid-row:1; margin:0; }
+  .tut-body.tut-fixed > .tut-goal { grid-column:2; grid-row:2; padding:4px 8px; font-size:.74rem; line-height:1.25; max-height:112px; overflow:auto; }
+  .tut-body.tut-fixed > .tut-goal.coll.open { max-height:112px; }
+  .tut-body.tut-fixed > .tut-goal b { font-size:.62rem; margin-bottom:0; }
+  .tut-body.tut-fixed > .tut-ptools { grid-column:2; grid-row:3; margin:0; gap:4px; }
+  .tut-body.tut-fixed > .tut-ptools button { min-height:0; height:38px; font-size:.62rem; }
+  .tut-body.tut-fixed > .tut-ptools .ic { font-size:1rem; }
+  .tut-body.tut-fixed > .tut-pkeys { grid-column:2; grid-row:4; margin:0; gap:4px; grid-template-columns:repeat(3, minmax(0, 1fr)); grid-template-rows:repeat(3, minmax(0, 1fr)); }
+  .tut-body.tut-fixed > .tut-pkeys button { min-height:0; font-size:1.25rem; padding:0 0 9px; }
+  .tut-body.tut-fixed > .tut-pkeys .rem { bottom:1px; font-size:.56rem; }
+  .tut-actions .chip { min-height:30px; }
+}
+/* El mapa de capítulos conserva su ancho natural aunque la lectura sea más ancha en horizontal */
+.tut-map { max-width:520px; }

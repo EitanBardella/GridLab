@@ -136,7 +136,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v65';
+  const BUILD = 'ui-v66';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -985,7 +985,7 @@
     });
 
     boardEl?.classList.toggle('pencil', pencil);
-    document.body.classList.toggle('pencil-mode', pencil);
+    document.body.classList.toggle('pencil-mode', pencil && view === 'game');
     const bp = $('#btnPencil');
     if (bp) { bp.classList.toggle('on', pencil); bp.setAttribute('aria-pressed', String(pencil)); }
     setText('#pencilTag', pencil ? 'ON' : 'OFF');
@@ -1023,6 +1023,7 @@
 
   function showView(v) {
     view = v; schedulePre();
+    if (v !== 'game') document.body.classList.remove('pencil-mode');   // el modo Notas del tablero no debe teñir otras pantallas (teclado del Tutorial)
     // Una sola vista de página completa visible a la vez.
     [['home', 'home-view'], ['game', 'game-view'], ['stats', 'stats-view'], ['daily', 'daily-view']].forEach(p => {
       const el = $('#' + p[1]); if (el) { el.hidden = v !== p[0]; if (v === p[0] && p[0] !== 'game') el.scrollTop = 0; }
@@ -1036,6 +1037,7 @@
   function openTutorial() {
     const t = $('#tutorial-view'); if (!t) return;
     const h = $('#home-view'); if (h) h.hidden = true;
+    document.body.classList.remove('pencil-mode');
     view = 'tutorial';   // el cronómetro y los atajos de teclado solo actúan con view === 'game'
     t.hidden = false;
     if (window.Tutorial) window.Tutorial.open(t);
@@ -3738,6 +3740,12 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v66', title: 'Pulido final: horizontal, modos y offline', items: [
+      'En el Tutorial, las Técnicas y las Estadísticas se puede deslizar desde cualquier parte de la pantalla, también desde los márgenes laterales, y en horizontal la lectura aprovecha más ancho.',
+      'Práctica y Entrenamiento en móvil horizontal pasan a dos columnas sin scroll: tablero a la izquierda; Objetivo, herramientas y teclado 3×3 a la derecha.',
+      'El selector de modos ya no se corta en pantallas de 360 px, y el modo Notas ya no tiñe el teclado del Tutorial.',
+      'Las 71 técnicas quedan garantizadas offline y la descripción de la app menciona los 6 modos.'
+    ] },
     { v: 'ui-v65', title: 'Listón en escarapela (Papel)', items: [
       'En el tema Papel, el listón del sello completado se abre en diagonal simétrica como una escarapela y deja libre el centro por donde sale el camino al siguiente capítulo.'
     ] },
