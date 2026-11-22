@@ -98,7 +98,7 @@
 .tut-node.done .lbl-sub { fill:var(--tc); font-weight:700; }
 
 /* ---------- Hoja inferior con las lecciones del capítulo ---------- */
-.tut-sheet-wrap { position:fixed; inset:0; z-index:12; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.45); }
+.tut-sheet-wrap { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.45); }
 .tut-sheet { width:100%; max-width:520px; max-height:calc(100dvh - 16px); overflow-y:auto; overscroll-behavior:contain;
   background:var(--bg); border-radius:18px 18px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px);
   box-shadow:0 -6px 24px var(--shadow); animation:tutSheet .22s ease-out; }
@@ -192,7 +192,7 @@
 .tut-ptools button.dfirst { background:var(--user); border-color:var(--user); color:var(--on-user); }
 
 /* ---------- Celebración de técnica superada ---------- */
-.tut-celebrate { position:fixed; inset:0; z-index:14; display:flex; align-items:center; justify-content:center; padding:20px;
+.tut-celebrate { position:fixed; inset:0; z-index:105; display:flex; align-items:center; justify-content:center; padding:20px;
   background:rgba(0,0,0,.55); overflow:hidden; animation:tutFade .25s ease-out; }
 @keyframes tutFade { from { opacity:0; } to { opacity:1; } }
 .tut-ccard { position:relative; z-index:1; width:100%; max-width:380px; padding:24px 20px 18px; border-radius:20px; background:var(--bg);
@@ -493,78 +493,43 @@
   padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--tut-w)) / 2 + 10px));
   padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--tut-w)) / 2 + 10px)); }
 
-@media (orientation:landscape) and (max-height:520px) {
-  /* Lectura: teoría y listas más anchas */
-  .tut-app { --tut-w:680px; }
-
-  /* Práctica y Entrenamiento: tablero a la izquierda; Objetivo/Saltar, herramientas y teclado 3×3 a la derecha, sin scroll */
-  .tut-app:has(.tut-body.tut-fixed) { --tut-w:2400px; }
-  .tut-body.tut-fixed { --bs:calc(100dvh - 86px - env(safe-area-inset-bottom)); display:grid; overflow:hidden; padding-bottom:0;
-    grid-template-columns:var(--bs) minmax(0, 340px); grid-template-rows:auto auto auto minmax(0, 1fr); column-gap:14px; row-gap:6px;
-    justify-content:center; align-content:start; }
-  .tut-body.tut-fixed > .tut-pstage { grid-column:1; grid-row:1 / -1; width:var(--bs); height:var(--bs); align-self:start; }
-  .tut-body.tut-fixed .tut-pstage .tut-board { width:100%; max-width:none; }
-  .tut-body.tut-fixed > .tut-actions { grid-column:2; grid-row:1; margin:0; }
-  .tut-body.tut-fixed > .tut-goal { grid-column:2; grid-row:2; padding:4px 8px; font-size:.74rem; line-height:1.25; max-height:112px; overflow:auto; }
-  .tut-body.tut-fixed > .tut-goal.coll.open { max-height:112px; }
-  .tut-body.tut-fixed > .tut-goal b { font-size:.62rem; margin-bottom:0; }
-  .tut-body.tut-fixed > .tut-ptools { grid-column:2; grid-row:3; margin:0; gap:4px; }
-  .tut-body.tut-fixed > .tut-ptools button { min-height:0; height:38px; font-size:.62rem; }
-  .tut-body.tut-fixed > .tut-ptools .ic { font-size:1rem; }
-  .tut-body.tut-fixed > .tut-pkeys { grid-column:2; grid-row:4; margin:0; gap:4px; grid-template-columns:repeat(3, minmax(0, 1fr)); grid-template-rows:repeat(3, minmax(0, 1fr)); }
-  .tut-body.tut-fixed > .tut-pkeys button { min-height:0; font-size:1.25rem; padding:0 0 9px; }
-  .tut-body.tut-fixed > .tut-pkeys .rem { bottom:1px; font-size:.56rem; }
-  .tut-actions .chip { min-height:30px; }
-}
-/* El mapa de capítulos conserva su ancho natural aunque la lectura sea más ancha en horizontal */
-.tut-map { max-width:520px; }
-
-/* =====================================================================
-   Horizontal móvil: teclado de práctica en 5 + 4 y "Cómo jugar" en dos columnas
-   ===================================================================== */
-@media (orientation:landscape) and (max-height:520px) {
-  /* Teclado 1–9 en dos filas (5 + 4, centradas) de 38 px mínimo: nunca se aplasta, con la consigna abierta o cerrada */
-  .tut-body.tut-fixed > .tut-goal, .tut-body.tut-fixed > .tut-goal.coll.open { max-height:100px; }
-  .tut-body.tut-fixed > .tut-pkeys { grid-template-columns:repeat(10, minmax(0, 1fr)); grid-template-rows:none; grid-auto-rows:38px; align-self:start; gap:4px; }
-  .tut-body.tut-fixed > .tut-pkeys button { grid-column:span 2; min-height:38px; height:38px; font-size:1.2rem; padding:0 0 10px; }
-  .tut-body.tut-fixed > .tut-pkeys button:nth-child(6) { grid-column:2 / span 2; }
-  .tut-body.tut-fixed > .tut-pkeys .rem { bottom:2px; font-size:.58rem; }
-}
-
-/* Horizontal: la consigna plegable (Entrenamiento) debe seguir replegándose pese a las reglas compactas */
-@media (orientation:landscape) and (max-height:520px) {
-  .tut-body.tut-fixed > .tut-goal.coll:not(.open) { max-height:0; padding-top:0; padding-bottom:0; margin-bottom:-6px; border-top-width:0; border-bottom-width:0; opacity:0; }
-}
-
-/* =====================================================================
-   Horizontal móvil (ronda final): hub y listas en 2 columnas, Cómo jugar, práctica, modal y Solución
-   ===================================================================== */
-/* Killer: el dígito baja un poco para no tapar la suma de la jaula (tableros del Tutorial) */
-.tut-board[data-mode="killer"] .cell { line-height:1; padding-top:2cqw; box-sizing:border-box; }
-.tut-board[data-mode="killer"] .cage-sum { z-index:2; background:var(--cellbg, var(--bg)); background:inherit; }
-
-@media (orientation:landscape) and (max-height:520px) {
-  /* Hub, Técnicas y Cómo jugar: tarjetas en 2 columnas, con aire abajo para que la última fila no quede cortada */
-  .tut-vgrid.vlist { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 12px; padding-bottom:28px; }
+@media (orientation:landscape) and (max-height:520px) { .tut-app { --tut-w:680px; } }
+/* Tablets y escritorio en horizontal: lectura más ancha y listas/ejemplos en 2 columnas. El tablero de práctica va siempre centrado arriba. */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  .tut-app { --tut-w:980px; }
+  .tut-vgrid.vlist { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 14px; padding-bottom:28px; }
   .tut-vgrid > .tut-hub-intro { grid-column:1 / -1; }
   .tut-vgrid > .vcard { margin:0; }
+  .tut-vgrid .vcard { grid-template-columns:minmax(0, 1fr); row-gap:3px; padding:10px 14px; min-height:0; }
+  .tut-vgrid .vcard .vc-t { font-size:1rem; }
+  .tut-vgrid .vcard .vc-r { grid-column:1; grid-row:2; justify-self:start; white-space:normal; font-size:.74rem; }
+  .tut-vgrid .vcard .vc-main { grid-row:1; }
+  .tut-vgrid .vcard .vc-bar { grid-row:3; margin-top:4px; }
 
-  /* Detalle de Cómo jugar: introducción a ancho completo y, debajo, reglas | rutina lado a lado */
-  .tut-guide { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); column-gap:12px; align-items:start; }
+  .tut-guide { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; align-items:start; }
+  .tut-guide > * { margin:0; }
   .tut-guide > * { grid-column:1 / -1; }
   .tut-guide > .tut-card.rules { grid-column:1; }
   .tut-guide > .tut-card.why { grid-column:2; }
   .tut-guide > .tut-card.rules, .tut-guide > .tut-card.why { height:100%; align-self:stretch; }
 
-  /* Práctica / Entrenamiento: encabezado más bajo y tablero de ~300 px, con notas más legibles */
-  .tut-app { gap:4px; padding-top:max(4px, env(safe-area-inset-top)); padding-bottom:4px; }
-  .tut-app .tut-top, [data-theme="retro"] .tut-app .tut-top { margin-top:2px; padding-bottom:0; }
-  .tut-top .chip { min-height:36px; }
-  .tut-body.tut-fixed { --bs:calc(100dvh - 58px - env(safe-area-inset-bottom)); }
-  .tut-body.tut-fixed .tut-board .nt { font-size:3.7cqw; font-weight:600; color:var(--ink); }
-  html.big-nums .tut-body.tut-fixed .tut-board .nt { font-size:4.1cqw; }
-  .tut-body.tut-fixed .tut-board .nt i.x { font-weight:800; }
 
+  /* Solución: el tablero resuelto va arriba (mismo tamaño que el razonamiento paso a paso) y el texto centrado debajo; el botón inferior sobra porque la barra fija ya trae ← Resumen */
+  .tut-trainsol .tut-solcard { display:flex; flex-direction:column; align-items:center; }
+  .tut-trainsol .tut-solcard > h3 { order:0; align-self:stretch; }
+  .tut-trainsol .tut-solcard > .tut-solboard { order:1; width:min(100%, 400px); max-width:400px; margin:0 auto 10px; }
+  .tut-trainsol .tut-solcard > .tut-solboard .tut-board { width:100%; max-width:none; }
+  .tut-trainsol .tut-solcard > p { order:2; max-width:560px; margin:4px auto 0; text-align:center; }
+  .tut-trainsol .tut-solcard > .tut-solback { display:none; }
+}
+/* El mapa de capítulos conserva su ancho natural aunque la lectura sea más ancha en horizontal */
+.tut-map { max-width:520px; }
+
+/* Killer: el dígito baja un poco para no tapar la suma de la jaula (tableros del Tutorial) */
+.tut-board[data-mode="killer"] .cell { line-height:1; padding-top:2cqw; box-sizing:border-box; }
+.tut-board[data-mode="killer"] .cage-sum { z-index:2; background:var(--cellbg, var(--bg)); background:inherit; }
+
+@media (orientation:landscape) and (max-height:520px) {
   /* Modal de cierre de Entrenamiento: entra completo (icono dentro de la tarjeta, botones en fila) */
   .tut-rmodal { padding:8px 16px; }
   .tut-rmodal .tut-rcard { max-width:560px; padding:10px 16px 12px; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); column-gap:8px; align-items:center; }
@@ -572,13 +537,8 @@
   .tut-rmodal .tut-rcard > h2 { grid-column:1 / -1; margin:0 0 2px; font-size:1.15rem; }
   .tut-rmodal .tut-rcard > p { grid-column:1 / -1; margin:0 0 6px; font-size:.82rem; }
   .tut-rmodal .tut-rcard > .chip { margin-top:0; min-height:40px; font-size:.82rem; padding:0 6px; }
-
-  /* Solución del Entrenamiento: paso a paso (tablero ~265 px) a la izquierda; razonamiento y navegación a la derecha */
 }
 
-/* =====================================================================
-   Horizontal móvil (ronda de pulido 5): encabezado, práctica, Solución y lecciones
-   ===================================================================== */
 .tut-gbody { display:block; }
 .tut-goal .tut-prog { margin-top:6px; }
 
@@ -590,46 +550,70 @@
     right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--tut-w)) / 2 + 10px)); }
   [data-theme="swiss"] .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top::after { background:#000; height:1px; }
   [data-theme="retro"] .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top::after { background:var(--ink); height:3px; }
+}
 
-  /* Objetivo: el texto largo se desplaza dentro de .tut-gbody; la barra de 7,5 s queda fija en el contenedor exterior */
-  .tut-body.tut-fixed > .tut-goal, .tut-body.tut-fixed > .tut-goal.coll.open { overflow:hidden; position:relative; padding:4px 8px 6px; max-height:104px; }
-  .tut-body.tut-fixed > .tut-goal .tut-gbody { max-height:92px; overflow:auto; padding-bottom:4px; }
-  .tut-body.tut-fixed > .tut-goal .tut-prog { margin-top:6px; }
-
-  /* Notas dentro de la celda (3 filas siempre visibles) y Killer sin tapar la suma */
+@media (orientation:landscape) and (max-height:520px) {
+  /* Notas dentro de la celda y Killer sin tapar la suma */
   .tut-body.tut-fixed .tut-board .nt { font-size:2.95cqw; line-height:1; font-weight:600; color:var(--ink); }
   .tut-body.tut-fixed .tut-board .nt i { line-height:1; }
   html.big-nums .tut-body.tut-fixed .tut-board .nt { font-size:3.15cqw; }
   .tut-board[data-mode="killer"] .cell { padding-top:8px; }
   .tut-board[data-mode="killer"] .cage-sum { font-size:8px; background:inherit; z-index:2; }
-
-  /* Ejemplo práctico (lecciones, guías y Solución): tablero de 250 px a la izquierda; explicación y controles a la derecha */
-  .tut-ex { display:grid; grid-template-columns:250px minmax(0, 1fr); column-gap:14px; align-items:start; }
-  .tut-ex > h3 { grid-column:1 / -1; }
-  .tut-ex > .tut-board { grid-column:1; grid-row:2 / span 3; width:250px; max-width:250px; }
-  .tut-ex > .tut-cap, .tut-ex > .tut-ctrl, .tut-ex > .tut-dots { grid-column:2; }
-  /* Controles: Anterior y Siguiente en una sola línea; "Paso X / Y" centrado debajo de ambos */
-  .tut-ex .tut-ctrl { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px 8px; }
-  .tut-ex .tut-ctrl > :nth-child(1) { grid-column:1; grid-row:1; }
-  .tut-ex .tut-ctrl > :nth-child(3) { grid-column:2; grid-row:1; }
-  .tut-ex .tut-ctrl > :nth-child(2) { grid-column:1 / -1; grid-row:2; text-align:center; }
-  .tut-ex .tut-ctrl .chip, .tut-ex .tut-ctrl button { white-space:nowrap; }
-
-  /* Tarjeta "En el ejercicio": tablero resuelto de ~255 px a la izquierda; explicación y Volver al resumen a la derecha */
-  .tut-trainsol .tut-solcard { display:grid; grid-template-columns:255px minmax(0, 1fr); column-gap:14px; align-items:center; }
-  .tut-trainsol .tut-solcard > .tut-solboard { grid-column:1; grid-row:1 / span 3; max-width:255px; margin:0; }
-  .tut-trainsol .tut-solcard > h3, .tut-trainsol .tut-solcard > p, .tut-trainsol .tut-solcard > .tut-solback { grid-column:2; }
-  .tut-trainsol .tut-solcard > .tut-solback { margin-top:8px; width:100%; }
 }
 .tut-solcard > .tut-solback { margin-top:10px; width:100%; }
-/* Hub y listas en horizontal: título, subtítulo, meta y barra apilados igual en todas las tarjetas (sin comprimir el texto) */
-@media (orientation:landscape) and (max-height:520px) {
-  .tut-vgrid .vcard { grid-template-columns:minmax(0, 1fr); row-gap:3px; padding:10px 14px; min-height:0; }
-  .tut-vgrid .vcard .vc-t { font-size:1rem; }
-  .tut-vgrid .vcard .vc-r { grid-column:1; grid-row:2; justify-self:start; white-space:normal; font-size:.74rem; }
-  .tut-vgrid .vcard .vc-main { grid-row:1; }
-  .tut-vgrid .vcard .vc-bar { grid-row:3; margin-top:4px; }
+/* Práctica y Entrenamiento: siempre una columna centrada (tablero arriba, herramientas y teclado debajo) */
+.tut-app:has(.tut-body.tut-fixed) { --tut-w:520px; }
+
+/* Tablet / PC en horizontal: barra superior del Tutorial (← | título centrado | Ajustes) con la línea divisoria debajo; ya queda fija porque el cuerpo scrollea aparte */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  .tut-app .tut-top, [data-theme="retro"] .tut-app .tut-top { position:relative; margin-top:8px; padding-bottom:16px; margin-bottom:12px; }
+  .tut-app .tut-top .chip { min-height:47px; }
+  .tut-app .tut-top .tut-title { font-size:1.5rem; font-weight:700; position:absolute; left:0; right:0; top:0; bottom:16px; display:flex; align-items:center; justify-content:center; padding:0 120px; pointer-events:none; }
+  .tut-app .tut-top .chip { position:relative; z-index:1; }
+  .tut-app .tut-top::after { content:""; position:absolute; bottom:0; height:2px; background:var(--ink);
+    left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--tut-w)) / 2 + 10px));
+    right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--tut-w)) / 2 + 10px)); }
+  [data-theme="night"] .tut-app .tut-top::after { background:var(--edge, #475569); }
+  [data-theme="swiss"] .tut-app .tut-top::after { background:#000; height:1px; }
+  [data-theme="retro"] .tut-app .tut-top::after { background:var(--ink); height:3px; }
 }
-@media (orientation:landscape) and (max-height:520px) {
-  .tut-trainsol .tut-solcard .tut-pstage .tut-board { width:255px; max-width:255px; height:255px; }
+
+/* Desplazamiento natural: en las pantallas de lectura y listas scrollea toda la página (encabezado incluido); la práctica conserva su marco fijo */
+.tut-app:not(:has(.tut-body.tut-fixed)) { overflow-y:auto; overscroll-behavior:contain; }
+.tut-app:not(:has(.tut-body.tut-fixed)) .tut-body { flex:none; overflow:visible; }
+
+/* Cómo jugar: todos los marcos de las tarjetas coinciden con el de la Mini-comprobación (borde de acento) */
+.tut-guide :is(.tut-hero, .tut-ex, .tut-card, .tut-check) { border:1px solid var(--accent); }
+
+/* Tablet / PC: ejemplo (Cómo jugar y lecciones de Técnicas) en flujo vertical centrado (tablero arriba, explicación y controles debajo), igual que la Mini-comprobación */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  .tut-ex { display:block; }
+  .tut-ex > .tut-board { width:min(100%, 400px); max-width:400px; margin-left:auto; margin-right:auto; }
+  .tut-ex > .tut-cap, .tut-ex > .tut-ctrl, .tut-ex > .tut-dots { max-width:560px; margin-left:auto; margin-right:auto; }
+  .tut-ex > .tut-cap { text-align:center; }
+  .tut-ex .tut-ctrl { display:grid; grid-template-columns:1fr auto 1fr; gap:8px; }
+  .tut-ex .tut-ctrl > * { grid-column:auto !important; grid-row:auto !important; }
 }
+html:is([data-theme="paper"], [data-theme="night"]) .tut-guide .tut-hero { border-radius:14px; }
+
+/* Lección de Técnicas en tablet / PC: ¿Qué es? | ¿Cómo detectarlo? | ¿Por qué importa? en 3 columnas de altura uniforme */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  .tut-concepts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:16px; align-items:stretch; margin:0 0 16px; }
+  .tut-concepts > .tut-card { margin:0; padding:16px 18px; }
+}
+
+/* Tablet / PC: en las pantallas con scroll de página (Tutorial, Cómo jugar, Técnicas, Mapa, Lección, menú de Entrenamiento) la barra queda fija desde top:0 */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  .tut-app:not(:has(.tut-body.tut-fixed)) { padding-top:0; }
+  .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top, [data-theme="retro"] .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top {
+    position:sticky; top:0; z-index:10; margin-top:0; padding-top:16px; padding-bottom:16px; background:var(--bg); }
+  .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top .tut-title { top:16px; }
+}
+
+/* Tablet / PC: sangrado opaco de 10 px bajo la línea de la cabecera fija (oculta las sombras de las tarjetas al pasar por debajo) */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top::before { content:""; position:absolute; left:0; right:0; top:100%; height:10px; background:var(--bg); pointer-events:none; }
+}
+
+/* Solución del Entrenamiento: encabezados de tarjeta con más jerarquía */
+.tut-trainsol .tut-ex > h3, .tut-trainsol .tut-solcard > h3 { font-size:.95rem; font-weight:700; }

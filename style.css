@@ -296,7 +296,7 @@ button:disabled { cursor:default; }
 .pencil-mode .keypad button.active { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 
 /* ---------- Modales ---------- */
-.modal { position:fixed; inset:0; z-index:10; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.45); }
+.modal { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.45); }
 /* Modales cerrados: sin caja, sin fondo y sin capturar clics (no pueden tapar el inicio). */
 .modal[hidden] { display:none !important; pointer-events:none !important; visibility:hidden; }
 .app[hidden] { display:none !important; pointer-events:none !important; }
@@ -419,7 +419,7 @@ button:disabled { cursor:default; }
   color:var(--ink); font:inherit; font-size:1.05rem; text-align:center; }
 .text-input:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 
-.toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 90px); transform:translateX(-50%); z-index:20;
+.toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 90px); transform:translateX(-50%); z-index:130;
   max-width:min(90vw, 420px); padding:10px 16px; border-radius:999px; background:var(--ink); color:var(--bg);
   font-size:.9rem; font-weight:600; text-align:center; box-shadow:0 4px 16px var(--shadow); pointer-events:none; }
 
@@ -634,7 +634,7 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 [data-theme="retro"] .home-title { text-transform:uppercase; letter-spacing:-.04em; }
 [data-theme="retro"] .toast { border-radius:0; border:2px solid var(--ink); background:var(--ink); color:var(--bg); }
 /* Trama LCD muy tenue sobre toda la pantalla */
-[data-theme="retro"] body::after { content:""; position:fixed; inset:0; z-index:30; pointer-events:none; opacity:.07;
+[data-theme="retro"] body::after { content:""; position:fixed; inset:0; z-index:200; pointer-events:none; opacity:.07;
   background:repeating-linear-gradient(to bottom, #000 0, #000 1px, transparent 1px, transparent 3px); }
 @media (prefers-reduced-motion:reduce) { .m-primary, .m-daily, .m-continue, .mode-list button, .chip, .keypad button { transition:none; } }
 
@@ -1227,7 +1227,8 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
 #mRaceLobby .sheet > .race-list { margin-bottom:2px; }
 
 /* ---------- Actualización con progreso y novedades de la versión ---------- */
-#mUpdate { z-index:90; }   /* por encima de cualquier otro modal o aviso */
+#mUpdate { z-index:120; }
+#mSet { z-index:110; }   /* Ajustes: por encima de cualquier otro modal salvo el aviso de actualización */   /* por encima de cualquier otro modal o aviso */
 .upd-bar { height:14px; border:1.5px solid var(--ink); border-radius:8px; background:var(--panel); overflow:hidden; }
 .upd-bar i { display:block; width:0; height:100%; background:var(--accent); transition:width .2s ease; }
 .upd-pct { margin:6px 0 4px; font-variant-numeric:tabular-nums; font-weight:800; font-size:1.1rem; }
@@ -1293,36 +1294,6 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
 @media (max-width:380px) {
   .title b { font-size:.86rem; letter-spacing:0; }
   [data-theme="retro"] .title b { font-size:.8rem; }
-}
-
-/* ---------- Móvil en horizontal: tablero a la izquierda; INICIO/Ajustes, herramientas 3×2 y teclado 3×3 a la derecha.
-   El diseño vertical no cambia: todo vive dentro de esta media query. ---------- */
-@media (orientation:landscape) and (max-height:540px) {
-  .app.game { --bs:min(92dvh, 55vw); --bb:var(--bs); max-width:none; width:100%; display:grid; gap:0 16px; justify-content:center;
-    grid-template-columns:var(--bs) clamp(235px, 38vw, 320px); grid-template-rows:auto auto auto minmax(0,1fr);
-    align-content:center; align-items:stretch;
-    padding:max(8px, env(safe-area-inset-top)) calc(env(safe-area-inset-right) + 10px) max(8px, env(safe-area-inset-bottom)) calc(env(safe-area-inset-left) + 10px); }
-  .app.game .play { display:contents; }
-  /* Columna izquierda: avisos y barras comparten la celda del tablero, pegados arriba. */
-  .app.game > .hint, .app.game > .errx, .app.game .play > .status {
-    grid-column:1; grid-row:1 / -1; align-self:start; z-index:3; margin:0; min-width:0; max-width:var(--bs);
-    padding:3px 8px; font-size:.74rem; min-height:0; }
-  .app.game > .hint p, .app.game > .errx p { font-size:.74rem; line-height:1.2; }
-  .app.game > .hint .chip, .app.game > .errx .chip, .app.game .racebar .chip, .app.game .coopbar .chip { min-height:26px; padding:0 8px; font-size:.72rem; }
-  .app.game .race-table { max-height:30dvh; overflow:auto; }
-  .app.game .play > .stage { grid-column:1; grid-row:1 / -1; align-self:center; justify-self:start; width:var(--bb); height:var(--bb); flex:none; }
-  .app.game:has(> .hint:not([hidden]), > .errx:not([hidden]), .play > .status:not([hidden])) .play > .stage { --bb:min(82dvh, 55vw); align-self:end; }
-  /* Columna derecha */
-  .app.game > .top { grid-column:2; grid-row:1; padding:0; gap:6px; align-self:end; margin-bottom:6px; }
-  .app.game > .top .chip { min-height:40px; min-width:0; }
-  .app.game .title b { font-size:.9rem; }
-  .app.game .play > .tools { grid-column:2; grid-row:3; grid-template-columns:repeat(3, minmax(0,1fr)); gap:5px; margin-bottom:6px; }
-  .app.game .tools button { min-height:0; height:clamp(38px, 12dvh, 52px); font-size:.72rem; gap:1px; }
-  .app.game .tools .ic { font-size:1.1rem; }
-  .app.game .play > .keypad { grid-column:2; grid-row:4; grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:repeat(3, minmax(0,1fr));
-    gap:5px; align-self:start; height:min(100%, 44dvh); max-height:calc(3 * 62px + 10px); }
-  .app.game .keypad button { min-height:0; font-size:1.5rem; padding:0 0 11px; }
-  .app.game .keypad .rem { bottom:2px; font-size:.62rem; }
 }
 
 /* ---------- Destello al completar fila, columna, caja o región (≈400 ms, con el acento de cada tema) ---------- */
@@ -1396,36 +1367,96 @@ html.big-nums .tut-board .nt { font-size:3.3cqw; }
   padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--hw)) / 2 + 10px));
   padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--hw)) / 2 + 10px)); }
 
+#daily-view { --hw:480px; padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--hw)) / 2 + 10px));
+  padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--hw)) / 2 + 10px)); }
+
 /* =====================================================================
-   Horizontal móvil: Estadísticas y Desafío Diario en dos columnas (la partida normal no cambia)
+   Pantallas secundarias en 2 columnas: solo horizontal con alto y ancho suficientes (tablets y escritorio).
+   En celulares acostados (alto < 560 px) todo sigue en una columna natural con scroll.
+   El tablero de juego va SIEMPRE centrado arriba, con herramientas y teclado debajo.
    ===================================================================== */
-@media (orientation:landscape) and (max-height:520px) {
-  /* Estadísticas — pantalla principal: tarjetas de modo en 2 columnas */
-  #statsHome.vlist { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 12px; }
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  #stats-view { --hw:980px; }
+  #stats-view .home-screen { width:100%; }
+  #statsDetail .stat-card, #statsSurv .stat-card, #statsDaily .stat-card { min-height:96px; }
+  /* Desafíos diarios: 7 tarjetas en 3 columnas de altura uniforme; la 7.ª ocupa una sola columna (centrada en la 3.ª fila) */
+  #statsDaily .stat-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); grid-auto-rows:1fr; }
+  #statsDaily .stat-card.wide { grid-column:2; }
+  /* Notas aclaratorias al pie, centradas (Supervivencia: bajo la grilla; detalle por modo: en su columna izquierda) */
+  #statsSurv .stats-sum, #statsDetail .stats-sum { text-align:center; }
+  /* Supervivencia: las 6 variantes en una sola fila, con el alto de los botones de dificultad */
+  #statsSurv .stat-diffs.two { grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; margin:6px 0 14px; }
+  #statsSurv .stat-diffs.two button { min-height:44px; height:44px; padding:0 4px; font-size:.7rem; letter-spacing:.02em; line-height:1.1; white-space:normal; overflow-wrap:anywhere; }
+  /* Estadísticas (general y por modo): título centrado en la fila de ← y Ajustes; la línea queda bajo toda la barra, con aire antes del contenido */
+  #stats-view .sub-top { position:relative; z-index:2; min-height:50px; margin:0; padding-bottom:0; background:transparent; }
+  #stats-view .sub-title { position:relative; z-index:1; display:block; height:60px; margin:-50px 0 20px; padding:0 120px; line-height:50px;
+    text-align:center; font-size:1.5rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
+
+  /* Jugar: misma barra superior compacta */
+  #homePlay > .sub-top { position:relative; z-index:2; min-height:50px; margin:0; padding-bottom:0; background:transparent; }
+  #homePlay > .sub-title { position:relative; z-index:1; display:block; height:60px; margin:-50px 0 18px; padding:0 100px; line-height:50px;
+    text-align:center; font-size:1.5rem; font-weight:700; white-space:nowrap; pointer-events:none; }
+
+  /* Desafío Diario: título centrado en la fila de ← INICIO y Ajustes, con la línea debajo de toda la barra; sin scroll vertical en 1280×800 */
+  #daily-view { --hw:700px; }  /* columna útil de 680 px (para la leyenda); el resto se centra en 460 px */
+  #daily-view .home-screen { width:100%; }
+  #daily-view .home-screen > * { width:100%; margin-left:auto; margin-right:auto; max-width:460px; }
+  #daily-view .sub-top { position:relative; z-index:2; min-height:50px; margin-top:0; margin-bottom:0; padding-bottom:0; background:transparent; }
+  #daily-view .sub-title { position:relative; z-index:1; display:block; height:60px; margin-top:-50px; margin-bottom:4px; padding:0 100px; line-height:50px;
+    text-align:center; font-size:1.5rem; font-weight:700; white-space:nowrap; pointer-events:none; }
+  #daily-view .cal-count { margin-top:2px; margin-bottom:6px; }
+  #daily-view .cal-dow, #daily-view .cal-grid { gap:5px; }
+  #daily-view .dday { aspect-ratio:auto; height:clamp(34px, 5.6dvh, 52px); }
+  /* Leyenda: los 6 indicadores en un único renglón, más ancha que la columna del calendario y centrada */
+  #daily-view .home-screen > .cal-legend { max-width:680px; margin-top:12px; flex-wrap:nowrap; white-space:nowrap; justify-content:center; gap:6px 16px; }
+  #daily-view .cal-warn { margin-top:10px; }
+  #statsHome.vlist { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 14px; }
   #statsHome.vlist > * { margin:0; }
 
-  /* Estadísticas por modo: izquierda dificultades + resumen circular; derecha las métricas */
-  #statsDetail:not([hidden]) { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.15fr); column-gap:16px; align-items:start; }
+  #statsDetail:not([hidden]) { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.15fr); column-gap:20px; align-items:start; }
   #statsDetail #statsBody { display:contents; }
-  #statsDetail .stat-diffs { grid-column:1; grid-row:1; margin:0 0 10px; }
+  #statsDetail .stat-diffs { grid-column:1; grid-row:1; margin:0 0 12px; }
   #statsDetail .stat-hero { grid-column:1; grid-row:2; }
-  #statsDetail .stat-grid { grid-column:2; grid-row:1 / span 3; gap:6px; }
-  #statsDetail .stat-card { padding:7px 10px; }
-  #statsDetail .stat-card .sv { font-size:1.2rem; }
-  #statsDetail .stat-card .sl { font-size:.62rem; }
-  #statsDetail .stat-card .ss { font-size:.66rem; line-height:1.2; }
-  #statsDetail .stats-sum { grid-column:1; grid-row:3; margin:8px 0 0; }
+  #statsDetail .stat-grid { grid-column:2; grid-row:1 / span 3; }
+  #statsDetail .stats-sum { grid-column:1; grid-row:3; margin:10px 0 0; }
 
-  /* Desafío Diario: izquierda mes, contador, leyenda y aviso; derecha el calendario compacto */
-  #daily-view .home-screen { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 380px); column-gap:18px; align-content:start; }
-  #daily-view .home-screen > .sub-top, #daily-view .home-screen > .sub-title { grid-column:1 / -1; }
-  #daily-view .home-screen > .cal-nav, #daily-view .home-screen > .cal-count, #daily-view .home-screen > .cal-cup,
-  #daily-view .home-screen > .cal-legend, #daily-view .home-screen > .cal-warn { grid-column:1; }
-  #daily-view .home-screen > .cal-wrap { grid-column:2; grid-row:3 / span 6; max-width:380px; }
-  #daily-view .cal-legend { margin-top:8px; }
-  #daily-view .dday { aspect-ratio:auto; height:30px; min-height:0; border-radius:8px; font-size:.85rem; }
-  #daily-view .cal-dow, #daily-view .cal-grid { gap:3px; }
-  #daily-view .cal-dow { margin-bottom:3px; }
+
+  /* Dificultad de los modos individuales: modal ancho y centrado, 3 × 2 tarjetas y cierre × (sin botón inferior ni scroll) */
+  #playPanel { align-items:flex-end; padding:0; }
+  #playPanel .sheet { position:relative; max-width:min(860px, 92vw); margin:0; overflow-y:auto; border-bottom:none; border-radius:18px 18px 0 0;
+    padding-top:18px; padding-bottom:max(20px, calc(env(safe-area-inset-bottom) + 18px)); }
+  [data-theme="swiss"] #playPanel .sheet, [data-theme="retro"] #playPanel .sheet { border-radius:0; }
+  #playPanel .ls-hide { display:none !important; }
+  #playPanel .modal-x { display:inline-flex; position:absolute; top:12px; right:14px; z-index:3; width:40px; height:40px; min-width:40px; min-height:40px; padding:0;
+    font-size:1.6rem; line-height:1; font-weight:500; align-items:center; justify-content:center; }
+  #playPanel .sheet > h2 { margin:0 52px 4px 0; }
+  #playPanel .mode-desc { min-height:0; margin:4px 0 10px; }
+  #playPanel .zen-row { margin:0 0 12px; }
+  #playPanel .diffs { grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+  #playPanel .diffs button { padding:12px 16px; gap:6px; min-height:84px; }
+  #playPanel .diffs .d-top { gap:8px; }
+
+  /* Modales de selección */
+  /* Jugar con amigos: una columna amplia, anclada abajo, con × y sin scroll */
+  #mFriends { align-items:flex-end; padding:0; }
+  #mFriends .sheet { position:relative; display:grid; grid-template-columns:1fr; gap:10px; max-width:min(640px, 90vw); margin:0; overflow-y:auto;
+    border-bottom:none; border-radius:18px 18px 0 0; padding-top:18px; padding-bottom:max(20px, calc(env(safe-area-inset-bottom) + 18px)); }
+  [data-theme="swiss"] #mFriends .sheet, [data-theme="retro"] #mFriends .sheet { border-radius:0; }
+  #mFriends .ls-hide { display:none !important; }
+  #mFriends .modal-x { display:inline-flex; position:absolute; top:12px; right:14px; z-index:3; width:40px; height:40px; min-width:40px; min-height:40px; padding:0;
+    font-size:1.6rem; line-height:1; font-weight:500; align-items:center; justify-content:center; }
+  #mFriends .sheet > h2 { margin:0 52px 0 0; }
+  #mFriends .sheet > .home-btn { margin:0; }
+  #mFriends .home-btn small { overflow-wrap:normal; }
+
+  /* Configuración multijugador (Duelo 1v1, Duelo fantasma, Co-op, Carrera): flujo vertical original, centrado y anclado abajo */
+  :is(#mLive, #mFriend, #mCoop, #mRace) { align-items:flex-end; padding:0; }
+  :is(#mLive, #mFriend, #mCoop, #mRace) .sheet { max-width:min(620px, 92vw); margin:0; border-bottom:none; border-radius:18px 18px 0 0;
+    padding-bottom:max(20px, calc(env(safe-area-inset-bottom) + 18px)); }
+  [data-theme="swiss"] :is(#mLive, #mFriend, #mCoop, #mRace) .sheet, [data-theme="retro"] :is(#mLive, #mFriend, #mCoop, #mRace) .sheet { border-radius:0; }
+  /* Dificultad en 3 × 2 (compacta) para que el modal entre sin scroll */
+  :is(#mLive, #mFriend, #mCoop, #mRace) .diffs { grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; }
+  :is(#mLive, #mFriend, #mCoop, #mRace) .diffs button { min-height:0; height:44px; padding:0 8px; }
 }
 
 /* ---------- Ajustes: cierre × arriba a la derecha y salida de la app ---------- */
@@ -1437,138 +1468,42 @@ html.big-nums .tut-board .nt { font-size:3.3cqw; }
 .chip.quit { margin-top:10px; color:var(--err); }
 #mQuit [hidden] { display:none !important; }
 
-/* Horizontal móvil: Estadísticas y Diario usan más ancho y un encabezado más bajo para evitar desplazamiento */
-@media (orientation:landscape) and (max-height:520px) {
-  #stats-view, #daily-view { --hw:700px; }
-  #stats-view .home-inner, #daily-view .home-inner { padding-top:2px; padding-bottom:6px; }
-  #stats-view .sub-title, #daily-view .sub-title { margin:0 0 6px; font-size:1.3rem; }
-  #stats-view .sub-top, #daily-view .sub-top { margin-bottom:4px; }
-  #statsDetail .stat-diffs { gap:6px; margin-bottom:8px; }
-  #statsDetail .stat-diffs button { min-height:34px; font-size:.78rem; }
-  #statsDetail .stat-hero { padding:8px 12px; gap:12px; margin:0; }
-  #statsDetail .stat-hero .ring { width:62px; height:62px; }
-  #statsDetail .stat-hero .ring b { width:46px; height:46px; font-size:.85rem; }
-  #statsDetail .hero-txt b { font-size:1.1rem; }
-  #statsDetail .hero-txt span { font-size:.76rem; }
-  #statsDetail .stat-card { padding:4px 9px; }
-  #statsDetail .stat-grid { gap:5px; }
-  #statsDetail .stat-card .sv { font-size:1.1rem; line-height:1.1; }
-  #statsDetail .stats-sum { font-size:.68rem; margin-top:6px; }
-}
-@media (orientation:landscape) and (max-height:520px) {
-  #daily-view { padding-left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--hw)) / 2 + 10px)); padding-right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--hw)) / 2 + 10px)); }
-  #daily-view .home-screen > .cal-warn { margin-top:8px; }
-}
-
-/* ---------- Horizontal móvil: barras multijugador (Duelo, Carrera, Co-op) en la columna derecha; el tablero queda libre ---------- */
-@media (orientation:landscape) and (max-height:540px) {
-  .app.game .play > :is(.duelbar, .racebar, .coopbar) { grid-column:2; grid-row:2; align-self:start; min-width:0; margin:0 0 5px; padding:3px 8px; font-size:.72rem; gap:2px 8px; }
-  .app.game .play > :is(.duelbar, .racebar, .coopbar) .chip { min-height:24px; padding:0 8px; font-size:.68rem; }
-  .app.game .play > .racebar .rb-top { font-size:.74rem; }
-  .app.game .race-table { max-height:56px; overflow:auto; }
-  .app.game .play > .coopbar .cstat { font-size:.7rem; }
-  .app.game .play > .duelbar .dtop { font-size:.7rem; }
-  /* subencabezado compacto cuando hay sala */
-  .app.game:has(.play > :is(.duelbar, .racebar, .coopbar):not([hidden])) .title b { font-size:.78rem; }
-  .app.game:has(.play > :is(.duelbar, .racebar, .coopbar):not([hidden])) .title .subline { font-size:.7rem; }
-  .app.game:has(.play > :is(.duelbar, .racebar, .coopbar):not([hidden])) > .top .chip { min-height:32px; }
-  .app.game:has(.play > :is(.duelbar, .racebar, .coopbar):not([hidden])) .tools button { height:clamp(32px, 9dvh, 42px); }
-}
-
-/* =====================================================================
-   Horizontal móvil (ronda final): encabezados compactos, selectores en 2 columnas
-   ===================================================================== */
-@media (orientation:landscape) and (max-height:520px) {
-  /* Estadísticas y Diario: el título va centrado en la misma fila que ← y Ajustes, y la línea sube */
-  #stats-view .sub-top, #daily-view .sub-top { position:relative; z-index:2; margin:0; }
-  #stats-view .sub-title, #daily-view .sub-title { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; text-align:center;
-    height:46px; margin:-46px 0 8px; padding:0 130px; pointer-events:none; font-size:1.2rem; }
-  /* Diario: la altura ganada se usa en más aire entre días */
-  #daily-view .cal-grid, #daily-view .cal-dow { gap:7px; }
-  #daily-view .dday { height:34px; }
-
-  /* Dificultad offline y Jugar con amigos: 2 columnas */
-  #playPanel .diffs { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px 8px; }
-  #playPanel .diffs button { min-height:50px; }
-  #mFriends .sheet { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; max-width:640px; }
-  #mFriends .sheet > h2, #mFriends .sheet > .sub, #mFriends .sheet > [data-close] { grid-column:1 / -1; }
-  #mFriends .sheet > .home-btn { margin:0; height:100%; }
-
-  /* Configuración con amigos (Modo | Dificultad) lado a lado */
-  .sheet .cfg-cols { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); column-gap:14px; align-items:start; }
-  .sheet .cfg-cols .friend-label { margin:6px 0 4px; }
-  .sheet .cfg-cols .diffs { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; }
-  .sheet .cfg-cols .diffs button { min-height:38px; }
-}
-@media (orientation:landscape) and (max-height:520px) {
-  .sheet .cfg-cols .modes button { font-size:.6rem; letter-spacing:0; white-space:normal; line-height:1.1; padding:0 2px; min-height:40px; }
-  .sheet .cfg-cols .diffs button { min-height:0; height:40px; padding:0 6px; }
-  #playPanel .diffs button { min-height:0; padding:6px 8px; }
-  #playPanel .mode-desc { margin:4px 2px 8px; min-height:0; font-size:.78rem; }
-}
-@media (orientation:landscape) and (max-height:520px) { .sheet .cfg-cols .diffs { grid-auto-rows:40px; } }
-
-/* =====================================================================
-   Horizontal móvil (ronda de pulido 5): modales sin scroll con cierre ×, encabezados y multijugador
-   ===================================================================== */
 .modal-x { display:none; }
-@media (orientation:landscape) and (max-height:520px) {
-  /* Cierre × unificado (como Ajustes): reemplaza al botón ancho del pie */
-  .modal-x { display:inline-flex; position:absolute; top:8px; right:10px; z-index:3; width:36px; height:36px; min-width:36px; min-height:36px; padding:0;
-    font-size:1.45rem; line-height:1; font-weight:500; align-items:center; justify-content:center; }
-  .ls-hide { display:none !important; }
-  #playPanel .sheet, #mFriends .sheet, #mFriend .sheet, #mRace .sheet, #mLive .sheet, #mCoop .sheet {
-    position:relative; max-height:calc(100dvh - 16px); padding-top:10px; padding-bottom:10px; }
-  #playPanel .sheet > h2, #mFriends .sheet > h2, #mFriend .sheet > h2, #mRace .sheet > h2, #mLive .sheet > h2, #mCoop .sheet > h2 { margin:0 44px 4px; font-size:1.05rem; }
-  #mFriends .sheet > .sub, #mFriend .sheet > .sub, #mRace .sheet > .sub, #mLive .sheet > .sub, #mCoop .sheet > .sub { margin:0 0 6px; font-size:.76rem; line-height:1.25; }
 
-  /* Dificultad offline: 3 columnas × 2 filas */
-  #playPanel .diffs { grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
-  #playPanel .diffs button { min-height:0; padding:5px 6px; }
-  #playPanel .zen-row { margin:0 0 6px; }
-  #playPanel .mode-desc { margin:2px 2px 6px; font-size:.74rem; }
-
-  /* Jugar con amigos: 2 × 2 compacto */
-  #mFriends .sheet { gap:6px; }
-  #mFriends .sheet > .home-btn { min-height:0; padding:8px 10px; }
-  #mFriends .home-btn b { font-size:.86rem; }
-  #mFriends .home-btn small { font-size:.68rem; line-height:1.2; }
-
-  /* Configuración de sala: variantes (2 columnas) a la izquierda, dificultades (2 columnas) a la derecha */
-  .sheet .cfg-cols .modes.six { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; border:0; background:transparent; overflow:visible; }
-  .sheet .cfg-cols .modes.six button { border:1.5px solid var(--thin) !important; border-radius:8px; min-height:34px; background:var(--panel);
-    font-size:.7rem; letter-spacing:0; white-space:normal; line-height:1.1; padding:0 4px; }
-  .sheet .cfg-cols .modes.six button.on, .sheet .cfg-cols .modes.six button[aria-checked="true"] { background:var(--user); color:var(--on-user); border-color:var(--user) !important; }
-  [data-theme="swiss"] .sheet .cfg-cols .modes.six button { border-color:#000 !important; border-radius:0; }
-  [data-theme="swiss"] .sheet .cfg-cols .modes.six button.on { background:#000; border-color:#000 !important; color:#fff; }
-  [data-theme="retro"] .sheet .cfg-cols .modes.six button { border:2px solid var(--ink) !important; border-radius:0; }
-  [data-theme="retro"] .sheet .cfg-cols .modes.six button.on { background:var(--ink); color:var(--panel); }
-  .sheet .cfg-cols .diffs { grid-template-columns:repeat(2, minmax(0, 1fr)); grid-auto-rows:34px; gap:6px; }
-  .sheet .cfg-cols .diffs button { height:34px; min-height:0; padding:0 6px; font-size:.82rem; }
-  .sheet .cfg-cols .friend-label { margin:2px 0 4px; }
-
-  /* Estadísticas y Diario: la línea divisoria queda por debajo de toda la fila superior, sin rozar los botones */
-  #stats-view .sub-top, #daily-view .sub-top { min-height:50px; margin:0; }
-  #stats-view .sub-title, #daily-view .sub-title { display:block; text-align:center; line-height:50px; height:60px; margin:-50px 0 8px; padding:0 130px; font-size:1.2rem; }
-
-  /* Multijugador: número y contador de restantes lado a lado en cada tecla */
-  .app.game:has(.play > :is(.duelbar, .racebar, .coopbar):not([hidden])) .play > .keypad button { flex-direction:row; gap:6px; padding:0; align-items:center; justify-content:center; }
-  .app.game:has(.play > :is(.duelbar, .racebar, .coopbar):not([hidden])) .keypad .rem { position:static; font-size:.66rem; line-height:1; }
-
-  /* Tabla de la Carrera: tarjeta flotante compacta en lugar de desplegarse sobre el teclado */
-  .app.game .racebar .race-table:not([hidden]) { position:fixed; left:calc(env(safe-area-inset-left) + 14px); top:50%; transform:translateY(-50%);
-    width:min(300px, 44vw); max-height:calc(100dvh - 28px); overflow:auto; margin:0; padding:8px 10px; z-index:30;
-    background:var(--panel); border:2px solid var(--edge); border-radius:12px; box-shadow:var(--sh1); }
-  [data-theme="swiss"] .app.game .racebar .race-table:not([hidden]), [data-theme="retro"] .app.game .racebar .race-table:not([hidden]) { border-radius:0; }
+/* PC / escritorio: la dificultad de los modos individuales pasa a 2 columnas × 3 filas, más amplias (sigue anclada abajo, con × y sin scroll) */
+@media (orientation:landscape) and (min-width:1120px) and (min-height:640px) {
+  #playPanel .sheet { max-width:min(760px, 92vw); padding-top:22px; padding-bottom:max(28px, calc(env(safe-area-inset-bottom) + 24px)); }
+  #playPanel .zen-row { margin-bottom:16px; }
+  #playPanel .diffs { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+  #playPanel .diffs button { min-height:96px; padding:16px 22px; gap:8px; }
 }
-@media (orientation:landscape) and (max-height:520px) {
-  #playPanel .sheet, #mFriends .sheet, #mFriend .sheet, #mRace .sheet, #mLive .sheet, #mCoop .sheet { padding-top:8px; padding-bottom:8px; }
-  .sheet .cfg-cols .friend-label { margin:0 0 3px; }
+
+/* Etiquetas de sección "Modo" y "Dificultad" de las salas: más presencia que el texto de los botones (todos los dispositivos) */
+.friend-label { font-size:.95rem; font-weight:700; }
+[data-theme="retro"] .friend-label { font-weight:700; }
+
+/* Modales con scroll: la cabecera (título + ×) queda fija arriba y el contenido pasa por debajo */
+:is(#mNews, #playPanel, #mFriends, #mFriend, #mLive, #mCoop, #mRace) .sheet > h2:first-child,
+:is(#mNews, #playPanel, #mFriends, #mFriend, #mLive, #mCoop, #mRace) .sheet > .modal-x + h2 {
+  position:sticky; top:-18px; z-index:5; margin-top:-18px; margin-left:-16px; margin-right:-16px; padding-top:18px; padding-left:16px; padding-right:52px; background:var(--bg); }
+:is(#mNews, #playPanel, #mFriends, #mFriend, #mLive, #mCoop, #mRace) .sheet.center > h2:first-child,
+:is(#mNews, #playPanel, #mFriends, #mFriend, #mLive, #mCoop, #mRace) .sheet.center > .modal-x + h2 { padding-left:52px; }
+:is(#playPanel, #mFriends, #mFriend, #mLive, #mCoop, #mRace) .sheet > .modal-x { z-index:6; }
+
+/* Tablet / PC: cabecera superior fija desde top:0 (Jugar y Estadísticas). El espaciado vive dentro de la propia barra y el fondo opaco la cubre entera */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  #home-view:has(#homePlay:not([hidden])), #stats-view { padding-top:0; }
+  #home-view:has(#homePlay:not([hidden])) .home-inner, #stats-view .home-inner { padding-top:0; }
+  #homePlay > .sub-top, #stats-view .home-screen > .sub-top { position:sticky; top:0; z-index:11; min-height:63px; margin:0; padding:16px 0 0; background:transparent; }
+  #homePlay > .sub-title, #stats-view .home-screen > .sub-title { position:sticky; top:0; z-index:10; background:var(--bg); height:79px; margin:-63px 0 20px; padding:16px 100px 14px; line-height:47px; }
 }
-/* Modales de selección: centrados en el alto útil (no pegados al borde inferior) */
-@media (orientation:landscape) and (max-height:520px) {
-  :is(#playPanel, #mFriends, #mFriend, #mRace, #mLive, #mCoop) { align-items:center; padding:8px 0; }
-  :is(#playPanel, #mFriends, #mFriend, #mRace, #mLive, #mCoop) .sheet { border-radius:18px; max-height:calc(100dvh - 16px); }
-  [data-theme="swiss"] :is(#playPanel, #mFriends, #mFriend, #mRace, #mLive, #mCoop) .sheet,
-  [data-theme="retro"] :is(#playPanel, #mFriends, #mFriend, #mRace, #mLive, #mCoop) .sheet { border-radius:0; }
+
+/* Tablet / PC: sangrado opaco bajo la línea divisoria y a los lados de la cabecera fija, para tapar las sombras de las tarjetas que pasan por debajo */
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  #homePlay > .sub-title, #stats-view .home-screen > .sub-title { overflow:visible; box-shadow:-6px 0 0 var(--bg), 6px 0 0 var(--bg); }
+  #homePlay > .sub-title::after, #stats-view .home-screen > .sub-title::after { content:""; position:absolute; left:-6px; right:-6px; top:calc(100% + var(--sbw, 2px)); height:10px; background:var(--bg); pointer-events:none; }
+}
+@media (orientation:landscape) and (min-height:560px) and (min-width:820px) {
+  [data-theme="swiss"] #homePlay > .sub-title, [data-theme="swiss"] #stats-view .home-screen > .sub-title { --sbw:1px; }
+  [data-theme="retro"] #homePlay > .sub-title, [data-theme="retro"] #stats-view .home-screen > .sub-title { --sbw:3px; }
 }

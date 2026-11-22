@@ -136,7 +136,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v69';
+  const BUILD = 'ui-v71';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -1876,7 +1876,7 @@
     vis('#statsHome', v === 'home'); vis('#statsDetail', v === 'mode'); vis('#statsSurv', v === 'surv'); vis('#statsDaily', v === 'daily');
     vis('#statsTabs', v === 'mode');
     setText('#statsBack', v === 'home' ? '← Inicio' : '← Estadísticas');
-    setText('#statsTitle', v === 'mode' ? (statsMode === 'all' ? 'Todos los modos' : MODE_NAMES[statsMode]) : (v === 'surv' ? 'Supervivencia (No-Hit)' : (v === 'daily' ? 'Desafíos diarios' : 'Estadísticas')));
+    setText('#statsTitle', v === 'mode' ? (statsMode === 'all' ? 'Todos los modos' : MODE_NAMES[statsMode]) : (v === 'surv' ? 'Supervivencia' : (v === 'daily' ? 'Desafíos diarios' : 'Estadísticas')));
     const sv = $('#stats-view'); if (sv) sv.scrollTop = 0;
     if (v === 'home') renderStatsHome(); else if (v === 'mode') renderStats(); else if (v === 'surv') renderStatsSurv(); else renderStatsDaily();
   }
@@ -3768,6 +3768,13 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v71', title: 'Diseño adaptativo para tablet y escritorio', items: [
+      'Pantallas secundarias (Desafío Diario, Estadísticas, Jugar, Tutorial y Ajustes) con diseño adaptativo en tablets y escritorio; el tablero de juego va siempre centrado arriba, con herramientas y teclado debajo, en todos los dispositivos.',
+      'Estadísticas más prolijas: Supervivencia con sus 6 variantes en una fila y tarjetas 2 × 2 con el pie centrado, Desafíos diarios en 3 columnas y separadores limpios.',
+      'Modales anclados al borde inferior con cierre ×: dificultad de los modos individuales en 3 × 2 (tablet) y 2 × 3 (PC), Jugar con amigos en una columna y configuración multijugador con Modo y Dificultad sin scroll interno.',
+      'Cabeceras superiores fijas en tablet y PC, con sangrado inferior para cubrir las sombras al scrollear y siempre por debajo de los modales.',
+      'Cómo jugar, Técnicas y Solución optimizadas: bloques conceptuales en 3 columnas, tableros centrados y más grandes, encabezados reforzados y sin botones redundantes.'
+    ] },
     { v: 'ui-v69', title: 'Pulido horizontal y color del sistema', items: [
       'El color de la barra del sistema y el fondo de la página se actualizan con cada cambio de tema, para que no asome una franja de otro color.',
       'En móvil horizontal, los selectores de dificultad y de partida con amigos entran sin scroll y se cierran con una × (dificultades en 3×2, modos y dificultades de sala en dos columnas).',

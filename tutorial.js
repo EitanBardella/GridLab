@@ -855,7 +855,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     ui.screen = 'hub'; ui.ch = null; ui.ls = null; ui.selCh = null; ui.train = null;
     setTop('Tutorial', 'Inicio');
     clear(body); body.classList.remove('tut-fixed');
-    body.scrollTop = 0;
+    body.scrollTop = 0; if (root) root.scrollTop = 0;
 
     const gs = guideStats(), ts = allTechStats();
     body.append(h('div', { class: 'vlist tut-hub tut-vgrid' },
@@ -923,7 +923,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
     ui.screen = 'trainLevel'; ui.train = null;
     setTop('Entrenamiento', 'Tutorial');
-    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
+    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0; if (root) root.scrollTop = 0;
     const list = h('div', { class: 'vlist tut-hub tut-vgrid tut-levels' }, h('p', { class: 'tut-hub-intro', text: 'Elegí el nivel de tu tanda de 5 ejercicios.' }));
     LEVELS.forEach(l => list.append(vcard(l.title, l.blurb, l.sub, false, () => startTraining(l.id), undefined, true)));
     body.append(list);
@@ -990,7 +990,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
     const t = ui.train; ui.screen = 'trainSum';
     setTop('Entrenamiento', 'Tutorial');
-    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
+    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0; if (root) root.scrollTop = 0;
     const done = t.res.filter(r => !r.skipped).length;
     const fails = t.res.reduce((n, r) => n + r.f, 0), hints = t.res.reduce((n, r) => n + r.h, 0);
     const list = h('div', { class: 'vlist tut-trainsum' },
@@ -1013,7 +1013,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     const ls = it.ls, pr = it.pr || ls.practice;
     ui.screen = 'trainSol'; ui.variant = it.variant;
     setTop('Solución', 'Resumen');
-    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
+    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0; if (root) root.scrollTop = 0;
     const wrap = h('div', { class: 'tut-trainsol' }, h('h2', { class: 'tut-hub-intro', text: ls.title }));
     if (ls.example && ls.example.steps) wrap.append(renderExample(ls.example, 'Razonamiento paso a paso'));
     if (pr) {
@@ -1057,7 +1057,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     ui.screen = 'guideList'; ui.ch = null; ui.ls = null;
     setTop('Cómo jugar', 'Tutorial');
     clear(body); body.classList.remove('tut-fixed');
-    body.scrollTop = 0;
+    body.scrollTop = 0; if (root) root.scrollTop = 0;
     const gs = guideStats();
     const list = h('div', { class: 'vlist tut-vgrid' }, h('p', { class: 'tut-hub-intro', text: gs.done + ' de ' + gs.n + ' guías completadas' }));
     GUIDE_VARIANTS.forEach(k => {
@@ -1074,7 +1074,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     ui.screen = 'guide'; ui.ch = null; ui.ls = null;
     setTop(GUIDES[v].label, 'Cómo jugar');
     clear(body); body.classList.remove('tut-fixed');
-    body.scrollTop = 0;
+    body.scrollTop = 0; if (root) root.scrollTop = 0;
     body.append(renderGuideBody(ui.gv));
   }
 
@@ -1166,7 +1166,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     ui.screen = 'mapList'; ui.ch = null; ui.ls = null; ui.selCh = null;
     setTop('Técnicas', 'Tutorial');
     clear(body); body.classList.remove('tut-fixed');
-    body.scrollTop = 0;
+    body.scrollTop = 0; if (root) root.scrollTop = 0;
     const ts = allTechStats();
     const list = h('div', { class: 'vlist tut-vgrid' }, h('p', { class: 'tut-hub-intro', text: ts.done + ' de ' + ts.n + ' técnicas completadas' }));
     VARIANTS.forEach(v => {
@@ -1184,7 +1184,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     if (VARIANTS.indexOf(ui.variant) < 0) ui.variant = 'classic';
     setTop(META[ui.variant].label, 'Técnicas');
     clear(body); body.classList.remove('tut-fixed');
-    body.scrollTop = 0;
+    body.scrollTop = 0; if (root) root.scrollTop = 0;
 
     const vs = varStats(ui.variant);
     // Cabecera: variante activa + técnicas dominadas y mini barra, separadas del camino por una línea.
@@ -1338,7 +1338,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     root.append(sheetEl);
     requestAnimationFrame(() => { const i = bar.firstChild; if (i) i.style.width = st.pct + '%'; });
   }
-  function showMapKeepScroll() { const y = body ? body.scrollTop : 0; showMap(); if (body) body.scrollTop = y; }
+  function showMapKeepScroll() { const y = body ? body.scrollTop : 0, ry = root ? root.scrollTop : 0; showMap(); if (body) body.scrollTop = y; if (root) root.scrollTop = ry; }
 
   /* ---------- Lección ---------- */
   function showLesson(ch, ls) {
@@ -1346,12 +1346,13 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     ui.screen = 'lesson'; ui.ch = ch; ui.ls = ls; ui.selCh = null;
     markSeen(ui.variant, ch, ls);
     setTop(ch.title, 'Mapa');
-    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
+    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0; if (root) root.scrollTop = 0;
     const th = ls.theory || {};
     body.append(h('div', { class: 'tut-lhead' }, h('p', { class: 'tut-kicker', text: 'Lección' }), h('h2', { text: ls.title }), ls.short ? h('p', { text: ls.short }) : null));
-    body.append(h('section', { class: 'tut-card' }, h('h3', { text: '¿Qué es?' }), h('p', { text: th.what || '' })));
-    body.append(h('section', { class: 'tut-card' }, h('h3', { text: '¿Cómo detectarlo?' }), h('p', { text: th.detect || '' })));
-    body.append(h('section', { class: 'tut-card why' }, h('h3', { text: '¿Por qué importa?' }), h('p', { text: th.why || '' })));
+    body.append(h('div', { class: 'tut-concepts' },
+      h('section', { class: 'tut-card' }, h('h3', { text: '¿Qué es?' }), h('p', { text: th.what || '' })),
+      h('section', { class: 'tut-card' }, h('h3', { text: '¿Cómo detectarlo?' }), h('p', { text: th.detect || '' })),
+      h('section', { class: 'tut-card why' }, h('h3', { text: '¿Por qué importa?' }), h('p', { text: th.why || '' }))));
     if (th.faq && th.faq.length) {
       const faq = h('section', { class: 'tut-faq' }, h('h3', { text: 'Preguntas frecuentes' }));
       th.faq.forEach((f, k) => {
@@ -1424,7 +1425,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     const pr = (ui.train && ui.train.items[ui.train.idx] && ui.train.items[ui.train.idx].pr) || ls.practice;
     const T = ui.train, tv = ui.variant, run = { f: 0, h: 0 };   // run: errores y pistas de este intento (para el resumen)
     if (T) setTop('Ejercicio ' + (T.idx + 1) + ' / ' + T.items.length, 'Tutorial'); else setTop(ls.title, 'Lección');
-    clear(body); body.classList.add('tut-fixed'); body.scrollTop = 0;
+    clear(body); body.classList.add('tut-fixed'); body.scrollTop = 0; if (root) root.scrollTop = 0;
 
     const mode = pr.mode || 'classic';
     const given = digits81(pr.grid);
