@@ -136,7 +136,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v68';
+  const BUILD = 'ui-v69';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3444,11 +3444,22 @@
   const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
   const openSettings = () => { const m = $('#mSet'); if (m) m.hidden = false; };
 
+  // Color de la barra del sistema (theme-color) y fondo de html/body: siempre el del tema activo, para que no asome una franja de otro tema.
+  function syncSystemColor() {
+    const c = THEMES[set.theme] || THEMES.paper;
+    const old = document.querySelector('meta[name="theme-color"]');
+    const m = document.createElement('meta'); m.name = 'theme-color'; m.content = c;   // se reemplaza el nodo: algunos navegadores ignoran el cambio de `content`
+    if (old) old.replaceWith(m); else document.head.appendChild(m);
+    document.documentElement.style.backgroundColor = c;
+    if (document.body) document.body.style.backgroundColor = c;
+    document.documentElement.style.colorScheme = set.theme === 'night' ? 'dark' : 'light';
+  }
+
   function applyTheme() {
     document.documentElement.dataset.theme = set.theme;
     document.documentElement.classList.toggle('big-nums', !!set.bigNums);
     try { render(); } catch (e) { /* aún sin partida */ }
-    $('meta[name="theme-color"]')?.setAttribute('content', THEMES[set.theme] || THEMES.paper);
+    syncSystemColor();
     document.querySelectorAll('[data-theme-set]').forEach(b => {
       const on_ = b.dataset.themeSet === set.theme;
       b.classList.toggle('on', on_);
@@ -3504,6 +3515,8 @@
   }
   /* ---------- Eventos ---------- */
   function bindEvents() {
+    window.addEventListener('pageshow', syncSystemColor);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncSystemColor(); });
     // Inicio
     on('btnContinue', 'click', continueGame);
     on('btnPlay', 'click', () => { sfx('tap'); setHomeScreen('play'); });
@@ -3755,6 +3768,12 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v69', title: 'Pulido horizontal y color del sistema', items: [
+      'El color de la barra del sistema y el fondo de la página se actualizan con cada cambio de tema, para que no asome una franja de otro color.',
+      'En móvil horizontal, los selectores de dificultad y de partida con amigos entran sin scroll y se cierran con una × (dificultades en 3×2, modos y dificultades de sala en dos columnas).',
+      'Práctica y Entrenamiento: notas contenidas en la celda, sumas Killer sin solaparse, Objetivo con la barra de tiempo fija, y ejemplos y Solución en dos columnas.',
+      'Duelo, Carrera y Co-op: teclas con número y restantes lado a lado, y la tabla de la Carrera como tarjeta flotante.'
+    ] },
     { v: 'ui-v68', title: 'Horizontal: ronda final de pulido', items: [
       'En móvil horizontal, Estadísticas y Desafío Diario llevan el título en la misma fila que los botones; el Tutorial, las listas de Técnicas y Cómo jugar usan dos columnas; y los selectores de dificultad y de partidas con amigos también.',
       'Las barras de Duelo, Carrera y Co-op pasan a la columna derecha y dejan el tablero libre.',

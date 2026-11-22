@@ -574,11 +574,62 @@
   .tut-rmodal .tut-rcard > .chip { margin-top:0; min-height:40px; font-size:.82rem; padding:0 6px; }
 
   /* Solución del Entrenamiento: paso a paso (tablero ~265 px) a la izquierda; razonamiento y navegación a la derecha */
-  .tut-trainsol .tut-ex { display:grid; grid-template-columns:265px minmax(0, 1fr); column-gap:14px; align-items:start; }
-  .tut-trainsol .tut-ex > h3 { grid-column:1 / -1; }
-  .tut-trainsol .tut-ex > .tut-board { grid-column:1; grid-row:2 / span 3; width:265px; max-width:265px; }
-  .tut-trainsol .tut-ex > .tut-cap, .tut-trainsol .tut-ex > .tut-ctrl, .tut-trainsol .tut-ex > .tut-dots { grid-column:2; }
-  .tut-trainsol .tut-solcard { display:grid; grid-template-columns:minmax(0, 1fr) 265px; column-gap:14px; align-items:center; }
-  .tut-trainsol .tut-solcard > h3, .tut-trainsol .tut-solcard > p { grid-column:1; }
-  .tut-trainsol .tut-solcard > .tut-solboard { grid-column:2; grid-row:1 / span 2; max-width:265px; margin:0; }
+}
+
+/* =====================================================================
+   Horizontal móvil (ronda de pulido 5): encabezado, práctica, Solución y lecciones
+   ===================================================================== */
+.tut-gbody { display:block; }
+.tut-goal .tut-prog { margin-top:6px; }
+
+@media (orientation:landscape) and (max-height:520px) {
+  /* Línea divisoria del encabezado del Tutorial: bajo toda la fila (←, título, Ajustes), alineada con el contenido */
+  .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top { position:relative; padding-bottom:8px; margin-bottom:4px; }
+  .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top::after { content:""; position:absolute; bottom:0; height:1.5px; background:var(--thin);
+    left:max(calc(env(safe-area-inset-left) + 10px), calc((100% - var(--tut-w)) / 2 + 10px));
+    right:max(calc(env(safe-area-inset-right) + 10px), calc((100% - var(--tut-w)) / 2 + 10px)); }
+  [data-theme="swiss"] .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top::after { background:#000; height:1px; }
+  [data-theme="retro"] .tut-app:not(:has(.tut-body.tut-fixed)) .tut-top::after { background:var(--ink); height:3px; }
+
+  /* Objetivo: el texto largo se desplaza dentro de .tut-gbody; la barra de 7,5 s queda fija en el contenedor exterior */
+  .tut-body.tut-fixed > .tut-goal, .tut-body.tut-fixed > .tut-goal.coll.open { overflow:hidden; position:relative; padding:4px 8px 6px; max-height:104px; }
+  .tut-body.tut-fixed > .tut-goal .tut-gbody { max-height:92px; overflow:auto; padding-bottom:4px; }
+  .tut-body.tut-fixed > .tut-goal .tut-prog { margin-top:6px; }
+
+  /* Notas dentro de la celda (3 filas siempre visibles) y Killer sin tapar la suma */
+  .tut-body.tut-fixed .tut-board .nt { font-size:2.95cqw; line-height:1; font-weight:600; color:var(--ink); }
+  .tut-body.tut-fixed .tut-board .nt i { line-height:1; }
+  html.big-nums .tut-body.tut-fixed .tut-board .nt { font-size:3.15cqw; }
+  .tut-board[data-mode="killer"] .cell { padding-top:8px; }
+  .tut-board[data-mode="killer"] .cage-sum { font-size:8px; background:inherit; z-index:2; }
+
+  /* Ejemplo práctico (lecciones, guías y Solución): tablero de 250 px a la izquierda; explicación y controles a la derecha */
+  .tut-ex { display:grid; grid-template-columns:250px minmax(0, 1fr); column-gap:14px; align-items:start; }
+  .tut-ex > h3 { grid-column:1 / -1; }
+  .tut-ex > .tut-board { grid-column:1; grid-row:2 / span 3; width:250px; max-width:250px; }
+  .tut-ex > .tut-cap, .tut-ex > .tut-ctrl, .tut-ex > .tut-dots { grid-column:2; }
+  /* Controles: Anterior y Siguiente en una sola línea; "Paso X / Y" centrado debajo de ambos */
+  .tut-ex .tut-ctrl { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px 8px; }
+  .tut-ex .tut-ctrl > :nth-child(1) { grid-column:1; grid-row:1; }
+  .tut-ex .tut-ctrl > :nth-child(3) { grid-column:2; grid-row:1; }
+  .tut-ex .tut-ctrl > :nth-child(2) { grid-column:1 / -1; grid-row:2; text-align:center; }
+  .tut-ex .tut-ctrl .chip, .tut-ex .tut-ctrl button { white-space:nowrap; }
+
+  /* Tarjeta "En el ejercicio": tablero resuelto de ~255 px a la izquierda; explicación y Volver al resumen a la derecha */
+  .tut-trainsol .tut-solcard { display:grid; grid-template-columns:255px minmax(0, 1fr); column-gap:14px; align-items:center; }
+  .tut-trainsol .tut-solcard > .tut-solboard { grid-column:1; grid-row:1 / span 3; max-width:255px; margin:0; }
+  .tut-trainsol .tut-solcard > h3, .tut-trainsol .tut-solcard > p, .tut-trainsol .tut-solcard > .tut-solback { grid-column:2; }
+  .tut-trainsol .tut-solcard > .tut-solback { margin-top:8px; width:100%; }
+}
+.tut-solcard > .tut-solback { margin-top:10px; width:100%; }
+/* Hub y listas en horizontal: título, subtítulo, meta y barra apilados igual en todas las tarjetas (sin comprimir el texto) */
+@media (orientation:landscape) and (max-height:520px) {
+  .tut-vgrid .vcard { grid-template-columns:minmax(0, 1fr); row-gap:3px; padding:10px 14px; min-height:0; }
+  .tut-vgrid .vcard .vc-t { font-size:1rem; }
+  .tut-vgrid .vcard .vc-r { grid-column:1; grid-row:2; justify-self:start; white-space:normal; font-size:.74rem; }
+  .tut-vgrid .vcard .vc-main { grid-row:1; }
+  .tut-vgrid .vcard .vc-bar { grid-row:3; margin-top:4px; }
+}
+@media (orientation:landscape) and (max-height:520px) {
+  .tut-trainsol .tut-solcard .tut-pstage .tut-board { width:255px; max-width:255px; height:255px; }
 }

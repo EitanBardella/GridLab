@@ -864,7 +864,7 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
         gs.n > 0 && gs.done === gs.n, () => showGuideList(), gs.pct, true),
       vcard('Técnicas', 'Rutas de maestría, técnica por técnica', ts.done + ' / ' + ts.n + ' técnicas',
         ts.n > 0 && ts.done === ts.n, () => showMapList(), ts.pct, true),
-      vcard('Entrenamiento', 'Ejercicios al azar, con el tablero cambiado cada vez', 'Tandas de 5 · por nivel',
+      vcard('Entrenamiento', '5 ejercicios al azar por nivel', 'Por nivel',
         false, () => showTrainLevels(), undefined, true)));
   }
 
@@ -1031,9 +1031,11 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
         paintCell(b.cells[i], { v: v, cls: cls, notes: null });
       }
       wrap.append(h('div', { class: 'tut-card tut-solcard' }, h('h3', { text: 'En el ejercicio' }),
-        h('p', { text: ans.join(' ') || (g.text || '') }), h('div', { class: 'tut-pstage tut-solboard' }, b.el)));
+        h('p', { text: ans.join(' ') || (g.text || '') }), h('div', { class: 'tut-pstage tut-solboard' }, b.el),
+        h('button', { class: 'chip primary tut-solback', type: 'button', text: 'Volver al resumen', onclick: () => showTrainSummary() })));
+    } else {
+      wrap.append(h('div', { class: 'tut-cta' }, h('button', { class: 'chip primary', type: 'button', text: 'Volver al resumen', onclick: () => showTrainSummary() })));
     }
-    wrap.append(h('div', { class: 'tut-cta' }, h('button', { class: 'chip primary', type: 'button', text: 'Volver al resumen', onclick: () => showTrainSummary() })));
     body.append(wrap);
   }
 
@@ -1445,8 +1447,9 @@ const modalOpen = () => !!document.querySelector('.modal:not([hidden])');
     const goalTxt = h('span', { text: goal.text || 'Aplicá la técnica de esta lección.' });
     const progTxt = h('span', { class: 'tut-prog', hidden: true });
     const hintTxt = h('span', { class: 'tut-hint-txt', hidden: true, text: pr.hint || '' });
-    const goalBox = h('div', { class: 'tut-goal' + (T ? ' coll open' : ''), role: 'status', 'aria-live': 'polite' }, h('b', { text: 'Objetivo' }),
-      T ? h('em', { class: 'tut-train-lbl', text: ls.title + ' · ' }) : null, goalTxt, progTxt, hintTxt,
+    // El texto vive en .tut-gbody (con su propio scroll si es largo); la barra de tiempo es hija del contenedor exterior y no se desplaza con el texto.
+    const goalBox = h('div', { class: 'tut-goal' + (T ? ' coll open' : ''), role: 'status', 'aria-live': 'polite' },
+      h('div', { class: 'tut-gbody' }, h('b', { text: 'Objetivo' }), T ? h('em', { class: 'tut-train-lbl', text: ls.title + ' · ' }) : null, goalTxt, progTxt, hintTxt),
       T ? h('i', { class: 'tut-gbar', 'aria-hidden': 'true' }) : null);
     // Entrenamiento: barra fija sobre el tablero con "Objetivo" (despliega/oculta la consigna) y "Saltar".
     let goalTimer = 0, actionsBar = null;

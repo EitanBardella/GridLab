@@ -50,6 +50,23 @@ section('1. Sincronización de versión');
   /class="chip set-x"[^>]*data-close/.test(html) ? ok('Ajustes tiene el cierre ×') : fail('Ajustes no tiene el botón × de cierre');
   ['btnQuit', 'mQuit', 'quitOk'].forEach(id => { if (!html.includes('id="' + id + '"')) fail('falta #' + id + ' en index.html'); });
   if (/<button[^>]*data-close[^>]*>Listo<\/button>/.test(html.slice(html.indexOf('id="mSet"'), html.indexOf('id="mQuit"')))) fail('Ajustes conserva el botón redundante Listo');
+  // Modales de selección: cierre × (visible en horizontal) y theme-color sincronizado con el fondo de cada tema
+  ['playPanel', 'mFriends', 'mFriend', 'mRace', 'mLive', 'mCoop'].forEach(id => {
+    const i = html.indexOf('id="' + id + '"'), blk = html.slice(i, i + 1200);
+    if (i < 0 || !/class="chip modal-x"[^>]*data-close/.test(blk)) fail('#' + id + ' no tiene el botón × de cierre');
+  });
+  {
+    const css = read('style.css'), themes = (app.match(/const THEMES = \{([^}]*)\}/) || [])[1] || '';
+    ['paper', 'night', 'swiss', 'retro'].forEach(t => {
+      const sel = t === 'paper' ? ':root, \\[data-theme="paper"\\]' : '\\[data-theme="' + t + '"\\]';
+      const bg = (css.match(new RegExp(sel + '\\s*\\{[^}]*?--bg:\\s*(#[0-9A-Fa-f]{6})')) || [])[1];
+      const tc = (themes.match(new RegExp(t + ":\\s*'(#[0-9A-Fa-f]{6})'")) || [])[1];
+      if (!bg || !tc || bg.toUpperCase() !== tc.toUpperCase()) fail('theme-color de ' + t + ' (' + tc + ') no coincide con su --bg (' + bg + ')');
+    });
+    const inl = html.match(/paper:\s*'(#[0-9A-Fa-f]{6})'[^}]*night:\s*'(#[0-9A-Fa-f]{6})'[^}]*swiss:\s*'(#[0-9A-Fa-f]{6})'[^}]*retro:\s*'(#[0-9A-Fa-f]{6})'/);
+    const mine = ['paper', 'night', 'swiss', 'retro'].map(t => (themes.match(new RegExp(t + ":\\s*'(#[0-9A-Fa-f]{6})'")) || [])[1]);
+    if (!inl || inl.slice(1).some((v, k) => v.toUpperCase() !== (mine[k] || '').toUpperCase())) fail('el script inicial de index.html tiene colores de tema distintos a THEMES de app.js');
+  }
   const cl = (app.match(/const CHANGELOG = \[\s*\{\s*v:\s*'([^']+)'/) || [])[1];
   cl === bSw ? ok('CHANGELOG abre con la versión actual') : fail('la primera entrada del CHANGELOG (' + cl + ') no es ' + bSw);
 }

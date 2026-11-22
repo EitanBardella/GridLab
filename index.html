@@ -19,8 +19,8 @@
   } catch (e) { /* sin almacenamiento */ }
 }());
 </script>
-<link rel="stylesheet" href="style.css?v=ui-v68">
-<link rel="stylesheet" href="tutorial.css?v=ui-v68">
+<link rel="stylesheet" href="style.css?v=ui-v69">
+<link rel="stylesheet" href="tutorial.css?v=ui-v69">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png">
 <link rel="manifest" href="./manifest.json">
@@ -89,6 +89,7 @@
 <!-- Dificultad del modo elegido (se abre al tocar un modo en "Jugar") -->
 <div class="modal mode-panel" id="playPanel" data-mode="classic" hidden>
   <div class="sheet">
+    <button type="button" class="chip modal-x" data-close aria-label="Cerrar">×</button>
     <h2 id="playTitle">Clásico</h2>
     <p class="mode-desc" id="modeDesc">
       <span data-m="classic">Las reglas de siempre: filas, columnas y bloques de 3×3.</span>
@@ -116,13 +117,14 @@
       <button data-diff="extremo"><span class="d-top"><b>Extremo</b><em>2 vidas</em></span>
         <small class="s-std">Lógica al límite</small><small class="s-killer">Sin pistas, casi sin jaulas cortas</small></button>
     </div>
-    <button class="chip wide" data-close>Volver</button>
+    <button class="chip wide ls-hide" data-close>Volver</button>
   </div>
 </div>
 
 <!-- Jugar con amigos: Duelo o Co-op (los botones conservan sus IDs) -->
 <div class="modal" id="mFriends" hidden>
   <div class="sheet center">
+    <button type="button" class="chip modal-x" data-close aria-label="Cerrar">×</button>
     <h2>Jugar con amigos</h2>
     <p class="sub">Mismo tablero, tu amigo y vos.</p>
     <button id="btnLive" class="chip home-btn" type="button">
@@ -141,7 +143,7 @@
       <b>Carrera grupal (3–8 jugadores)</b>
       <small>Todos contra todos en vivo: gana quien completa primero el tablero</small>
     </button>
-    <button class="chip wide" data-close>Cancelar</button>
+    <button class="chip wide ls-hide" data-close>Cancelar</button>
   </div>
 </div>
 
@@ -531,6 +533,7 @@
 
 <div class="modal" id="mFriend" hidden>
   <div class="sheet center">
+    <button type="button" class="chip modal-x" data-close aria-label="Cerrar">×</button>
     <h2>Duelo fantasma</h2>
     <p class="sub">Elegí el tablero: vos y tu amigo juegan el mismo, a la vez, y comparan tiempos al terminar. 3 vidas y 2 pistas (+30 s cada una).</p>
     <p class="sub warn" id="friendWarn" hidden>Se perderá la partida en curso.</p>
@@ -556,13 +559,14 @@
     </div>
     </div></div>
     <button class="chip primary wide" id="friendGo">Compartir enlace y jugar</button>
-    <button class="chip wide" data-close>Cancelar</button>
+    <button class="chip wide ls-hide" data-close>Cancelar</button>
   </div>
 </div>
 
 <!-- Carrera grupal: elegir tablero y crear la sala (Host, que también juega) -->
 <div class="modal" id="mRace" hidden>
   <div class="sheet center">
+    <button type="button" class="chip modal-x" data-close aria-label="Cerrar">×</button>
     <h2>Carrera grupal</h2>
     <p class="sub">De 3 a 8 jugadores, todos contra todos y a la vez, cada uno con su copia del mismo tablero. Vos jugás igual que los demás. Gana quien completa primero las 81 celdas; con 3 errores quedás eliminado. Sin pistas.</p>
     <p class="sub warn" id="raceWarn" hidden>Se perderá la partida en curso.</p>
@@ -588,7 +592,7 @@
     </div>
     </div></div>
     <button class="chip primary wide" id="raceGo">Crear sala y compartir enlace</button>
-    <button class="chip wide" data-close>Cancelar</button>
+    <button class="chip wide ls-hide" data-close>Cancelar</button>
   </div>
 </div>
 
@@ -619,6 +623,7 @@
 <!-- Duelo 1v1 en vivo: elegir tablero y crear la sala (Host) -->
 <div class="modal" id="mLive" hidden>
   <div class="sheet center">
+    <button type="button" class="chip modal-x" data-close aria-label="Cerrar">×</button>
     <h2>Duelo 1v1 en vivo</h2>
     <p class="sub">Vos y tu rival resuelven el mismo tablero a la vez, cada uno el suyo. Ven el avance del otro en tiempo real; gana quien complete primero las 81 celdas o quien sobreviva si el otro agota sus 3 vidas. Sin pistas.</p>
     <p class="sub warn" id="liveWarn" hidden>Se perderá la partida en curso.</p>
@@ -644,7 +649,7 @@
     </div>
     </div></div>
     <button class="chip primary wide" id="liveGo">Crear sala y compartir enlace</button>
-    <button class="chip wide" data-close>Cancelar</button>
+    <button class="chip wide ls-hide" data-close>Cancelar</button>
   </div>
 </div>
 
@@ -661,6 +666,7 @@
 <!-- Co-op: elegir tablero y crear la sala (Host) -->
 <div class="modal" id="mCoop" hidden>
   <div class="sheet center">
+    <button type="button" class="chip modal-x" data-close aria-label="Cerrar">×</button>
     <h2>Resolver juntos</h2>
     <p class="sub">Vos y tu amigo resuelven el mismo tablero, a la vez y en equipo. Cada uno ve lo que escribe el otro al instante. Comparten 3 vidas y 3 pistas.</p>
     <p class="sub warn" id="coopWarn" hidden>Se perderá la partida en curso.</p>
@@ -686,7 +692,7 @@
     </div>
     </div></div>
     <button class="chip primary wide" id="coopGo">Crear sala y compartir enlace</button>
-    <button class="chip wide" data-close>Cancelar</button>
+    <button class="chip wide ls-hide" data-close>Cancelar</button>
   </div>
 </div>
 
@@ -730,21 +736,21 @@
   </div>
 </div>
 
-<script src="sound.js?v=ui-v68"></script>
-<script src="engine.js?v=ui-v68"></script>
-<script src="killer-engine.js?v=ui-v68"></script>
-<script src="duel.js?v=ui-v68"></script>
+<script src="sound.js?v=ui-v69"></script>
+<script src="engine.js?v=ui-v69"></script>
+<script src="killer-engine.js?v=ui-v69"></script>
+<script src="duel.js?v=ui-v69"></script>
 <script src="peerjs.min.js?v=lives-v1"></script>
-<script src="coop.js?v=ui-v68"></script>
-<script src="race.js?v=ui-v68"></script>
+<script src="coop.js?v=ui-v69"></script>
+<script src="race.js?v=ui-v69"></script>
 <!-- Tutorial: los archivos de datos se registran solos en window.TUTORIAL_PATHS (el orden no importa). -->
-<script src="tutorial-transform.js?v=ui-v68"></script>
-<script src="tutorial-data-classic.js?v=ui-v68"></script>
-<script src="tutorial-data-killer.js?v=ui-v68"></script>
-<script src="tutorial-data-variants.js?v=ui-v68"></script>
-<script src="tutorial-data-variants2.js?v=ui-v68"></script>
-<script src="tutorial.js?v=ui-v68"></script>
-<script src="app.js?v=ui-v68"></script>
+<script src="tutorial-transform.js?v=ui-v69"></script>
+<script src="tutorial-data-classic.js?v=ui-v69"></script>
+<script src="tutorial-data-killer.js?v=ui-v69"></script>
+<script src="tutorial-data-variants.js?v=ui-v69"></script>
+<script src="tutorial-data-variants2.js?v=ui-v69"></script>
+<script src="tutorial.js?v=ui-v69"></script>
+<script src="app.js?v=ui-v69"></script>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 </body>
