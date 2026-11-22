@@ -1183,13 +1183,25 @@
     clear(body); body.classList.remove('tut-fixed');
     body.scrollTop = 0;
 
-    const chs = getChapters(ui.variant);
     const vs = varStats(ui.variant);
-    body.append(h('p', { class: 'tut-summary' },
-      h('b', { text: 'Ruta ' + META[ui.variant].label }), ' · ' + chs.length + ' capítulos · ',
-      vs.n ? vs.done + ' de ' + vs.n + ' técnicas completadas' : 'técnicas por cargar'));
+    // Cabecera: variante activa + técnicas dominadas y mini barra, separadas del camino por una línea.
+    const chs = getChapters(ui.variant);
+    body.append(h('header', { class: 'tut-mhead' },
+      h('div', { class: 'mh-row' }, h('b', { class: 'mh-title', text: 'Ruta ' + META[ui.variant].label }),
+        h('span', { class: 'mh-count', text: vs.n ? vs.done + ' / ' + vs.n + ' dominadas' : 'Técnicas por cargar' })),
+      h('div', { class: 'mh-bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + vs.pct + '%' }))));
     body.append(buildMap(chs));
   }
+
+  // Subtítulo ultra breve (≤4 palabras) de cada capítulo del mapa.
+  const CH_TAG = { c1: 'Candidatos únicos', c2: 'Ocultos y apuntadores', c3: 'Grupos y X-Wing', c4: 'Peces avanzados', c5: 'Color y unicidad', c6: 'Cadenas y Sue de Coq',
+    k1: 'Jaulas y sumas', k2: 'Combinaciones únicas', k3: 'Innies y outies', k4: 'Jaulas y regla del 45',
+    d1: 'Las dos diagonales', d2: 'Eliminaciones diagonales', d3: 'Diagonales avanzadas',
+    a1: 'Salto del caballo', a2: 'Descartes a distancia', a3: 'Caballo avanzado',
+    n1: 'Vecinos sin tocarse', n2: 'Consecutivos avanzado', j1: 'Regiones irregulares', j2: 'Regiones avanzadas' };
+
+  // Estado de un capítulo: locked (sin lecciones cargadas) · available (0 %) · progress (1–99 %) · done (100 %).
+  function chState(c, st) { return !c.lessons.length ? 'locked' : (st.pct >= 100 ? 'done' : (st.pct > 0 ? 'progress' : 'available')); }
 
   function buildMap(chs) {
     const N = chs.length, W = 360, top = 56, gap = 132;
@@ -1197,50 +1209,91 @@
     const off = [0, 70, 0, -70];
     const pts = chs.map((c, i) => ({ x: 180 + off[i % 4], y: top + i * gap }));
     const svg = sv('svg', { class: 'tut-map', viewBox: '0 0 ' + W + ' ' + H, role: 'group', 'aria-label': 'Mapa de capítulos' });
+    const stats = chs.map(c => chStats(ui.variant, c));
+    const activeIdx = chs.findIndex((c, i) => c.lessons.length && !stats[i].complete);   // próximo capítulo a trabajar
 
     // Camino continuo: tramo base + tramo iluminado si el capítulo de origen está completo
     for (let i = 0; i < N - 1; i++) {
       const a = pts[i], b = pts[i + 1], dy = (b.y - a.y) * 0.55;
       const d = 'M' + a.x + ' ' + a.y + ' C' + a.x + ' ' + (a.y + dy) + ' ' + b.x + ' ' + (b.y - dy) + ' ' + b.x + ' ' + b.y;
       svg.append(sv('path', { class: 'tut-track', d: d }));
-      if (chStats(ui.variant, chs[i]).complete) svg.append(sv('path', { class: 'tut-track lit tut-seg-' + tierOf(i, N), d: d }));
+      if (stats[i].complete) svg.append(sv('path', { class: 'tut-track lit tut-seg-' + tierOf(i, N), d: d }));
     }
 
     chs.forEach((c, i) => {
-      const st = chStats(ui.variant, c), tier = tierOf(i, N), p = pts[i];
+      const st = stats[i], tier = tierOf(i, N), p = pts[i], state = chState(c, st);
       const master = N > 1 && i === N - 1;
-      const cls = ['tut-node', 'tier-' + tier];
+      const cls = ['tut-node', 'tier-' + tier, 'st-' + state];
       if (master) cls.push('master');
-      if (st.complete) cls.push('done');
-      if (!c.lessons.length) cls.push('empty');
+      if (state === 'done') cls.push('done');
+      if (state === 'locked') cls.push('empty');
+      if (i === activeIdx) cls.push('active');
+      if (ui.flashCh === c.id) cls.push('flash');
       if (ui.selCh === c.id) cls.push('sel');
       const soonTxt = c.planned ? 'Próximamente · ' + c.planned + (c.planned === 1 ? ' técnica' : ' técnicas') : 'Próximamente';
+      const stTxt = { locked: 'bloqueado, próximamente', available: 'disponible', progress: st.pct + '% completado', done: 'completado' }[state];
       const g = sv('g', { class: cls.join(' '), transform: 'translate(' + p.x + ' ' + p.y + ')', role: 'button', tabindex: '0',
-        'aria-label': 'Capítulo ' + (i + 1) + ': ' + c.title + (c.lessons.length ? ', ' + st.pct + '% completado' : ', ' + soonTxt.toLowerCase()) });
-      g.append(sv('circle', { class: 'ring-bg', r: 42 }));
-      if (st.pct > 0) g.append(sv('circle', { class: 'ring', r: 42, transform: 'rotate(-90)', pathLength: 100, 'stroke-dasharray': st.pct + ' 100' }));
-      if (tier === 'beg') g.append(sv('circle', { class: 'shape', r: 30 }));
-      else if (tier === 'mid') g.append(sv('rect', { class: 'shape', x: -29, y: -29, width: 58, height: 58, rx: 12 }));
-      else {
-        const hex = r => { const a = []; for (let k = 0; k < 6; k++) { const t = (60 * k - 90) * Math.PI / 180; a.push((r * Math.cos(t)).toFixed(1) + ',' + (r * Math.sin(t)).toFixed(1)); } return a.join(' '); };
-        g.append(sv('polygon', { class: 'shape', points: hex(34) }));
-        if (master) g.append(sv('polygon', { class: 'shape2', points: hex(26) }));
-        g.append(sv('rect', { class: 'badge', x: 25, y: -37, width: 11, height: 11, transform: 'rotate(45 30.5 -31.5)' }));
+        'aria-label': 'Capítulo ' + (i + 1) + ': ' + c.title + ', ' + stTxt + (c.lessons.length ? ' (' + st.done + ' de ' + st.n + ')' : '') });
+      // Parte visual en un <g> interno: así el zoom de hover/toque no pisa el translate del nodo.
+      const ni = sv('g', { class: 'ni' });
+      const pct = st.pct, prog = { pathLength: 100, 'stroke-dasharray': pct + ' 100' }, rot = { transform: 'rotate(-90)' };
+      const P = (tag, attrs) => sv(tag, attrs);
+      // Cada tema dibuja su propia silueta y su propio contenedor de progreso; el CSS muestra solo la del tema activo.
+      // Noche: círculo oscuro con anillo luminoso (lecciones completadas / total) y halo pulsante en el capítulo activo.
+      const gN = sv('g', { class: 'g-night' });
+      gN.append(P('circle', { class: 'halo', r: 47 }), P('circle', { class: 'ring-bg', r: 42 }));
+      if (pct > 0) gN.append(P('circle', Object.assign({ class: 'ring', r: 42 }, rot, prog)));
+      gN.append(P('circle', { class: 'nshape', r: 31 }));
+      if (master) gN.append(P('circle', { class: 'shape2', r: 24 }));
+      ni.append(gN);
+      // Papel: sello circular festoneado (roseta) con filete interior y anillo de progreso; al 100 % se rellena de tinta y suma listón.
+      const gP = sv('g', { class: 'g-paper' });
+      // Listón de escarapela: dos colas centradas en la base del sello, abiertas en diagonal simétrica (±22°); el centro inferior queda libre para el camino.
+      gP.append(sv('g', { class: 'pp-rib' },
+        sv('g', { transform: 'translate(-4 24) rotate(22)' }, P('polygon', { class: 'pp-rib-l', points: '-4.5,0 4.5,0 4.5,33 0,27 -4.5,33' })),
+        sv('g', { transform: 'translate(4 24) rotate(-22)' }, P('polygon', { class: 'pp-rib-r', points: '-4.5,0 4.5,0 4.5,33 0,27 -4.5,33' }))));
+      gP.append(P('circle', { class: 'pp-ringbg', r: 42 }));
+      if (pct > 0) gP.append(P('circle', Object.assign({ class: 'pp-ring', r: 42 }, rot, prog)));
+      const rosette = []; for (let k = 0; k < 144; k++) { const a = k * Math.PI * 2 / 144, r = 30 + 2.3 * Math.cos(18 * a); rosette.push((r * Math.cos(a)).toFixed(2) + ',' + (r * Math.sin(a)).toFixed(2)); }
+      gP.append(P('polygon', { class: 'pp-seal', points: rosette.join(' ') }), P('circle', { class: 'pp-in', r: 24.5 }));
+      ni.append(gP);
+      // Minimalista: círculo o cuadrado perfecto de trazo fino; el progreso es un arco/borde negro de 2 px.
+      const gS = sv('g', { class: 'g-swiss' });
+      if (tier === 'beg') {
+        gS.append(P('circle', { class: 'sw-shape', r: 30 }));
+        if (pct > 0) gS.append(P('circle', Object.assign({ class: 'sw-prog', r: 36 }, rot, prog)));
+      } else {
+        gS.append(P('rect', { class: 'sw-shape', x: -30, y: -30, width: 60, height: 60 }));
+        if (pct > 0) gS.append(P('rect', Object.assign({ class: 'sw-prog', x: -36, y: -36, width: 72, height: 72 }, prog)));
       }
-      g.append(sv('text', { class: 'num', x: 0, y: 1 }, pad2(i + 1)));
+      ni.append(gS);
+      // Retro: caja LCD de esquinas escalonadas y barra de batería (un bloque por lección) en la base.
+      const gR = sv('g', { class: 'g-retro' });
+      const pix = '-26,-32 26,-32 26,-26 32,-26 32,26 26,26 26,32 -26,32 -26,26 -32,26 -32,-26 -26,-26';
+      gR.append(P('polygon', { class: 'rt-sh', points: pix, transform: 'translate(4 4)' }), P('polygon', { class: 'rt-box', points: pix }));
+      const nb = Math.max(1, Math.min(st.n || c.planned || 1, 10)), bw = (64 - (nb - 1) * 2) / nb, filled = Math.round(pct / 100 * nb);
+      for (let k = 0; k < nb; k++) gR.append(P('rect', { class: 'rt-seg' + (k < filled ? ' on' : ''), x: (-32 + k * (bw + 2)).toFixed(2), y: 40, width: bw.toFixed(2), height: 7 }));
+      ni.append(gR);
+      ni.append(sv('text', { class: 'num', x: 0, y: 1 }, pad2(i + 1)));
+      if (state === 'locked') ni.append(sv('g', { class: 'lock', transform: 'translate(0 18)' },
+        sv('rect', { x: -5, y: -1, width: 10, height: 8, rx: 1.5 }), sv('path', { d: 'M-3 -1 V-3.5 a3 3 0 0 1 6 0 V-1' })));
+      if (state === 'done') ni.append(sv('g', { class: 'chk', transform: 'translate(29 -29)' }, sv('circle', { r: 9.5 }), sv('path', { d: 'M-4.2 0.2 L-1.2 3.2 L4.4 -3' })));
+      g.append(ni);
       // Etiqueta: del lado contrario al desvío del camino
       const right = p.x <= 180, tx = right ? 56 : -56, anchor = right ? 'start' : 'end';
       const words = c.title.split(' '), lines = [''];
       words.forEach(w => { const l = lines[lines.length - 1]; if ((l + ' ' + w).trim().length > 15 && l) lines.push(w); else lines[lines.length - 1] = (l + ' ' + w).trim(); });
-      const shown = lines.slice(0, 2);
-      shown.forEach((ln, k) => g.append(sv('text', { class: 'lbl', x: tx, y: -6 + k * 16 - (shown.length - 1) * 8, 'text-anchor': anchor }, ln)));
-      const sub = c.lessons.length ? st.done + '/' + st.n + ' técnicas · ' + st.pct + '%' : soonTxt;
-      g.append(sv('text', { class: 'lbl-sub', x: tx, y: 12 + (shown.length - 1) * 8 + 6, 'text-anchor': anchor }, sub));
+      const shown = lines.slice(0, 2), L = shown.length;
+      shown.forEach((ln, k) => g.append(sv('text', { class: 'lbl', x: tx, y: -14 + k * 16 - (L - 1) * 8, 'text-anchor': anchor }, ln)));
+      const yTag = -14 + (L - 1) * 8 + 16;
+      g.append(sv('text', { class: 'lbl-tag', x: tx, y: yTag, 'text-anchor': anchor }, CH_TAG[c.id] || ''));
+      g.append(sv('text', { class: 'lbl-sub', x: tx, y: yTag + 15, 'text-anchor': anchor }, c.lessons.length ? st.done + ' / ' + st.n + ' · ' + st.pct + '%' : soonTxt));
       const open = () => openSheet(c, i);
       g.addEventListener('click', open);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
       svg.append(g);
     });
+    ui.flashCh = null;
     return svg;
   }
 
@@ -1474,7 +1527,7 @@
       if (goal.place) ok = goal.place.some(x => P.val[x[0]] === x[1] && !given[x[0]]);
       if (!ok && goal.elimSets) ok = goal.elimSets.some(set => set.every(x => P.val[x[0]] === 0 && !P.notes[x[0]].has(x[1])));
       if (ok) {
-        P.won = true; sfx('win'); markDone(ui.variant, ch, ls); paintAll();
+        P.won = true; sfx('win'); markDone(ui.variant, ch, ls); if (!T) ui.flashCh = ch.id; paintAll();
         if (T) setTimeout(() => { if (ui.train === T && ui.screen === 'practice') trainAdvance({ title: ls.title, f: run.f, h: run.h, skipped: false }); }, 900);
         else setTimeout(() => celebrate(ch, ls), 350);
       }

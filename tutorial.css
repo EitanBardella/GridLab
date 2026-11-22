@@ -359,3 +359,127 @@
 .tut-solcard h3 { margin:0 0 4px; font-size:.95rem; }
 .tut-solcard p { margin:0 0 8px; font-size:.9rem; }
 .tut-solcard .tut-solboard { display:block; flex:none; width:100%; max-width:380px; margin:0 auto; }
+
+/* =====================================================================
+   Mapa de Técnicas — jerarquía, estados y silueta propia por tema
+   Cada nodo trae las cuatro siluetas (g-night, g-paper, g-swiss, g-retro); el CSS muestra solo la del tema activo.
+   ===================================================================== */
+/* Encabezado superior con aire arriba para que nunca se recorten las sombras de los botones */
+.tut-app .tut-top { margin-top:6px; padding-bottom:2px; }
+[data-theme="retro"] .tut-app .tut-top { margin-top:10px; padding-bottom:4px; }
+
+/* Cabecera de la ruta: técnicas dominadas + mini barra, separadas del camino por una línea */
+.tut-mhead { margin:4px 0 12px; padding:0 2px 12px; border-bottom:1.5px solid var(--thin); }
+.mh-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.mh-title { font-size:1.05rem; font-weight:800; }
+.mh-count { font-size:.84rem; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
+.mh-bar { height:6px; margin-top:7px; border-radius:99px; background:var(--thin); overflow:hidden; }
+.mh-bar i { display:block; height:100%; background:var(--accent); transition:width .5s ease; }
+[data-theme="swiss"] .tut-mhead { border-bottom:1px solid #000; }
+[data-theme="swiss"] .mh-bar { border-radius:0; height:4px; background:#D4D4D4; }
+[data-theme="swiss"] .mh-bar i { background:#000; }
+[data-theme="retro"] .tut-mhead { border-bottom:3px solid var(--ink); }
+[data-theme="retro"] .mh-bar { border-radius:0; height:8px; background:rgba(30, 41, 27, .25); }
+[data-theme="retro"] .mh-bar i { background:#1E291B; }
+
+/* Nodo: la parte visual vive en .ni para poder escalarla sin tocar su posición */
+.tut-node .ni { transition:transform .18s ease, filter .25s; }
+.tut-node:hover .ni, .tut-node:active .ni, .tut-node:focus-visible .ni { transform:scale(1.04); }
+.tut-node .lbl-tag { fill:var(--muted); font-size:11.5px; font-weight:500; pointer-events:none; }
+.tut-node.st-progress .lbl-sub, .tut-node.active .lbl-sub { fill:var(--tc); font-weight:700; }
+.tut-node .lock, .tut-node .chk { display:none; }
+.tut-node.st-locked .lock, .tut-node.st-done .chk { display:block; }
+.tut-node.st-locked { opacity:.55; cursor:default; }
+.tut-node.st-locked .num { opacity:.45; }
+.tut-node.st-locked .lock { fill:var(--muted); stroke:var(--muted); stroke-width:1.6; }
+.tut-node.st-locked .lock path { fill:none; }
+.tut-node .chk path { fill:none; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+.tut-node.done { filter:none; }
+
+/* Selección de silueta por tema (Noche es también la de respaldo) */
+.tut-node .g-paper, .tut-node .g-swiss, .tut-node .g-retro { display:none; }
+[data-theme="paper"] .tut-node .g-night, [data-theme="swiss"] .tut-node .g-night, [data-theme="retro"] .tut-node .g-night { display:none; }
+[data-theme="paper"] .tut-node .g-paper, [data-theme="swiss"] .tut-node .g-swiss, [data-theme="retro"] .tut-node .g-retro { display:inline; }
+
+/* Destello / relleno al volver al mapa tras completar una técnica */
+@keyframes nodeFlash { 0% { transform:scale(1); } 35% { transform:scale(1.12); } 100% { transform:scale(1); } }
+@keyframes ringGrow { from { stroke-dasharray:0 100; } }
+@keyframes haloPulse { 0%, 100% { opacity:.55; stroke-width:2.5; } 50% { opacity:.12; stroke-width:5; } }
+.tut-node.flash .ni { animation:nodeFlash .9s ease-out 1; }
+@media (prefers-reduced-motion:reduce) {
+  .tut-node.flash .ni, .tut-node.active .halo { animation:none; }
+  .tut-node .ni, .mh-bar i { transition:none; }
+  .tut-node:hover .ni, .tut-node:active .ni, .tut-node:focus-visible .ni { transform:none; }
+}
+
+/* ---------- Noche: círculo oscuro, anillo cobalto luminoso y halo pulsante en el capítulo activo ---------- */
+.tut-node .nshape { fill:#0F172A; stroke:var(--tc); stroke-width:2.5; }
+.tut-node .ring-bg { fill:none; stroke:#1E2A4A; stroke-width:4; }
+.tut-node .ring { fill:none; stroke:#60A5FA; stroke-width:4.5; stroke-linecap:round; transition:stroke-dasharray .5s ease;
+  filter:drop-shadow(0 0 4px rgba(59, 130, 246, .85)); }
+.tut-node .halo { fill:none; stroke:#3B82F6; stroke-width:2.5; opacity:0; }
+.tut-node.active .halo { opacity:.55; animation:haloPulse 2.2s ease-in-out infinite; }
+.tut-node .shape2 { fill:none; stroke:#60A5FA; stroke-width:1.4; opacity:.8; }
+[data-theme="night"] .tut-node .num { fill:#E2E8F0; font-size:20px; font-weight:800; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+[data-theme="night"] .tut-node.st-done .nshape { fill:#1D4ED8; stroke:#60A5FA; }
+[data-theme="night"] .tut-node.st-done .num { fill:#fff; }
+[data-theme="night"] .tut-node.st-done .ni { filter:drop-shadow(0 0 8px rgba(96, 165, 250, .6)); }
+[data-theme="night"] .tut-node .chk circle { fill:#3B82F6; stroke:#0F172A; stroke-width:2; }
+[data-theme="night"] .tut-node .chk path { stroke:#fff; }
+.tut-node.st-locked .nshape { stroke-dasharray:5 5; }
+
+/* ---------- Papel: sello editorial vertical de doble filete; el progreso es un marco que se llena de tinta ---------- */
+
+/* ---------- Minimalista: círculo o cuadrado puro, trazo fino de 1.5 px, sin sombras ni adornos ---------- */
+.tut-node .sw-shape { fill:#fff; stroke:#000; stroke-width:1.5; }
+.tut-node .sw-prog { fill:none; stroke:#000; stroke-width:2; stroke-linecap:butt; }
+[data-theme="swiss"] .tut-node, [data-theme="swiss"] .tut-node .ni { filter:none; }
+[data-theme="swiss"] .tut-node .num { fill:#000; font-size:20px; font-weight:700; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+[data-theme="swiss"] .tut-node.st-done .sw-shape { fill:#000; }
+[data-theme="swiss"] .tut-node.st-done .num { fill:#fff; }
+[data-theme="swiss"] .tut-node .chk circle { fill:#000; stroke:#fff; stroke-width:1.5; }
+[data-theme="swiss"] .tut-node .chk path { stroke:#fff; }
+[data-theme="swiss"] .tut-node.st-locked .lock { fill:#000; stroke:#000; }
+.tut-node.st-locked .sw-shape { stroke-dasharray:5 4; }
+
+/* ---------- Retro: caja LCD de esquinas escalonadas con barra de batería de un bloque por lección ---------- */
+.tut-node .rt-sh { fill:#1E291B; opacity:.9; }
+.tut-node .rt-box { fill:var(--panel); stroke:#1E291B; stroke-width:3; stroke-linejoin:miter; }
+.tut-node .rt-seg { fill:transparent; stroke:#1E291B; stroke-width:1.5; }
+.tut-node .rt-seg.on { fill:#1E291B; }
+[data-theme="retro"] .tut-node .g-retro * { shape-rendering:crispEdges; }
+[data-theme="retro"] .tut-node, [data-theme="retro"] .tut-node .ni { filter:none; }
+[data-theme="retro"] .tut-node .num { fill:#1E291B; font-size:20px; font-weight:800; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+[data-theme="retro"] .tut-node.st-done .rt-box { fill:#1E291B; }
+[data-theme="retro"] .tut-node.st-done .num { fill:var(--panel); }
+[data-theme="retro"] .tut-node.active .rt-box { stroke-width:4.5; }
+[data-theme="retro"] .tut-node .chk { transform:translate(33px, -34px); }
+[data-theme="retro"] .tut-node .chk circle { fill:#1E291B; stroke:var(--bg); stroke-width:2; }
+[data-theme="retro"] .tut-node .chk path { stroke:var(--panel); }
+.tut-node.st-locked .rt-box { stroke-dasharray:5 4; fill:transparent; }
+[data-theme="swiss"] .tut-track.lit { stroke:#000; }
+[data-theme="swiss"] .tut-track { stroke:#BDBDBD; }
+
+/* Destello al volver al mapa: relleno del anillo (el selector incluye los anillos de Papel y Minimalista) */
+.tut-node.flash :is(.ring, .pp-ring, .sw-prog) { animation:ringGrow .9s ease-out 1; }
+@media (prefers-reduced-motion:reduce) { .tut-node.flash :is(.ring, .pp-ring, .sw-prog) { animation:none; } }
+
+/* ---------- Papel: sello editorial festoneado (roseta) con anillo de progreso y listón al completar ---------- */
+.tut-node .pp-ringbg { fill:none; stroke:color-mix(in srgb, var(--ink) 16%, var(--bg)); stroke-width:3; }
+.tut-node .pp-ring { fill:none; stroke:var(--ink); stroke-width:3.5; stroke-linecap:butt; transition:stroke-dasharray .5s ease; }
+.tut-node .pp-seal { fill:var(--panel); stroke:var(--tc); stroke-width:1.5; stroke-linejoin:round; }
+.tut-node .pp-in { fill:none; stroke:var(--tc); stroke-width:.9; opacity:.85; }
+.tut-node .pp-rib { display:none; }
+.tut-node .pp-rib-l { fill:#C0652F; stroke:#8F4520; stroke-width:.8; stroke-linejoin:round; }
+.tut-node .pp-rib-r { fill:#A8512A; stroke:#8F4520; stroke-width:.8; stroke-linejoin:round; }
+[data-theme="paper"] .tut-node .num { fill:var(--tc); font-family:var(--font-head, Georgia, serif); font-size:21px; font-weight:800; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+[data-theme="paper"] .tut-node.st-done .pp-seal { fill:var(--ink); stroke:var(--ink); }
+[data-theme="paper"] .tut-node.st-done .pp-in { stroke:#F4EEDD; opacity:.85; }
+[data-theme="paper"] .tut-node.st-done .num { fill:#F4EEDD; }
+[data-theme="paper"] .tut-node.st-done .pp-rib { display:inline; }
+[data-theme="paper"] .tut-node.active .pp-seal { stroke-width:2.4; }
+[data-theme="paper"] .tut-node.active .pp-ringbg { stroke:color-mix(in srgb, var(--ink) 30%, var(--bg)); stroke-width:4.5; }
+[data-theme="paper"] .tut-node .chk { transform:translate(30px, -30px); }
+[data-theme="paper"] .tut-node .chk circle { fill:var(--accent); stroke:var(--bg); stroke-width:2; }
+[data-theme="paper"] .tut-node .chk path { stroke:var(--on-accent); }
+.tut-node.st-locked .pp-seal { stroke-dasharray:5 4; fill:none; }

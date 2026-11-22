@@ -136,7 +136,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v61';
+  const BUILD = 'ui-v65';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3738,6 +3738,21 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v65', title: 'Listón en escarapela (Papel)', items: [
+      'En el tema Papel, el listón del sello completado se abre en diagonal simétrica como una escarapela y deja libre el centro por donde sale el camino al siguiente capítulo.'
+    ] },
+    { v: 'ui-v64', title: 'Papel: sello festoneado con listón', items: [
+      'En el tema Papel, los capítulos del mapa de Técnicas son un sello circular de borde festoneado con su anillo de progreso. Al completarlos se rellenan de tinta y suman un listón con la marca de verificación.'
+    ] },
+    { v: 'ui-v63', title: 'Mapa de Técnicas: una silueta por tema', items: [
+      'Se quitó la barra de variantes del mapa (ya elegiste la variante antes) y el encabezado queda con aire arriba en todos los temas.',
+      'Cada tema dibuja sus nodos con su propia forma: sello vertical con marco de progreso en Papel, círculo luminoso con halo pulsante en Noche, círculo o cuadrado de trazo fino en Minimalista y caja LCD escalonada con barra de batería en Retro.'
+    ] },
+    { v: 'ui-v62', title: 'Mapa de Técnicas renovado', items: [
+      'Cabecera con selector de variante y técnicas dominadas con barra de progreso. Cada capítulo muestra un subtítulo breve y un anillo que refleja el avance real (lecciones completadas / total).',
+      'Cuatro estados de nodo (bloqueado, disponible, en curso y completado) con zoom suave al tocar y un destello al volver tras completar una técnica.',
+      'Cada tema tiene su propio lenguaje: sello editorial en Papel, anillo luminoso en Noche, trazo fino en Minimalista y segmentos pixelados en Retro.'
+    ] },
     { v: 'ui-v61', title: 'Entrenamiento por niveles y pistas más finas', items: [
       'El Entrenamiento ahora se elige por nivel (Fácil, Medio o Difícil). Los ejercicios se sortean al azar y el tablero cambia cada vez (giros, espejos y números), así que no se pueden memorizar.',
       'La pista marca las celdas con un trazo fino y un color propio (distinto del de selección y del de error), sin tapar las notas.',
