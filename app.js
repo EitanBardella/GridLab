@@ -78,6 +78,7 @@
   set.mode = validMode(set.mode);
   set.zen = !!set.zen;
   set.haptic = set.haptic !== false;
+  set.bigNums = !!set.bigNums;
   let stats = Object.assign({ won: {}, best: {}, daily: {}, surv: {} }, load(K_STATS, {}));
   ['won', 'best', 'daily', 'surv', 'g', 'dd', 'sv'].forEach(k => { if (!stats[k] || typeof stats[k] !== 'object') stats[k] = {}; });
   // stats.dd[fecha] = { e: errores con los que se completó ese desafío diario } (los días anteriores a este campo no lo tienen:
@@ -135,7 +136,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v58';
+  const BUILD = 'ui-v61';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -3443,6 +3444,7 @@
 
   function applyTheme() {
     document.documentElement.dataset.theme = set.theme;
+    document.documentElement.classList.toggle('big-nums', !!set.bigNums);
     try { render(); } catch (e) { /* aún sin partida */ }
     $('meta[name="theme-color"]')?.setAttribute('content', THEMES[set.theme] || THEMES.paper);
     document.querySelectorAll('[data-theme-set]').forEach(b => {
@@ -3454,6 +3456,7 @@
     const oz = $('#optZen'); if (oz) oz.checked = !!set.zen;
     const oe = $('#optErr'); if (oe) oe.checked = set.showErrors;
     const ov = $('#optHaptic'); if (ov) ov.checked = set.haptic;
+    const obn = $('#optBigNums'); if (obn) obn.checked = !!set.bigNums;
   }
 
 
@@ -3645,6 +3648,7 @@
     on('optSound', 'change', e => { if (window.Sound) window.Sound.setEnabled(e.target.checked); });
     on('optErr', 'change', e => { set.showErrors = e.target.checked; saveSet(); render(); });
     on('optHaptic', 'change', e => { set.haptic = e.target.checked; saveSet(); triggerHaptic('tap'); });
+    on('optBigNums', 'change', e => { set.bigNums = e.target.checked; saveSet(); applyTheme(); });
     on('btnExport', 'click', () => { sfx('tap'); exportBackup(); });
     on('btnImport', 'click', () => { sfx('tap'); $('#fileImport').click(); });
     on('fileImport', 'change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; importBackup(f); });
@@ -3734,6 +3738,19 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v61', title: 'Entrenamiento por niveles y pistas más finas', items: [
+      'El Entrenamiento ahora se elige por nivel (Fácil, Medio o Difícil). Los ejercicios se sortean al azar y el tablero cambia cada vez (giros, espejos y números), así que no se pueden memorizar.',
+      'La pista marca las celdas con un trazo fino y un color propio (distinto del de selección y del de error), sin tapar las notas.',
+      'El botón Solución del resumen toma el estilo de los botones de cada tema.'
+    ] },
+    { v: 'ui-v60', title: 'Entrenamiento: soluciones y detalles', items: [
+      'La consigna del Entrenamiento muestra una barra de tiempo mientras está desplegada, y Objetivo / Saltar usan el mismo estilo de botón de cada tema.',
+      'Al cerrar una tanda podés elegir Ver soluciones: cada ejercicio tiene un botón Solución con el razonamiento paso a paso y el tablero resuelto.'
+    ] },
+    { v: 'ui-v59', title: 'Números grandes y Entrenamiento pulido', items: [
+      'Nuevo ajuste Números grandes: dígitos un 20 % más grandes y notas y sumas de jaula más legibles. Se guarda y viaja con el respaldo de progreso.',
+      'Entrenamiento: barra Objetivo / Saltar sobre el tablero (la consigna se repliega sola a los 7,5 s) y una tarjeta final con tres niveles según tu puntaje.'
+    ] },
     { v: 'ui-v58', title: 'Resultados, récords y Entrenamiento', items: [
       'La tarjeta de resultados aparece centrada en pantalla. Si batís tu mejor tiempo de ese modo y dificultad, suma la insignia ¡NUEVO RÉCORD PERSONAL! con cuánto mejoraste.',
       'Nuevo botón Copiar resultado en las tarjetas de victoria y derrota.',

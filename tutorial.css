@@ -185,7 +185,7 @@
 .tut-pstage { flex:none; width:100%; display:flex; justify-content:center; }
 .tut-pstage .tut-board { width:min(100%, 46dvh); max-width:520px; }
 .tut-board.pencil { outline:3px dashed var(--accent); outline-offset:3px; }
-.tut-board .cell.hint { box-shadow:inset 0 0 0 3px var(--accent); }
+.tut-board .cell.hint { box-shadow:inset 0 0 0 1.5px var(--hint-color); }
 .tut-board .cell.user { color:var(--user); font-weight:600; }
 .tut-ptools { margin-top:2px; grid-template-columns:repeat(5, minmax(0,1fr)); } /* 5 botones (sin Rewind): ocupan todo el ancho del tablero */
 .tut-pkeys { margin-bottom:2px; }
@@ -298,3 +298,64 @@
 .tut-trainsum h2 { margin:6px 0 0; font-size:1.25rem; }
 .tut-trainsum .tut-trow { cursor:default; }
 .tut-trainsum .tut-cta { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:6px; }
+
+/* Entrenamiento: barra Objetivo / Saltar y consigna plegable (max-height + opacity + padding, sin saltos) */
+.tut-actions { flex:none; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
+.tut-actions .chip { min-height:36px; font-size:.84rem; font-weight:700; }
+.tut-actions .chip.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.tut-goal.coll { overflow:hidden; max-height:0; opacity:0; padding-top:0; padding-bottom:0; margin-bottom:-6px; border-top-width:0; border-bottom-width:0;
+  transition:max-height .45s ease, opacity .35s ease, padding .45s ease, margin .45s ease, border-width .45s ease; }
+.tut-goal.coll.open { max-height:260px; opacity:1; padding-top:8px; padding-bottom:8px; margin-bottom:0; border-top-width:1px; border-bottom-width:1px; }
+@media (prefers-reduced-motion:reduce) { .tut-goal.coll { transition:none; } }
+
+/* Modal de cierre de tanda: 3 niveles con icono propio, adaptado a los 4 temas */
+.tut-rcard { --ti-a:var(--star-gold, #D9A21B); --ti-b:var(--bg); --ti-off:var(--thin); border-color:var(--ti-a); }
+.tut-rcard .tut-ticon { width:88px; height:88px; margin:-58px auto 8px; display:block; filter:drop-shadow(0 4px 10px var(--shadow)); overflow:visible; }
+.tut-rcard.great { --ti-a:var(--user); }
+.tut-rcard.low { --ti-a:var(--accent); }
+.ti-seal { fill:var(--ti-a); stroke:var(--bg); stroke-width:3; stroke-linejoin:round; }
+.ti-ring { fill:none; stroke:var(--ti-b); stroke-width:1.6; }
+.ti-star { fill:var(--ti-b); stroke:none; }
+.ti-low .ti-ring, .ti-great .ti-ring { stroke:var(--ti-a); stroke-width:2.4; }
+.ti-low .ti-star { fill:var(--ti-a); }
+.ti-low .ti-tick { stroke:var(--ti-a); stroke-width:3; stroke-linecap:round; }
+.ti-low .ti-dot { fill:var(--muted); }
+.ti-arc { fill:none; stroke:var(--ti-off); stroke-width:7; stroke-linecap:round; }
+.ti-arc.on { stroke:var(--ti-a); }
+.ti-great .ti-dot { fill:var(--ti-a); }
+.ti-low { background:var(--bg); border-radius:50%; }
+[data-theme="night"] .tut-rcard { --ti-a:var(--accent); }
+[data-theme="night"] .ti-seal { fill:none; stroke:var(--ti-a); stroke-width:1.8; }
+[data-theme="night"] .ti-ring { stroke:var(--ti-a); }
+[data-theme="night"] .ti-star { fill:var(--ti-a); }
+[data-theme="night"] .tut-ticon { filter:drop-shadow(0 0 7px color-mix(in srgb, var(--ti-a) 70%, transparent)); }
+[data-theme="swiss"] .tut-rcard { --ti-a:var(--accent); border-color:#000; }
+[data-theme="swiss"] .ti-seal { fill:none; stroke:#000; stroke-width:1.2; stroke-linejoin:miter; }
+[data-theme="swiss"] .ti-ring { stroke:#000; stroke-width:1.2; }
+[data-theme="swiss"] .ti-star { fill:var(--ti-a); }
+[data-theme="swiss"] .ti-arc { stroke-linecap:butt; stroke-width:5; }
+[data-theme="swiss"] .tut-ticon { filter:none; }
+[data-theme="retro"] .tut-rcard { --ti-a:var(--ink); --ti-off:rgba(35,43,18,.25); }
+[data-theme="retro"] .tut-ticon { shape-rendering:crispEdges; filter:none; }
+[data-theme="retro"] .ti-seal { stroke:var(--ink); stroke-linejoin:miter; stroke-width:2; }
+[data-theme="retro"] .ti-ring { stroke-dasharray:4 3; stroke-width:2.2; }
+[data-theme="retro"] .ti-arc { stroke-linecap:butt; stroke-width:6; }
+[data-theme="retro"] .ti-low .ti-tick { stroke-linecap:butt; }
+@media (orientation:landscape) and (max-height:540px) { .tut-rcard { padding:16px 16px 12px; } .tut-rcard .tut-ticon { width:64px; height:64px; margin-top:-46px; } }
+
+/* Entrenamiento: barra de tiempo de la consigna desplegada (misma línea animada que los banners de error) */
+.tut-goal .tut-gbar { position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--accent); transform:scaleX(0); transform-origin:left;
+  animation:errxBar 7.5s linear forwards; }
+.tut-goal .tut-gbar[hidden] { display:none; }
+.tut-actions .chip { min-width:0; }
+@media (prefers-reduced-motion:reduce) { .tut-goal .tut-gbar { animation:none; transform:scaleX(.5); } }
+
+/* Entrenamiento: botón Solución y vista de solución */
+.tut-trow .tut-solbtn { flex:none; min-height:34px; padding:0 12px; font-size:.78rem; }
+.tut-trainsol { display:flex; flex-direction:column; gap:10px; }
+.tut-trainsol > h2 { margin:6px 0 0; font-size:1.15rem; }
+.tut-trainsol .tut-cta { display:flex; justify-content:center; }
+.tut-solcard { padding:12px; border:1px solid var(--thin); border-radius:14px; background:var(--panel); }
+.tut-solcard h3 { margin:0 0 4px; font-size:.95rem; }
+.tut-solcard p { margin:0 0 8px; font-size:.9rem; }
+.tut-solcard .tut-solboard { display:block; flex:none; width:100%; max-width:380px; margin:0 auto; }

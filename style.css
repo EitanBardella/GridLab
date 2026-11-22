@@ -180,7 +180,7 @@ button:disabled { cursor:default; }
 .panel .sub { margin:0 0 8px; font-size:.82rem; text-align:center; color:var(--accent); }
 
 /* ---------- Pista ---------- */
-.hint { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--accent);
+.hint:not(.cell) { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--accent);
   border-left-width:5px; border-radius:10px; background:var(--panel); }
 .hint[hidden], .modal[hidden], .status[hidden] { display:none; }
 .hint p { margin:0; flex:1; font-size:.92rem; }
@@ -576,12 +576,12 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 
 /* Botones secundarios y de navegación: misma identidad que las tarjetas (borde definido, sombra sólida desplazada y hundimiento al pulsar).
    Minimalista deja la sombra en none (--sh2) y Retro tiene sus propias reglas más abajo. */
-:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip, .set-btn) {
+:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .tut-cta .chip, .diffs button, .top > .chip, .set-btn) {
   border:2px solid var(--edge); border-radius:6px; background:var(--panel); box-shadow:var(--sh2);
   transition:transform .07s, box-shadow .07s; }
 :is(.chip.primary.wide, .tut-cta .chip.primary) { background:var(--user); border-color:var(--edge); color:var(--on-user); }
 .diffs button.on { background:var(--user); color:var(--on-user); }
-:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-cta .chip, .diffs button, .top > .chip, .set-btn):active:not(:disabled) {
+:is(.chip.back, .chip.wide, .chip.home-btn, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .tut-cta .chip, .diffs button, .top > .chip, .set-btn):active:not(:disabled) {
   transform:var(--press-tf); box-shadow:var(--sh-press); }
 .mode-list.one { grid-template-columns:1fr; }
 .mode-list.one button { min-height:72px; }
@@ -706,7 +706,7 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 .home-title { letter-spacing:.06em; font-size:clamp(2.4rem, 12.5vw, 3.7rem); }
 .diffs > button, .surv-grid > button, .modes button { letter-spacing:.05em; }
 .diffs > button { font-size:.92rem; }
-.chip.back, .tut-top .chip { letter-spacing:.06em; font-size:.82rem; font-weight:700; }
+.chip.back, .tut-top .chip, .tut-actions .chip, .tut-solbtn { letter-spacing:.06em; font-size:.82rem; font-weight:700; }
 .tut-top .chip { min-width:0; padding:0 12px; }
 .tut-top .tut-title { letter-spacing:.09em; font-size:.98rem; }
 .tut-hcard h2 { letter-spacing:.07em; }
@@ -899,7 +899,7 @@ h1, h2, .sheet h2, .title b, .tut-hcard h2, .tut-lhead h2, .tut-hero h2, .tut-cc
 .hint-body p { font-size:.9rem; line-height:1.35; }
 .hint-tech { display:block; margin-bottom:2px; font-size:.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); }
 .hint-tech:empty { display:none; }
-.hint { border-width:2px; border-left-width:6px; box-shadow:var(--sh2); }
+.hint:not(.cell) { border-width:2px; border-left-width:6px; box-shadow:var(--sh2); }
 [data-theme="night"] .hint { border-color:var(--accent); }
 [data-theme="retro"] .hint { border-color:var(--ink); border-left-width:6px; }
 [data-theme="swiss"] .hint { border-color:#000; border-width:1px; border-left-width:6px; box-shadow:none; }
@@ -1083,41 +1083,41 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { display
   width:44px; height:44px; min-width:44px; min-height:44px; padding:0; display:inline-flex; align-items:center; justify-content:center; flex:none; }
 @media (max-width:380px) { .chip.set-btn, .top > #btnSet, .tut-top .chip.set-btn, .tut-app .tut-top .chip.set-btn { width:42px; height:42px; min-width:42px; min-height:42px; padding:0; } }
 
-:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip) {
+:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip) {
   transition:background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
-:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip) .gear :is(.g-smooth, .g-pixel) {
+:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip) .gear :is(.g-smooth, .g-pixel) {
   transition:fill .18s ease, stroke .18s ease, filter .18s ease; }
 
 @media (hover:hover) {
   /* Papel (y base): solo cambia el color, en tono terracota cálido; sin elevación (el movimiento queda para :active). */
-  :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+  :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):hover:not(:disabled) {
     background-color:#8C4A27; color:#F5F2EA; border-color:var(--ink); }
   :is(.set-btn, #btnSet):hover .gear .g-smooth { stroke:#F5F2EA; fill:#F5F2EA; fill-opacity:.25; }
   /* Noche: fondo blanco con texto e ícono en azul neón. */
-  [data-theme="night"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+  [data-theme="night"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):hover:not(:disabled) {
     background-color:#fff; color:#2563EB; border-color:#fff; transform:none; text-shadow:0 0 8px rgba(96, 165, 250, 0.55);
     box-shadow:0 0 14px rgba(96, 165, 250, 0.45); }
   [data-theme="night"] :is(.set-btn, #btnSet):hover .gear .g-smooth { stroke:#2563EB; fill:#3B82F6; fill-opacity:.3; filter:drop-shadow(0 0 6px rgba(96, 165, 250, 0.7)); }
   /* Minimalista: contraste editorial limpio, sin sombra ni movimiento. */
-  [data-theme="swiss"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+  [data-theme="swiss"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):hover:not(:disabled) {
     background:#000; color:#fff; border-color:#000; transform:none; box-shadow:none; }
   [data-theme="swiss"] :is(.set-btn, #btnSet):hover .gear .g-smooth { stroke:#fff; fill:none; }
   /* Retro: inversión LCD monocromática. */
-  [data-theme="retro"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):hover:not(:disabled) {
+  [data-theme="retro"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):hover:not(:disabled) {
     background:#1E260D; color:#CCD4A0; border-color:#1E260D; transform:none; box-shadow:2px 2px 0 #1E260D; }
   [data-theme="retro"] :is(.set-btn, #btnSet):hover .gear .g-pixel { fill:#CCD4A0; }
 }
 /* Pulsado: se hunde (gana al :hover) */
-:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) { transform:translate(1px, 1px); box-shadow:1px 1px 0 var(--ink); }
-[data-theme="night"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) { box-shadow:1px 1px 0 var(--accent); }
-[data-theme="swiss"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) { transform:none; box-shadow:none; }
+:is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):active:not(:disabled) { transform:translate(1px, 1px); box-shadow:1px 1px 0 var(--ink); }
+[data-theme="night"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):active:not(:disabled) { box-shadow:1px 1px 0 var(--accent); }
+[data-theme="swiss"] :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):active:not(:disabled) { transform:none; box-shadow:none; }
 
 /* Noche: la celda seleccionada lleva borde azul #60A5FA (jerarquía: relacionadas .15 < iguales .28 < seleccionada .44). */
 [data-theme="night"] .cell.sel:not(.hint):not(.rel) { box-shadow:inset 0 0 0 3px #60A5FA; }
 
 /* ---------- Pulsación física también en Noche y Retro: el botón se hunde hacia su sombra (2px) y la sombra se colapsa.
    Va después del bloque @media (hover:hover), con igual especificidad, así que también gana con el cursor encima en PC. ---------- */
-:is([data-theme="night"], [data-theme="retro"]) :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .cbtns .chip):active:not(:disabled) {
+:is([data-theme="night"], [data-theme="retro"]) :is(.chip.back, .set-btn, #btnSet, .top > .chip, .tut-top .chip, .tut-actions .chip, .tut-solbtn, .cbtns .chip):active:not(:disabled) {
   transform:translate(2px, 2px); box-shadow:0 0 0 transparent; }
 /* Resto de botones con sombra desplazada (menú, modos, dificultades, teclado, herramientas, modales): también ganan al :hover */
 :is([data-theme="night"], [data-theme="retro"]) :is(.m-primary, .m-daily, .m-continue, .mode-list button, .chip.wide, .chip.home-btn, .diffs button, .surv-grid button):active:not(:disabled) {
@@ -1367,3 +1367,21 @@ body.has-news #btnHomeSet .m-t::after { content:""; display:inline-block; width:
 @keyframes recPulse { 50% { transform:scale(1.035); } }
 @media (prefers-reduced-motion:reduce) { .rec-badge { animation:none; } }
 @media (orientation:landscape) and (max-height:540px) { .rec-badge { flex-direction:row; flex-wrap:wrap; justify-content:center; gap:2px 8px; padding:4px 10px; margin-bottom:6px; } .rec-ic { width:24px; height:24px; } }
+
+/* ---------- Números grandes (Ajustes): dígitos ≈20 % más grandes, notas y sumas de jaula un poco más legibles ---------- */
+html.big-nums .cell { font-size:7.4vw; font-size:7.7cqw; }
+html.big-nums .nt { font-size:2.9vw; font-size:3cqw; }
+html.big-nums .cage-sum { font-size:max(8px, 3cqw); }
+html.big-nums .board[data-mode="killer"] .nt { inset:3.6cqw 2px 2px 2px; }
+html.big-nums .tut-board .nt { font-size:3.3cqw; }
+
+/* ---------- Pista: trazo fino y color propio (distinto del azul de selección y del rojo de error) ---------- */
+:root, [data-theme="paper"] { --hint-color:#0E8F63; --hint-bg:rgba(14, 143, 99, 0.10); }      /* esmeralda */
+[data-theme="night"]  { --hint-color:#34D399; --hint-bg:rgba(52, 211, 153, 0.13); }          /* esmeralda neón */
+[data-theme="swiss"]  { --hint-color:#00875A; --hint-bg:rgba(0, 135, 90, 0.09); }            /* verde plano */
+[data-theme="retro"]  { --hint-color:#A15C00; --hint-bg:rgba(161, 92, 0, 0.16); }            /* ámbar sobre el verde oliva */
+.cell.hint, .tut-board .cell.hint { box-shadow:inset 0 0 0 1.5px var(--hint-color);
+  background-image:linear-gradient(var(--hint-bg), var(--hint-bg)); }
+/* El velo es translúcido: las notas (z-index propio) quedan siempre por encima y legibles. */
+.cell.hint .nt, .cell.hint .tv { position:relative; z-index:1; }
+.cell.hint .nt { position:absolute; }

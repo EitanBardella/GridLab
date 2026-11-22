@@ -837,6 +837,8 @@
     switch (ui.screen) {
       case 'practice': if (ui.train) { showHub(); return; } showLesson(ui.ch, ui.ls); return;
       case 'trainSum': showHub(); return;
+      case 'trainLevel': showHub(); return;
+      case 'trainSol': showTrainSummary(); return;
       case 'lesson': showMap(); return;
       case 'map': showMapList(); return;
       case 'guide': showGuideList(); return;
@@ -854,15 +856,15 @@
     clear(body); body.classList.remove('tut-fixed');
     body.scrollTop = 0;
 
-    const gs = guideStats(), ts = allTechStats(), pend = Math.max(0, ts.n - ts.done);
+    const gs = guideStats(), ts = allTechStats();
     body.append(h('div', { class: 'vlist tut-hub' },
       h('p', { class: 'tut-hub-intro', text: 'Elegí por dónde empezar.' }),
       vcard('Cómo jugar', 'Reglas, rutina segura y errores comunes', gs.done + ' / ' + gs.n + ' completadas',
         gs.n > 0 && gs.done === gs.n, () => showGuideList(), gs.pct, true),
       vcard('Técnicas', 'Rutas de maestría, técnica por técnica', ts.done + ' / ' + ts.n + ' técnicas',
         ts.n > 0 && ts.done === ts.n, () => showMapList(), ts.pct, true),
-      vcard('Entrenamiento', 'Una tanda de 5 ejercicios a tu medida', pend ? pend + ' por hacer' : 'Repaso libre',
-        false, () => startTraining(), undefined, true)));
+      vcard('Entrenamiento', 'Ejercicios al azar, con el tablero cambiado cada vez', 'Tandas de 5 · por nivel',
+        false, () => showTrainLevels(), undefined, true)));
   }
 
   /* ---------- Banner flotante (mismo componente .errx con barra de tiempo que las alertas de error de la partida) ---------- */
@@ -892,27 +894,44 @@
     const k = lkey(variant, ch, ls), s = prog.stats[k] || (prog.stats[k] = { f: 0, h: 0 });
     s[what] = (s[what] | 0) + 1; saveProg();
   }
-  // Prioriza lecciones sin completar y las de más fallos/pistas; si no hay, sortea de variantes distintas.
-  function pickTraining() {
-    const pool = [];
-    VARIANTS.forEach(v => getChapters(v).forEach(ch => ch.lessons.forEach(ls => {
-      if (!ls.practice) return;
-      const st = lstat(v, ch, ls);
-      pool.push({ variant: v, ch: ch, ls: ls, base: (lstate(v, ch, ls) === 'done' ? 0 : 100) + 4 * st.f + 2 * st.h });
-    })));
-    const out = [], used = {};
+  // Niveles: los capítulos de cada variante se reparten en tercios (básicas → intermedias → avanzadas).
+  const LEVELS = [
+    { id: 'facil', title: 'Fácil', sub: 'Técnicas simples', blurb: 'Capítulos introductorios de todas las variantes' },
+    { id: 'medio', title: 'Medio', sub: 'Técnicas intermedias', blurb: 'Patrones intermedios de todas las variantes' },
+    { id: 'dificil', title: 'Difícil', sub: 'Técnicas avanzadas', blurb: 'Técnicas complejas y de experto' }
+  ];
+  function levelPool(level) {
+    const k = LEVELS.findIndex(l => l.id === level), pool = [];
+    VARIANTS.forEach(v => {
+      const chs = getChapters(v), n = chs.length;   // el nivel sale de la posición del capítulo dentro de su variante
+      chs.forEach((ch, ci) => { if (Math.min(2, Math.floor(ci * 3 / n)) === k) ch.lessons.forEach(ls => { if (ls.practice) pool.push({ variant: v, ch: ch, ls: ls }); }); });
+    });
+    return pool;
+  }
+  // Sortea la tanda al azar dentro del nivel y transforma cada tablero (giros/espejos y dígitos) para que no se memorice.
+  function pickTraining(level) {
+    const pool = levelPool(level), out = [];
     while (out.length < TRAIN_N && pool.length) {
-      let bi = 0, bs = -1e9;
-      pool.forEach((p, i) => { const s = p.base - 3 * (used[p.variant] | 0) + Math.random() * 5; if (s > bs) { bs = s; bi = i; } });
-      const p = pool.splice(bi, 1)[0]; used[p.variant] = (used[p.variant] | 0) + 1; out.push(p);
+      const it = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      it.pr = window.TutorialTransform ? window.TutorialTransform.randomize(it.ls.practice) : it.ls.practice;
+      out.push(it);
     }
     return out;
   }
-  function startTraining() {
+  function showTrainLevels() {
+    runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
+    ui.screen = 'trainLevel'; ui.train = null;
+    setTop('Entrenamiento', 'Tutorial');
+    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
+    const list = h('div', { class: 'vlist tut-hub tut-levels' }, h('p', { class: 'tut-hub-intro', text: 'Elegí el nivel de tu tanda de 5 ejercicios.' }));
+    LEVELS.forEach(l => list.append(vcard(l.title, l.blurb, l.sub, false, () => startTraining(l.id), undefined, true)));
+    body.append(list);
+  }
+  function startTraining(level) {
     prog = loadProg();
-    const items = pickTraining();
+    const items = pickTraining(level);
     if (!items.length) { toast('Todavía no hay ejercicios disponibles.'); return; }
-    ui.train = { items: items, idx: 0, res: [] };
+    ui.train = { items: items, idx: 0, res: [], level: level };
     openTrainItem();
   }
   function openTrainItem() {
@@ -922,9 +941,49 @@
   }
   function trainAdvance(entry) {
     const t = ui.train; if (!t) return;
-    t.res.push(entry);
+    entry.it = t.items[t.idx]; t.res.push(entry);
     t.idx++;
-    if (t.idx < t.items.length) openTrainItem(); else showTrainSummary();
+    if (t.idx < t.items.length) openTrainItem(); else { showTrainSummary(); trainModal(); }
+  }
+  // Icono de cierre según puntaje: sello con estrella (5/5), diana con 4 de 5 arcos (4/5) o brújula-matriz (≤3/5).
+  function trainIcon(level) {
+    const g = [];
+    if (level === 'perfect') {
+      const seal = [], star = [];
+      for (let k = 0; k < 28; k++) { const a = (k * 360 / 28 - 90) * Math.PI / 180, r = k % 2 ? 31 : 36; seal.push((40 + r * Math.cos(a)).toFixed(1) + ',' + (40 + r * Math.sin(a)).toFixed(1)); }
+      for (let k = 0; k < 10; k++) { const a = (k * 36 - 90) * Math.PI / 180, r = k % 2 ? 8.5 : 21; star.push((40 + r * Math.cos(a)).toFixed(1) + ',' + (40 + r * Math.sin(a)).toFixed(1)); }
+      g.push(sv('polygon', { class: 'ti-seal', points: seal.join(' ') }), sv('circle', { class: 'ti-ring', cx: 40, cy: 40, r: 27 }), sv('polygon', { class: 'ti-star', points: star.join(' ') }));
+    } else if (level === 'great') {
+      for (let k = 0; k < 5; k++) {
+        const a0 = (-90 + k * 72 + 7) * Math.PI / 180, a1 = (-90 + (k + 1) * 72 - 7) * Math.PI / 180, R = 30;
+        g.push(sv('path', { class: 'ti-arc' + (k < 4 ? ' on' : ''), d: 'M' + (40 + R * Math.cos(a0)).toFixed(1) + ' ' + (40 + R * Math.sin(a0)).toFixed(1) +
+          ' A' + R + ' ' + R + ' 0 0 1 ' + (40 + R * Math.cos(a1)).toFixed(1) + ' ' + (40 + R * Math.sin(a1)).toFixed(1) }));
+      }
+      g.push(sv('circle', { class: 'ti-ring', cx: 40, cy: 40, r: 17 }), sv('circle', { class: 'ti-dot', cx: 40, cy: 40, r: 5 }));
+    } else {
+      g.push(sv('circle', { class: 'ti-ring', cx: 40, cy: 40, r: 33 }));
+      [[40, 5, 40, 13], [40, 67, 40, 75], [5, 40, 13, 40], [67, 40, 75, 40]].forEach(l => g.push(sv('line', { class: 'ti-tick', x1: l[0], y1: l[1], x2: l[2], y2: l[3] })));
+      g.push(sv('polygon', { class: 'ti-star', points: '40,17 47,40 40,63 33,40' }));
+      [[28, 28], [52, 28], [28, 52], [52, 52]].forEach(p => g.push(sv('circle', { class: 'ti-dot', cx: p[0], cy: p[1], r: 2.4 })));
+    }
+    return sv.apply(null, ['svg', { class: 'tut-ticon ti-' + level, viewBox: '0 0 80 80', 'aria-hidden': 'true' }].concat(g));
+  }
+  function trainModal() {
+    closeCelebrate();
+    const t = ui.train; if (!t) return;
+    const total = t.res.length, ok = t.res.filter(r => !r.skipped).length;
+    const level = ok === total && total > 0 ? 'perfect' : (ok === total - 1 && total > 1 ? 'great' : 'low');
+    const title = level === 'perfect' ? '¡Ronda Impecable! — ' + ok + ' / ' + total : (level === 'great' ? '¡Gran Sesión! — ' + ok + ' / ' + total : 'En Calibración — ' + ok + ' / ' + total);
+    const msg = level === 'perfect' ? 'Resolviste los ' + total + ' ejercicios de la sesión. ¡Excelente trabajo!'
+      : (level === 'great' ? 'Estuviste a un paso de la ronda perfecta. Una tanda más y es tuya.'
+        : 'Cada patrón entrenado afila el ojo. Seguí practicando para dominar las ' + total + ' técnicas');
+    const card = h('div', { class: 'tut-ccard tut-rcard ' + level }, trainIcon(level), h('h2', { text: title }), h('p', { text: msg }),
+      h('button', { class: 'chip primary', type: 'button', text: 'Otra tanda', onclick: () => { closeCelebrate(); startTraining(t.level); } }),
+      h('button', { class: 'chip', type: 'button', text: 'Ver detalle', onclick: () => { t.showSol = false; showTrainSummary(); } }),
+      h('button', { class: 'chip', type: 'button', text: 'Ver soluciones', onclick: () => { t.showSol = true; showTrainSummary(); } }));
+    celebEl = h('div', { class: 'tut-celebrate tut-rmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, card);
+    root.append(celebEl);
+    const first = card.querySelector('button'); if (first) first.focus();
   }
   function showTrainSummary() {
     runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
@@ -939,11 +998,42 @@
     t.res.forEach((r, i) => list.append(h('div', { class: 'vcard tut-trow' + (r.skipped ? '' : ' done') },
       h('span', { class: 'vc-main' }, h('b', { class: 'vc-t', text: (i + 1) + '. ' + r.title }),
         h('small', { class: 'vc-s', text: r.skipped ? 'Saltado' : (r.f + ' errores · ' + r.h + ' pistas') })),
-      h('span', { class: 'vc-r', text: r.skipped ? '—' : '✓' }))));
+      t.showSol && r.it ? h('button', { class: 'chip tut-solbtn', type: 'button', text: 'Solución', onclick: () => showTrainSolution(r.it) })
+        : h('span', { class: 'vc-r', text: r.skipped ? '—' : '✓' }))));
     list.append(h('div', { class: 'tut-cta' },
-      h('button', { class: 'chip primary', type: 'button', text: 'Otra tanda', onclick: () => startTraining() }),
+      h('button', { class: 'chip primary', type: 'button', text: 'Otra tanda', onclick: () => startTraining(t.level) }),
       h('button', { class: 'chip', type: 'button', text: 'Volver al menú', onclick: () => showHub() })));
     body.append(list);
+  }
+  const cellName = i => 'F' + (Math.floor(i / 9) + 1) + 'C' + ((i % 9) + 1);
+  // Solución de un ejercicio: razonamiento paso a paso de la lección + tablero de la práctica resuelto y resaltado.
+  function showTrainSolution(it) {
+    runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
+    const ls = it.ls, pr = it.pr || ls.practice;
+    ui.screen = 'trainSol'; ui.variant = it.variant;
+    setTop('Solución', 'Resumen');
+    clear(body); body.classList.remove('tut-fixed'); body.scrollTop = 0;
+    const wrap = h('div', { class: 'tut-trainsol' }, h('h2', { class: 'tut-hub-intro', text: ls.title }));
+    if (ls.example && ls.example.steps) wrap.append(renderExample(ls.example, 'Razonamiento paso a paso'));
+    if (pr) {
+      const g = pr.goal || {}, given = digits81(pr.grid), sol = pr.solution ? digits81(pr.solution) : null;
+      const hlSet = new Set(), ans = [];
+      (g.place || []).slice(0, 3).forEach(x => { hlSet.add(x[0]); ans.push('Colocá el ' + x[1] + ' en ' + cellName(x[0]) + '.'); });
+      if (g.elimSets && g.elimSets[0]) {
+        g.elimSets[0].forEach(x => hlSet.add(x[0]));
+        ans.push('Tachá estos candidatos: ' + g.elimSets[0].map(x => x[1] + ' en ' + cellName(x[0])).join(', ') + '.');
+      }
+      const b = makeBoard(pr.mode || 'classic', pr.cages, pr.regions);
+      for (let i = 0; i < 81; i++) {
+        const v = given[i] || (hlSet.has(i) && g.place ? (g.place.find(x => x[0] === i) || [0, 0])[1] : 0) || (sol ? sol[i] : 0);
+        const cls = (given[i] ? 'given' : 'user') + (hlSet.has(i) ? ' hint' : '');
+        paintCell(b.cells[i], { v: v, cls: cls, notes: null });
+      }
+      wrap.append(h('div', { class: 'tut-card tut-solcard' }, h('h3', { text: 'En el ejercicio' }),
+        h('p', { text: ans.join(' ') || (g.text || '') }), h('div', { class: 'tut-pstage tut-solboard' }, b.el)));
+    }
+    wrap.append(h('div', { class: 'tut-cta' }, h('button', { class: 'chip primary', type: 'button', text: 'Volver al resumen', onclick: () => showTrainSummary() })));
+    body.append(wrap);
   }
 
   /* ---------- Cómo jugar ---------- */
@@ -1275,7 +1365,7 @@
   function showPractice(ch, ls) {
     runCleanup(); closeSheet(); closeCelebrate(); hideBanner();
     ui.screen = 'practice'; ui.ch = ch; ui.ls = ls;
-    const pr = ls.practice;
+    const pr = (ui.train && ui.train.items[ui.train.idx] && ui.train.items[ui.train.idx].pr) || ls.practice;
     const T = ui.train, tv = ui.variant, run = { f: 0, h: 0 };   // run: errores y pistas de este intento (para el resumen)
     if (T) setTop('Ejercicio ' + (T.idx + 1) + ' / ' + T.items.length, 'Tutorial'); else setTop(ls.title, 'Lección');
     clear(body); body.classList.add('tut-fixed'); body.scrollTop = 0;
@@ -1301,9 +1391,20 @@
     const goalTxt = h('span', { text: goal.text || 'Aplicá la técnica de esta lección.' });
     const progTxt = h('span', { class: 'tut-prog', hidden: true });
     const hintTxt = h('span', { class: 'tut-hint-txt', hidden: true, text: pr.hint || '' });
-    const goalBox = h('div', { class: 'tut-goal', role: 'status', 'aria-live': 'polite' }, h('b', { text: 'Objetivo' }),
+    const goalBox = h('div', { class: 'tut-goal' + (T ? ' coll open' : ''), role: 'status', 'aria-live': 'polite' }, h('b', { text: 'Objetivo' }),
       T ? h('em', { class: 'tut-train-lbl', text: ls.title + ' · ' }) : null, goalTxt, progTxt, hintTxt,
-      T ? h('button', { class: 'chip tut-skip', type: 'button', text: 'Saltar', onclick: () => trainAdvance({ title: ls.title, f: run.f, h: run.h, skipped: true }) }) : null);
+      T ? h('i', { class: 'tut-gbar', 'aria-hidden': 'true' }) : null);
+    // Entrenamiento: barra fija sobre el tablero con "Objetivo" (despliega/oculta la consigna) y "Saltar".
+    let goalTimer = 0, actionsBar = null;
+    if (T) {
+      const bGoal = h('button', { class: 'chip on', type: 'button', 'aria-expanded': 'true', text: 'Objetivo' });
+      const bSkip = h('button', { class: 'chip', type: 'button', text: 'Saltar', onclick: () => trainAdvance({ title: ls.title, f: run.f, h: run.h, skipped: true }) });
+      const setGoal = open => { goalBox.classList.toggle('open', open); bGoal.classList.toggle('on', open); bGoal.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+      const gbar = goalBox.querySelector('.tut-gbar');
+      bGoal.onclick = () => { clearTimeout(goalTimer); if (gbar) gbar.hidden = true; setGoal(!goalBox.classList.contains('open')); };   // control manual: sin barra de tiempo
+      goalTimer = setTimeout(() => { setGoal(false); if (gbar) gbar.hidden = true; }, 7500);   // la consigna se lee al arrancar y se repliega sola
+      actionsBar = h('div', { class: 'tut-actions' }, bGoal, bSkip);
+    }
 
     const tools = h('nav', { class: 'tools tut-ptools', 'aria-label': 'Herramientas de práctica' });
     const mkTool = (act, ic, label) => h('button', { type: 'button', 'data-act': act }, h('span', { class: 'ic', text: ic }), h('span', { class: 'lbl', text: label }));
@@ -1314,6 +1415,7 @@
     const keys = [];
     for (let d = 1; d <= 9; d++) { const kb = h('button', { type: 'button', 'data-n': d }, String(d), h('span', { class: 'rem' })); keys.push(kb); keypad.append(kb); }
 
+    if (actionsBar) body.append(actionsBar);
     body.append(goalBox, h('div', { class: 'tut-pstage' }, b.el), tools, keypad);
 
     function setProg() {
@@ -1459,7 +1561,7 @@
       }
     };
     document.addEventListener('keydown', onKey);
-    ui.cleanup = () => document.removeEventListener('keydown', onKey);
+    ui.cleanup = () => { document.removeEventListener('keydown', onKey); clearTimeout(goalTimer); };
     paintAll();
   }
 
