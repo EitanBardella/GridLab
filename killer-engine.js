@@ -333,10 +333,10 @@
   /**
    * Busca hasta `limit` soluciones respetando filas, columnas, bloques y jaulas.
    * `givens` (opcional): arreglo plano de 81 con valores fijos (0 = libre).
-   * `nodeLimit`: tope de nodos; si se supera, `aborted` es true.
+   * `nodeLimit`: tope de nodos y `deadline` (ms epoch, opcional): si se supera cualquiera, `aborted` es true.
    * @returns {{count:number, sols:number[][], aborted:boolean, nodes:number}}
    */
-  function searchKiller(spec, givens, limit, nodeLimit, rng) {
+  function searchKiller(spec, givens, limit, nodeLimit, rng, deadline) {
     var cageOf = spec.cageOf, ng = spec.ng;
     var grid = new Uint8Array(81);
     var rm = new Uint16Array(9), cm = new Uint16Array(9), bm = new Uint16Array(9);
@@ -380,6 +380,7 @@
 
     function rec() {
       if (++nodes > nodeLimit) { aborted = true; return true; }
+      if (deadline && (nodes & 255) === 0 && Date.now() > deadline) { aborted = true; return true; }
       var best = -1, bestMask = 0, bestN = 10, k, m, n;
       for (k = 0; k < 81; k++) {
         if (grid[k] === 0) {
@@ -667,7 +668,7 @@
     for (it = 0; it < opts.maxIter; it++) {
       if (Date.now() > opts.deadline) { return { ok: false, splits: splits, iterations: it }; }
       var spec = specFromLists(lists, sol);
-      var res = searchKiller(spec, givens, 6, opts.nodeLimit, null);
+      var res = searchKiller(spec, givens, 6, opts.nodeLimit, null, opts.deadline);
 
       if (!res.aborted && res.count <= 1) {
         // count === 1: única (la original). count === 0 indicaría un error interno.
@@ -757,9 +758,10 @@
     }
 
     if (!ok) {
-      // Último recurso (no ocurre en la práctica): sigue partiendo jaulas, sin límite de tiempo,
-      // hasta lograr unicidad. Termina siempre porque dividir solo añade restricciones.
-      r = makeUnique(lists, sol, givens, rng, { maxIter: 200, nodeLimit: 2000000, deadline: Infinity });
+      // Último recurso (no ocurre en la práctica): sigue partiendo jaulas, pero con tope estricto de tiempo y de nodos.
+      // Si vence, queda la construcción garantizada: 81 jaulas de una celda (cada celda queda fijada por su suma, solución única).
+      var grace = Math.min(1500, Math.max(20, Math.floor(budget / 2)));
+      r = makeUnique(lists, sol, givens, rng, { maxIter: 200, nodeLimit: 400000, deadline: Date.now() + grace });
       totalSplits += r.splits;
       if (!r.ok) {
         lists = [];

@@ -1,6 +1,9 @@
-const CACHE_NAME = 'sudoku-v83';
+// Caché propia del proyecto: el prefijo evita pisar (o borrar) cachés de otros proyectos del mismo origen (p. ej. GitHub Pages).
+const CACHE_PREFIX = 'gridlab-sudoku-';
+const LEGACY_PREFIX = 'sudoku-v';   // nombre anterior de nuestras cachés: se limpian al actualizar
+const CACHE_NAME = 'gridlab-sudoku-v84';
 // Versión que ve el jugador en el aviso de actualización. Mantenerla igual que BUILD en app.js.
-const BUILD = 'ui-v71';
+const BUILD = 'ui-v72';
 
 // Archivos imprescindibles: si alguno falla, la instalación falla (la app no queda a medias).
 const ASSETS = [
@@ -52,14 +55,16 @@ self.addEventListener('install', (event) => {
     await Promise.all(ASSETS.map((u) => cache.add(new Request(u, { cache: 'reload' })).then(step)));
     // Los opcionales: se cuentan igual, aunque no existan.
     await Promise.all(OPTIONAL_ASSETS.map((u) => cache.add(new Request(u, { cache: 'reload' })).catch(() => null).then(step)));
-    await self.skipWaiting();   // descarga completa: la nueva versión pasa a activarse sin esperar a que se cierren las pestañas
+    // Sin skipWaiting(): la versión nueva queda "en espera" hasta que la app (con el jugador sin partida ni sala en curso, o
+    // cuando lo confirma) le envíe { type: 'SKIP_WAITING' }. Así una actualización nunca corta una partida o una sala.
   })());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+    // Solo se borran cachés PROPIAS obsoletas; cualquier otra caché del origen queda intacta.
+    await Promise.all(keys.filter((key) => key !== CACHE_NAME && (key.startsWith(CACHE_PREFIX) || key.startsWith(LEGACY_PREFIX))).map((key) => caches.delete(key)));
     await self.clients.claim();
     await tell({ type: 'SW_UPDATE_READY', version: BUILD });
   })());
@@ -74,7 +79,8 @@ self.addEventListener('fetch', (event) => {
   // Solo se atienden GET del mismo origen; PeerJS (señalización) y cualquier otro tráfico pasan directo.
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) { return; }
   event.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((cached) => {
+    // Se busca solo en la caché de ESTA versión: nunca se mezclan recursos de versiones distintas ni de otros proyectos.
+    caches.open(CACHE_NAME).then((cache) => cache.match(req, { ignoreSearch: true })).then((cached) => {
       return cached || fetch(req);
     })
   );

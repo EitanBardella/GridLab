@@ -4,14 +4,26 @@
    | { id, ok: false, error }
    El modo ('classic' | 'diagonal' | 'antiknight' | 'nonconsecutive' | 'jigsaw') se pasa como `variant` al motor; 'killer' usa killer-engine.js.
    Usa los mismos motores y las mismas opciones que el hilo principal: con la misma semilla produce el mismo tablero. */
-importScripts('engine.js', 'killer-engine.js');
+// Plazo duro por tablero (ms): holgado para cualquier teléfono, pero finito. Un tablero que lo supere responde con error
+// estructurado en vez de colgar el hilo. (Antes 1e9 ms ≈ sin límite.)
+var WORKER_BUDGET_MS = 25000;
+var GEN_E = { maxAttempts: 30, timeBudgetMs: WORKER_BUDGET_MS };   // espejo de app.js (topes fijos, deterministas por semilla)
+var GEN_K = { timeBudgetMs: WORKER_BUDGET_MS };
 
-var GEN_E = { maxAttempts: 30, timeBudgetMs: 1e9 };   // espejo de app.js (topes fijos, deterministas por semilla)
-var GEN_K = { timeBudgetMs: 1e9 };
+var loaded = false;
+// importScripts dentro del try: si falla (archivo ausente, sin red, script corrupto) se responde { id, ok:false, error }
+// y se vuelve a intentar en el mensaje siguiente.
+function ensureLoaded() {
+  if (loaded) { return; }
+  importScripts('engine.js', 'killer-engine.js');
+  if (!self.SudokuEngine || !self.KillerEngine) { throw new Error('Los motores de generación no se cargaron.'); }
+  loaded = true;
+}
 
 self.onmessage = function (ev) {
   var m = ev.data || {};
   try {
+    ensureLoaded();
     var res;
     if (m.mode === 'killer') {
       res = self.KillerEngine.generateKillerPuzzle(m.diff, Object.assign({ seed: m.seed }, GEN_K));

@@ -265,13 +265,19 @@
     return flat;
   }
 
-  var JIG_CACHE = {};
+  // Caché LRU acotada: durante la generación se construyen decenas de mapas candidatos que casi nunca se reutilizan.
+  // Map conserva el orden de inserción: consultar = reinsertar al final; al pasar el tope se descarta el más antiguo.
+  var JIG_CACHE_MAX = 48;
+  // Topes duros por búsqueda interna (además del plazo): una prueba de unicidad normal usa <1000 nodos.
+  var UNIQ_NODES = 300000, FINAL_NODES = 5000000;
+  var JIG_CACHE = new Map();
 
   /** Construye (con caché) los datos de variante para un mapa de regiones. */
   function makeJigsawVariant(regions) {
     var flat = normalizeRegions(regions);
     var key = flat.join('');
-    if (JIG_CACHE[key]) { return JIG_CACHE[key]; }
+    var hit = JIG_CACHE.get(key);
+    if (hit) { JIG_CACHE.delete(key); JIG_CACHE.set(key, hit); return hit; }
     var units = UNITS.slice(0, 18), i, b, k, j;
     for (b = 0; b < 9; b++) {
       var u = [];
@@ -302,7 +308,8 @@
       units: units, peers: peers, lineUnits: lines, extraUnits: [],
       box: flat, member: member, regions: flat
     };
-    JIG_CACHE[key] = V;
+    JIG_CACHE.set(key, V);
+    while (JIG_CACHE.size > JIG_CACHE_MAX) { JIG_CACHE.delete(JIG_CACHE.keys().next().value); }
     return V;
   }
 
@@ -477,10 +484,11 @@
    * Busca soluciones por backtracking respetando las reglas de la variante.
    * Se detiene al encontrar `limit` soluciones.
    * Si se pasa `rng`, el orden de los dígitos se aleatoriza (para generar tableros).
-   * `nodeLimit` (opcional) corta la búsqueda tras ese número de nodos (`aborted` = true).
+   * `nodeLimit` (opcional) corta la búsqueda tras ese número de nodos y `deadline` (ms epoch, opcional) tras ese instante:
+   * en ambos casos `aborted` = true y NO se debe interpretar `count` como "única" ni "sin solución".
    * @returns {{count:number, first:number[]|null, aborted:boolean}}
    */
-  function search(flat, limit, rng, V, nodeLimit) {
+  function search(flat, limit, rng, V, nodeLimit, deadline) {
     V = V || VARIANTS.classic;
     var BX = V.box;
     var grid = flat.slice();
@@ -569,7 +577,9 @@
     }
 
     function rec() {
-      if (nodeLimit && ++nodes > nodeLimit) { aborted = true; return true; }
+      ++nodes;
+      if (nodeLimit && nodes > nodeLimit) { aborted = true; return true; }
+      if (deadline && (nodes & 255) === 0 && Date.now() > deadline) { aborted = true; return true; }
       var best = -1, bestMask = 0, bestCount = 10, k;
       for (k = 0; k < 81; k++) {
         if (grid[k] === 0) {
@@ -619,22 +629,24 @@
     return res.first ? unflatten(res.first) : null;
   }
 
-  function generateSolvedFlat(rng, V) {
+  function generateSolvedFlat(rng, V, deadline) {
     var empty = new Array(81).fill(0), t, res;
-    if (V.name === 'classic') { return search(empty, 1, rng, V).first; }
+    if (V.name === 'classic') { return search(empty, 1, rng, V, 0, deadline).first; }
     if (V.jig) {   // algunos mapas de regiones no admiten solución: se limita la búsqueda y quien llama prueba otro mapa
       for (t = 0; t < 6; t++) {
-        res = search(empty, 1, rng, V, 4000 * (t + 1));
+        res = search(empty, 1, rng, V, 4000 * (t + 1), deadline);
         if (res.first) { return res.first; }
+        if (deadline && Date.now() > deadline) { break; }
       }
       return null;
     }
     // Variantes: se reintenta con tope de nodos creciente para evitar búsquedas patológicas.
     for (t = 0; t < 30; t++) {
-      res = search(empty, 1, rng, V, 10000 * (t + 1));
+      res = search(empty, 1, rng, V, 10000 * (t + 1), deadline);
       if (res.first) { return res.first; }
+      if (deadline && Date.now() > deadline) { return null; }
     }
-    return search(empty, 1, rng, V).first;
+    return search(empty, 1, rng, V, FINAL_NODES, deadline).first;   // último intento: acotado en nodos y en tiempo
   }
 
   /* ===========================================================================
@@ -982,23 +994,35 @@
    * Generador de tableros con solución única y dificultad real
    * ========================================================================= */
 
+  function budgetError() {
+    var e = new Error('Presupuesto de tiempo agotado generando el tablero.');
+    e.code = 'budget';
+    return e;
+  }
+
   /**
-   * Un intento: parte de una solución completa y remueve celdas (en pares simétricos
+   * Un intento reanudable: parte de una solución completa y remueve celdas (en pares simétricos
    * por rotación de 180° si `symmetric`), conservando siempre solución única (backtracking)
    * y sin superar la dificultad objetivo (solucionador lógico). Respeta la variante.
+   * `deadline` (ms epoch) y UNIQ_NODES acotan cada búsqueda: una prueba ABORTADA no cuenta como "única" (la celda se conserva),
+   * y si el plazo vence a mitad de la poda el intento termina ahí con lo ya podado (siempre con solución única).
+   * `advance(until)` trabaja hasta `until` (ms epoch; 0 = sin corte) y devuelve true al terminar: así la versión asíncrona
+   * cede el hilo entre grupos de celdas sin congelar la interfaz.
    */
-  function buildPuzzleAttempt(difficulty, rng, symmetric, V, jigGen) {
+  function startAttempt(difficulty, rng, symmetric, V, jigGen, deadline) {
     var targetRank = RANK[difficulty];
     var floor = MIN_CLUES[difficulty];
     var solution = null;
     if (jigGen) {
       for (var q = 0; q < 60 && !solution; q++) {
+        if (deadline && Date.now() > deadline) { throw budgetError(); }
         V = makeJigsawVariant(randomRegions(rng));
-        solution = generateSolvedFlat(rng, V);
+        solution = generateSolvedFlat(rng, V, deadline);
       }
-      if (!solution) { throw new Error('No se pudo generar un mapa de regiones válido.'); }
+      if (!solution) { throw (deadline && Date.now() > deadline) ? budgetError() : new Error('No se pudo generar un mapa de regiones válido.'); }
     } else {
-      solution = generateSolvedFlat(rng, V);
+      solution = generateSolvedFlat(rng, V, deadline);
+      if (!solution) { throw budgetError(); }
     }
     var puzzle = solution.slice();
     var groups = [];
@@ -1011,27 +1035,36 @@
     }
     shuffle(groups, rng);
 
-    var clues = 81;
-    for (var g = 0; g < groups.length; g++) {
-      var group = groups[g];
-      if (clues - group.length < floor) { continue; }
+    var clues = 81, g = 0;
+    return {
+      advance: function (until) {
+        for (; g < groups.length; g++) {
+          if (deadline && Date.now() > deadline) { g = groups.length; break; }   // plazo agotado: se queda con lo podado
+          if (until && Date.now() >= until) { return false; }
+          var group = groups[g];
+          if (clues - group.length < floor) { continue; }
 
-      var saved = [];
-      for (i = 0; i < group.length; i++) { saved.push(puzzle[group[i]]); puzzle[group[i]] = 0; }
+          var saved = [];
+          for (i = 0; i < group.length; i++) { saved.push(puzzle[group[i]]); puzzle[group[i]] = 0; }
 
-      var ok = search(puzzle, 2, null, V).count === 1; // unicidad por backtracking
-      if (ok && targetRank < RANK.extremo) {
-        var a = analyzeFlat(puzzle, V);
-        ok = a.solved && RANK[a.difficulty] <= targetRank;
+          var r = search(puzzle, 2, null, V, UNIQ_NODES, deadline);
+          var ok = !r.aborted && r.count === 1; // unicidad confirmada por backtracking (abortada = no confirmada)
+          if (ok && targetRank < RANK.extremo) {
+            var a = analyzeFlat(puzzle, V);
+            ok = a.solved && RANK[a.difficulty] <= targetRank;
+          }
+          if (ok) {
+            clues -= group.length;
+          } else {
+            for (i = 0; i < group.length; i++) { puzzle[group[i]] = saved[i]; }
+          }
+        }
+        return true;
+      },
+      finish: function () {
+        return { puzzle: puzzle, solution: solution, clues: clues, analysis: analyzeFlat(puzzle, V), V: V };
       }
-      if (ok) {
-        clues -= group.length;
-      } else {
-        for (i = 0; i < group.length; i++) { puzzle[group[i]] = saved[i]; }
-      }
-    }
-
-    return { puzzle: puzzle, solution: solution, clues: clues, analysis: analyzeFlat(puzzle, V), V: V };
+    };
   }
 
   function createGenerator(difficulty, options) {
@@ -1054,17 +1087,25 @@
     // Extremo: sin simetría, para quitar más pistas (tableros con muy pocas pistas iniciales).
     var symmetric = options.symmetric !== false && difficulty !== 'extremo';
     var start = Date.now();
+    var deadline = start + budget;     // plazo DURO: lo respetan también las búsquedas internas
     var attempts = 0;
     var best = null;
+    var cur = null;
 
     return {
-      // Ejecuta un intento. Devuelve true cuando ya no hay que seguir.
-      step: function () {
-        var a = buildPuzzleAttempt(difficulty, rng, symmetric, V, jigGen);
+      // Avanza el trabajo. `sliceMs` (opcional) limita cuánto trabaja antes de devolver false para ceder el hilo.
+      // Devuelve true cuando ya no hay que seguir.
+      step: function (sliceMs) {
+        if (!cur) {
+          try { cur = startAttempt(difficulty, rng, symmetric, V, jigGen, deadline); }
+          catch (e) { if (best && e && e.code === 'budget') { return true; } throw e; }
+        }
+        if (!cur.advance(sliceMs > 0 ? Date.now() + sliceMs : 0)) { return false; }
+        var a = cur.finish(); cur = null;
         attempts++;
         a.distance = Math.abs(RANK[a.analysis.difficulty] - RANK[difficulty]);
         if (!best || a.distance < best.distance) { best = a; }
-        return best.distance === 0 || attempts >= maxAttempts || (Date.now() - start) >= budget;
+        return best.distance === 0 || attempts >= maxAttempts || Date.now() >= deadline;
       },
       result: function () {
         var c = best.analysis.counts;
@@ -1090,6 +1131,7 @@
 
   /**
    * Genera un tablero. Bloqueante (usar en un Web Worker o preferir generatePuzzleAsync).
+   * `timeBudgetMs` es un plazo duro: también corta las búsquedas internas; si vence sin ningún tablero lanza un Error con code 'budget'.
    * @param {string} difficulty 'facil' | 'medio' | 'dificil' | 'experto' | 'maestro' | 'extremo'
    * @param {{variant?:string, seed?:number|string, maxAttempts?:number, timeBudgetMs?:number, symmetric?:boolean}} [options]
    *        `variant`: 'classic' (por defecto) | 'diagonal' | 'antiknight' | 'nonconsecutive'.
@@ -1102,14 +1144,14 @@
     return gen.result();
   }
 
-  /** Igual que generatePuzzle pero cede el hilo entre intentos (no congela la interfaz). */
+  /** Igual que generatePuzzle pero cede el hilo cada ~12 ms (también dentro de un intento): no congela la interfaz. */
   function generatePuzzleAsync(difficulty, options) {
     return new Promise(function (resolve, reject) {
       var gen;
       try { gen = createGenerator(difficulty, options); } catch (e) { reject(e); return; }
       (function loop() {
         try {
-          if (gen.step()) { resolve(gen.result()); } else { setTimeout(loop, 0); }
+          if (gen.step(12)) { resolve(gen.result()); } else { setTimeout(loop, 0); }
         } catch (e) { reject(e); }
       }());
     });
@@ -1549,6 +1591,7 @@
     // Generación y análisis
     generatePuzzle: generatePuzzle,
     generatePuzzleAsync: generatePuzzleAsync,
+    _jigCache: JIG_CACHE, JIG_CACHE_MAX: JIG_CACHE_MAX,
     analyzeDifficulty: analyzeDifficulty,
 
     // Resolución

@@ -25,7 +25,7 @@
 }(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
 
-  var MAX_PLAYERS = 8, MIN_PLAYERS = 3;
+  var MAX_PLAYERS = 8, MIN_PLAYERS = 3, MAX_ID = 15;   // MAX_ID: rango de IDs que aceptan los receptores
   var MAX_SECS = 359999;
   var DROP_MS = 5000;         // un invitado sin conexión más de este tiempo durante la carrera cuenta como "Abandonó"
   var HB_LOBBY_MS = 4000, HB_RACE_MS = 3000;   // latido del Host (ping / pong): 4 s en el lobby, 3 s en carrera
@@ -144,7 +144,6 @@
     this.locked = false;           // Host: la carrera ya empezó, no entra nadie más
     this.peer = null; this.conn = null;
     this.players = {};             // Host: id → { id, alias, sid, conn, host, disc, timer }
-    this.nextId = 1;
     this.pending = [];
     this._tries = 0; this._conns = 0;
     this._timers = {};
@@ -196,6 +195,13 @@
       if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') { return; }   // transitorio
       self.emit('error', 'network');
     });
+  };
+
+  // Menor ID libre dentro del rango que validan los receptores (0..15). Reutiliza los huecos de quien salió:
+  // un contador creciente superaba 15 tras 16 altas acumuladas y sus mensajes se descartaban.
+  Net.prototype._freeId = function () {
+    for (var i = 0; i <= MAX_ID; i++) { if (!this.players[i]) { return i; } }
+    return -1;
   };
 
   Net.prototype._count = function () { return Object.keys(this.players).length; };
@@ -265,7 +271,13 @@
       setTimeout(function () { try { c.close(); } catch (e) { /* ignorar */ } }, 300);
       return;
     }
-    var p = { id: this.nextId++, alias: this._uniqueAlias(m.alias), sid: m.sid, conn: c, host: false, disc: false, timer: null, lastSeen: Date.now() };
+    var nid = this._freeId();
+    if (nid < 0) {
+      this._send(c, { type: 'race-full' });
+      setTimeout(function () { try { c.close(); } catch (e) { /* ignorar */ } }, 300);
+      return;
+    }
+    var p = { id: nid, alias: this._uniqueAlias(m.alias), sid: m.sid, conn: c, host: false, disc: false, timer: null, lastSeen: Date.now() };
     this.players[p.id] = p; c._pid = p.id;
     this._pushLobby();
     self.emit('joined', p.id);

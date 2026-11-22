@@ -27,6 +27,12 @@ section('1. Sincronización de versión');
   const bSw = (sw.match(/const BUILD\s*=\s*'([^']+)'/) || [])[1];
   const bApp = (app.match(/const BUILD\s*=\s*'([^']+)'/) || [])[1];
   cache && /\d/.test(cache) ? ok('CACHE_NAME = ' + cache) : fail('CACHE_NAME ausente o sin número en sw.js');
+  // Caché propia (no pisa a otros proyectos del origen) y activación diferida (nunca skipWaiting() incondicional en install).
+  const prefix = (sw.match(/CACHE_PREFIX\s*=\s*'([^']+)'/) || [])[1];
+  prefix && cache && cache.startsWith(prefix) ? ok('CACHE_NAME usa el prefijo propio (' + prefix + ')') : fail('CACHE_NAME debe empezar por CACHE_PREFIX en sw.js');
+  const installBody = (sw.split("addEventListener('install'")[1] || '').split("addEventListener('activate'")[0].replace(/\/\/.*$/gm, '');
+  !/skipWaiting\s*\(/.test(installBody) ? ok('install no llama skipWaiting() (espera el mensaje SKIP_WAITING)') : fail('sw.js llama skipWaiting() en install: interrumpiría partidas y salas');
+  /type\s*===\s*'SKIP_WAITING'/.test(sw) ? ok('sw.js atiende el mensaje SKIP_WAITING') : fail('sw.js no atiende SKIP_WAITING');
   bSw && bSw === bApp ? ok('BUILD coincide en sw.js y app.js (' + bSw + ')') : fail('BUILD distinto: sw.js=' + bSw + ' app.js=' + bApp);
   // Los ?v= de los archivos propios deben usar el BUILD (solo el PeerJS vendorizado tiene su propia marca).
   const dataFiles = fs.readdirSync(root).filter(f => /^tutorial-data.*\.js$/.test(f));

@@ -46,8 +46,10 @@
   // En Clásico, Diagonal y Anti-Caballo el duelo ya NO regenera: el enlace lleva el tablero empaquetado (41 bytes), así que
   // los tableros nuevos se generan con los topes normales del motor (sin el límite de 30 intentos).
   // En Co-op el Host envía el estado completo, así que tampoco hace falta regenerar nada.
-  const GEN_E = { maxAttempts: 30, timeBudgetMs: 1e9 };
-  const GEN_K = { timeBudgetMs: 1e9 };
+  // Plazo duro por tablero (igual que worker.js): un tablero que lo supere falla con code 'budget' en vez de colgar la interfaz.
+  const GEN_BUDGET_MS = 25000;
+  const GEN_E = { maxAttempts: 30, timeBudgetMs: GEN_BUDGET_MS };
+  const GEN_K = { timeBudgetMs: GEN_BUDGET_MS };
 
   /* ---------- Persistencia segura: localStorage con respaldo en memoria ---------- */
   const store = {
@@ -67,7 +69,8 @@
   // En una sala Co-op también `coop`, `owners` y `hints` (al restaurar, la partida sigue como partida normal).
   // El duelo en vivo no se guarda; la carrera va a su propia clave: así "Continuar partida" (K_GAME) nunca se pisa con partidas de sala.
   const K_RACE = 'sudoku.race.v1', K_RTOK = 'sudoku.race.tok';
-  const persist = () => { try { if (G && G.live) return; store.set(G && G.race ? K_RACE : K_GAME, JSON.stringify(G)); } catch (e) { /* ignorar */ } };
+  let restoring = false;   // mientras se restaura un respaldo, persist() no pisa lo recién escrito (ni al recargar)
+  const persist = () => { try { if (restoring || (G && G.live)) return; store.set(G && G.race ? K_RACE : K_GAME, JSON.stringify(G)); } catch (e) { /* ignorar */ } };
   const saveSet = () => store.set(K_SET, JSON.stringify(set));
   const saveStats = () => { try { store.set(K_STATS, JSON.stringify(stats)); } catch (e) { /* ignorar */ } };
 
@@ -136,7 +139,7 @@
   let co = null;                            // sala Co-op activa (ver newCoop)
   const emptyNotes = () => Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => []));
   const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-  const BUILD = 'ui-v71';
+  const BUILD = 'ui-v72';
   // Efectos de sonido (sound.js): nunca deben romper el juego si falta el módulo.
   const sfx = name => { if (name === "error") triggerHaptic("error"); else if (name === "win") triggerHaptic("milestone"); try { if (window.Sound) window.Sound.play(name); } catch (e) { /* ignorar */ } };
   // Vibración háptica (opcional, Ajustes → Vibración). Nunca debe romper el juego si el dispositivo no la soporta.
@@ -1201,7 +1204,11 @@
   // Inicio: guarda la partida (modo, jaulas y fantasma incluidos, vía G) y vuelve a #home-view.
   // El cronómetro se pausa solo porque únicamente corre con view === 'game' (en una sala Co-op sigue el reloj del Host).
   function goHome() {
-    if (pendingReload && !co && !rc) { pendingReload = false; updReloaded = true; if (G) persist(); window.location.reload(); return; }   // actualización que esperaba a salir de la sala
+    if (pendingReload && !inRoom()) {   // actualización que esperaba a volver al inicio (sin partida ni sala en curso)
+      if (G) persist();
+      if (waitingSW) { applyUpdate(); return; }
+      pendingReload = false; updReloaded = true; window.location.reload(); return;
+    }
     if (G && ((G.race && G.race.over) || (G.live && G.lv && G.lv.over))) dropRoomGame();   // terminó la partida de sala: vuelve la individual guardada
     if (G) persist();
     hideHint(); hideErrExplain(); closeModals(); setPlayOpen(false); setHomeScreen('main');
@@ -1405,7 +1412,11 @@
       ghostSeen = 0; flash.fill(0); lastHintKey = '';
       if (!opts.daily && !opts.surv) { set.mode = mode; saveSet(); }
       ok = true;
-    }).catch(() => { if (!errMsg && opts.board) errMsg = 'El tablero del enlace no es válido.'; /* conserva la partida actual */ }).then(() => {
+    }).catch(e => {
+      if (!errMsg && opts.board) errMsg = 'El tablero del enlace no es válido.';
+      else if (!errMsg && e && (e.code === 'budget' || /Presupuesto de tiempo/.test(e.message || ''))) errMsg = 'Generar el tablero está tardando demasiado. Probá de nuevo.';
+      /* conserva la partida actual */
+    }).then(() => {
       busy = false; schedulePre();
       hideLoad();
       if (opts.transition) closeModals();
@@ -3474,20 +3485,130 @@
 
 
   /* ---------- Respaldo de progreso (exportar / importar) ---------- */
-  // Todas las claves de GridLab empiezan con "sudoku" (partida, ajustes, estadísticas, Diario, tutorial, alias, historial...).
-  const BK_APP = 'gridlab-backup', BK_RE = /^sudoku[._]/;
-  function exportBackup() {
+  // Solo viajan las claves de la lista blanca BK_VALID (estadísticas, Diario, tutorial, preferencias, alias, historial y la
+  // partida guardada). NO viajan: el token de sesión multijugador (sudoku.race.tok), la partida de sala (sudoku.race.v1) ni las
+  // marcas de actualización (gridlab.*). Cada valor se valida (tipos y rangos) ANTES de escribir nada.
+  /* BK-BEGIN */
+  const BK_APP = 'gridlab-backup', BK_VERSION = 1, BK_MAX_KEYS = 64;
+  const bkObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+  const bkInt = (n, lo, hi) => Number.isInteger(n) && n >= lo && n <= hi;
+  const bkNum = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+  const bkJson = s => { try { return JSON.parse(s); } catch (e) { return undefined; } };
+  const bkGrid = (g, lo, hi) => Array.isArray(g) && g.length === 9 && g.every(r => Array.isArray(r) && r.length === 9 && r.every(v => bkInt(v, lo, hi)));
+  const bkOptInt = (o, k, lo, hi) => !(k in o) || bkInt(o[k], lo, hi);
+  const bkOptBool = (o, k) => !(k in o) || typeof o[k] === 'boolean';
+  const BK_THEMES = ['paper', 'night', 'swiss', 'retro'];
+  const bkVGame = s => {
+    const g = bkJson(s);
+    if (!bkObj(g) || g.race || g.live) return false;                       // la partida de sala/duelo en vivo no es portable
+    if (!bkGrid(g.puzzle, 0, 9) || !bkGrid(g.board, 0, 9) || !bkGrid(g.solution, 1, 9)) return false;
+    if (!Array.isArray(g.notes) || g.notes.length !== 9 ||
+      !g.notes.every(r => Array.isArray(r) && r.length === 9 && r.every(c => Array.isArray(c) && c.length <= 9 && c.every(v => bkInt(v, 1, 9))))) return false;
+    if (!Array.isArray(g.hist) || g.hist.length > 20000) return false;
+    if ('mode' in g && MODES.indexOf(g.mode) < 0) return false;
+    if ('diff' in g && !(typeof g.diff === 'string' && /^[a-z]{1,16}$/.test(g.diff))) return false;
+    if (!bkOptInt(g, 'secs', 0, 1e7) || !bkOptInt(g, 'lives', 0, 9) || !bkOptInt(g, 'maxLives', 0, 9) ||
+      !bkOptInt(g, 'hintsUsed', 0, 999) || !bkOptInt(g, 'hintsMax', 0, 9) || !bkOptInt(g, 'seed', 0, 4294967295)) return false;
+    if (!bkOptBool(g, 'won') || !bkOptBool(g, 'lost') || !bkOptBool(g, 'zen')) return false;
+    if ('cages' in g && !Array.isArray(g.cages)) return false;
+    if ('regions' in g && !Array.isArray(g.regions)) return false;
+    return true;
+  };
+  const bkVSet = s => {
+    const o = bkJson(s);
+    if (!bkObj(o)) return false;
+    if ('theme' in o && BK_THEMES.indexOf(o.theme) < 0) return false;
+    if ('mode' in o && MODES.indexOf(o.mode) < 0) return false;
+    return ['showErrors', 'zen', 'haptic', 'bigNums'].every(k => bkOptBool(o, k));
+  };
+  const bkMapNum = o => bkObj(o) && Object.keys(o).length <= 5000 && Object.keys(o).every(k => bkNum(o[k]));
+  const bkVStats = s => {
+    const o = bkJson(s);
+    if (!bkObj(o)) return false;
+    if (['won', 'best', 'daily'].some(k => k in o && !bkMapNum(o[k]))) return false;
+    if ('surv' in o && !(bkObj(o.surv) && Object.keys(o.surv).every(k => bkObj(o.surv[k]) && bkInt(o.surv[k].n, 0, 1e6) && bkNum(o.surv[k].t)))) return false;
+    if ('g' in o && !(bkObj(o.g) && Object.keys(o.g).length <= 200 && Object.keys(o.g).every(k => bkObj(o.g[k]) && Object.keys(o.g[k]).every(f => bkNum(o.g[k][f]))))) return false;
+    if ('dd' in o && !(bkObj(o.dd) && Object.keys(o.dd).every(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && bkObj(o.dd[k]) && bkInt(o.dd[k].e, 0, 1e6)))) return false;
+    if ('sv' in o && !(bkObj(o.sv) && Object.keys(o.sv).every(k => bkObj(o.sv[k]) && bkInt(o.sv[k].a, 0, 1e9) && bkInt(o.sv[k].b, 0, 1e9)))) return false;
+    return true;
+  };
+  const bkVHistory = s => {
+    const o = bkJson(s);
+    if (!bkObj(o) || ('rivals' in o && !bkObj(o.rivals)) || ('played' in o && !bkObj(o.played))) return false;
+    if (o.rivals && !Object.keys(o.rivals).every(k => bkObj(o.rivals[k]) && ['wins', 'losses', 'ties'].every(f => !(f in o.rivals[k]) || bkInt(o.rivals[k][f], 0, 1e6)))) return false;
+    if (o.played && (Object.keys(o.played).length > 1000 || !Object.keys(o.played).every(k => bkObj(o.played[k]) && ['win', 'loss', 'tie'].indexOf(o.played[k].o) >= 0 && bkNum(o.played[k].at)))) return false;
+    return true;
+  };
+  const bkVProg = s => {
+    const o = bkJson(s);
+    return bkObj(o) && o.v === 1 && bkObj(o.lessons) && (!('guides' in o) || bkObj(o.guides)) &&
+      [o.lessons, o.guides || {}].every(m => Object.keys(m).length <= 5000 && Object.keys(m).every(k => { const v = m[k]; return typeof v === 'boolean' || bkNum(v) || bkObj(v); }));
+  };
+  const bkVTok = s => typeof s === 'string' && /^[\w.\-]{1,48}$/.test(s);
+  const BK_VALID = {
+    'sudoku.game.v1': bkVGame,
+    'sudoku.settings.v1': bkVSet,
+    'sudoku.stats.v1': bkVStats,
+    'sudoku_input_mode': s => s === 'digit-first' || s === 'cell-first',
+    'sudoku.sound.v1': s => s === '0' || s === '1',
+    'sudoku_player_alias': s => typeof s === 'string' && s.length >= 1 && s.length <= 40,
+    'sudoku_duel_history': bkVHistory,
+    'sudoku_tutorial_progress': bkVProg,
+    'sudoku_tutorial_variant': bkVTok,
+    'sudoku_tutorial_guide_variant': bkVTok,
+    'sudoku_tutorial_input': s => s === 'digit-first' || s === 'cell-first'
+  };
+  const bkPortable = k => Object.prototype.hasOwnProperty.call(BK_VALID, k);
+  // Valida el texto de un respaldo. Devuelve { ok, data } (solo claves portables) o { ok:false, error }.
+  function bkParse(text) {
+    const o = bkJson(text);
+    if (!bkObj(o) || o.app !== BK_APP) return { ok: false, error: 'Ese archivo no es un respaldo de GridLab' };
+    if (!Number.isInteger(o.version) || o.version < 1) return { ok: false, error: 'El respaldo no tiene una versión válida' };
+    if (o.version > BK_VERSION) return { ok: false, error: 'El respaldo es de una versión más nueva de GridLab' };
+    if (!bkObj(o.data) || Object.keys(o.data).length > BK_MAX_KEYS) return { ok: false, error: 'Ese archivo no es un respaldo de GridLab' };
+    const data = {}; let skipped = 0;
+    for (const k of Object.keys(o.data)) {
+      if (!bkPortable(k)) { skipped++; continue; }                          // sesión multijugador, marcas internas, claves ajenas
+      const v = o.data[k];
+      if (typeof v !== 'string' || v.length > 4e6 || !BK_VALID[k](v)) return { ok: false, error: 'El respaldo tiene datos dañados (' + k + ')' };
+      data[k] = v;
+    }
+    if (!Object.keys(data).length) return { ok: false, error: 'El respaldo no contiene datos de progreso' };
+    return { ok: true, data: data, skipped: skipped };
+  }
+  // Datos a exportar: lo guardado en el almacenamiento y, por encima, lo pendiente en memoria (lo último que escribió la app).
+  function bkCollect(keys, read, mem) {
     const data = {};
+    keys.forEach(k => { if (bkPortable(k)) { let v = null; try { v = read(k); } catch (e) { /* ilegible */ } if (typeof v === 'string') data[k] = v; } });
+    Object.keys(mem).forEach(k => { if (bkPortable(k) && typeof mem[k] === 'string') data[k] = mem[k]; });
+    return data;
+  }
+  // Restauración transaccional: guarda el estado previo, escribe, VERIFICA cada clave y, si algo falla, revierte todo.
+  // io = { get(k) → string|null, set(k, v) (lanza si falla), remove(k) }.
+  function bkApply(data, io) {
+    const keys = Object.keys(data), prev = {};
+    try { keys.forEach(k => { prev[k] = io.get(k); }); } catch (e) { return { ok: false, error: e, rolledBack: true }; }
     try {
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (BK_RE.test(k)) data[k] = window.localStorage.getItem(k);
-      }
-    } catch (e) { /* almacenamiento restringido: se usa la copia en memoria */ }
-    Object.keys(store.mem).forEach(k => { if (BK_RE.test(k) && !(k in data)) data[k] = store.mem[k]; });
+      keys.forEach(k => io.set(k, data[k]));
+      keys.forEach(k => { if (io.get(k) !== data[k]) throw new Error('verificación fallida: ' + k); });
+      return { ok: true };
+    } catch (e) {
+      let rolledBack = true;
+      keys.forEach(k => {
+        try { if (prev[k] === null) io.remove(k); else io.set(k, prev[k]); if (io.get(k) !== prev[k]) rolledBack = false; } catch (e2) { rolledBack = false; }
+      });
+      return { ok: false, error: e, rolledBack: rolledBack };
+    }
+  }
+  /* BK-END */
+  function exportBackup() {
+    if (G && !G.live) persist();                  // lo pendiente en memoria se guarda antes de exportar
+    let keys = [];
+    try { for (let i = 0; i < window.localStorage.length; i++) keys.push(window.localStorage.key(i)); } catch (e) { /* restringido: solo memoria */ }
+    const data = bkCollect(keys, k => window.localStorage.getItem(k), store.mem);
     const d = new Date(), p = n => String(n).padStart(2, '0');
     const stamp = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-    const blob = new Blob([JSON.stringify({ app: BK_APP, version: 1, exported: d.toISOString(), data: data }, null, 1)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ app: BK_APP, version: BK_VERSION, exported: d.toISOString(), data: data }, null, 1)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'gridlab-backup-' + stamp + '.json';
     document.body.appendChild(a); a.click(); a.remove();
@@ -3500,14 +3621,23 @@
     const fr = new FileReader();
     fr.onerror = () => toast('No se pudo leer el archivo');
     fr.onload = () => {
-      let o = null;
-      try { o = JSON.parse(String(fr.result)); } catch (e) { /* inválido */ }
-      const ok = o && o.app === BK_APP && o.data && typeof o.data === 'object' && !Array.isArray(o.data) &&
-        Object.keys(o.data).length > 0 && Object.keys(o.data).every(k => BK_RE.test(k) && typeof o.data[k] === 'string');
-      if (!ok) { toast('Ese archivo no es un respaldo de GridLab'); return; }
-      const n = Object.keys(o.data).length;
+      const r = bkParse(String(fr.result));
+      if (!r.ok) { toast(r.error); return; }
+      const n = Object.keys(r.data).length;
       if (!window.confirm('Se reemplazará tu progreso actual por el del respaldo (' + n + ' elementos). ¿Continuar?')) return;
-      Object.keys(o.data).forEach(k => store.set(k, o.data[k]));
+      restoring = true;
+      const res = bkApply(r.data, {
+        get: k => window.localStorage.getItem(k),
+        set: (k, v) => window.localStorage.setItem(k, v),
+        remove: k => window.localStorage.removeItem(k)
+      });
+      if (!res.ok) {
+        restoring = false;
+        toast(res.rolledBack ? 'No se pudo restaurar (almacenamiento lleno o bloqueado). Tu progreso actual quedó intacto.'
+          : 'No se pudo restaurar y algunos datos podrían haber cambiado. Reiniciá la app y revisá tu progreso.');
+        return;
+      }
+      Object.keys(r.data).forEach(k => { store.mem[k] = r.data[k]; });
       toast('Progreso restaurado ✓');
       setTimeout(() => { try { window.location.reload(); } catch (e) { /* ignorar */ } }, 1100);
     };
@@ -3768,6 +3898,13 @@
   const K_LASTBUILD = 'gridlab.lastSeenBuild', K_NEWS = 'gridlab.newsPending';
   const verLabel = b => 'v' + ((String(b).match(/\d+/) || [String(b)])[0]);
   const CHANGELOG = [
+    { v: 'ui-v72', title: 'Estabilidad y rendimiento', items: [
+      'Respaldos más seguros: solo viajan tus datos de juego (estadísticas, Diario, tutorial, ajustes y partida guardada), se validan antes de restaurar y, si el almacenamiento falla, tu progreso actual queda intacto.',
+      'Carrera grupal: quien entra y sale del lobby reutiliza su lugar, así que ya no se rechazan jugadores tras muchas entradas y salidas.',
+      'Tableros más ágiles: los generadores tienen un tope estricto de tiempo y de cálculo (en segundo plano y en el hilo principal), los mapas Jigsaw usan memoria acotada y, si algo tarda de más, la app avisa y deja reintentar en vez de quedarse trabada.',
+      'Actualizaciones sin sustos: la nueva versión nunca interrumpe una partida ni una sala. Te avisa y podés elegir "Actualizar ahora" o "Actualizar al terminar"; si posponés, se instala al volver al inicio.',
+      'La caché de la app es propia (no toca la de otros proyectos del mismo sitio).'
+    ] },
     { v: 'ui-v71', title: 'Navegación y diseño adaptativo', items: [
       'El botón y el gesto de volver atrás del sistema cierran primero el modal abierto y retroceden pantalla por pantalla antes de salir desde Inicio.',
       'Layout adaptativo en tablet y PC: dos columnas en las pantallas secundarias, cabecera superior fija con sangrado inferior para cubrir las sombras al scrollear, siempre por debajo de los modales.',
@@ -3897,12 +4034,50 @@
     ] }
   ];
 
-  let updating = false, updReloaded = false, pendingReload = false;
+  let updating = false, updReloaded = false, pendingReload = false, applying = false, waitingSW = null;
   const inRoom = () => !!(co || rc);
+  const playing = () => !!(G && view === 'game' && !G.won && !G.lost);
+  // Una actualización no debe interrumpir una sala ni una partida en curso (salvo que el jugador la confirme).
+  const deferUpdate = () => !applying && (inRoom() || playing());
+
+  function showUpdBanner() {
+    let b = $('#updBanner');
+    if (!b) {
+      b = document.createElement('div');
+      b.id = 'updBanner'; b.setAttribute('role', 'status');
+      const t = document.createElement('span'); t.textContent = 'Hay una nueva versión disponible.';
+      const now = document.createElement('button'); now.type = 'button'; now.id = 'updNow'; now.textContent = 'Actualizar ahora';
+      const later = document.createElement('button'); later.type = 'button'; later.id = 'updLater'; later.textContent = 'Actualizar al terminar';
+      now.addEventListener('click', () => { sfx('tap'); applyUpdate(); });
+      later.addEventListener('click', () => { sfx('tap'); b.hidden = true; });
+      b.append(t, now, later);
+      document.body.appendChild(b);
+    }
+    b.hidden = false;
+  }
+  const hideUpdBanner = () => { const b = $('#updBanner'); if (b) b.hidden = true; };
+
+  // Hay una versión descargada y en espera. Con partida o sala en curso solo se avisa; si no, se activa.
+  function onWaiting(w) {
+    if (!w || applying) return;
+    waitingSW = w;
+    if (deferUpdate()) { pendingReload = true; showUpdBanner(); return; }
+    applyUpdate();
+  }
+  // Activa la versión en espera (el jugador confirmó, o ya no hay nada que interrumpir): guarda el progreso y recarga al activarse.
+  function applyUpdate() {
+    if (!waitingSW || applying || updReloaded) return;
+    applying = true; pendingReload = false;
+    hideUpdBanner();
+    try { if (G) persist(); } catch (e) { /* ignorar */ }
+    showUpdate(1, 1);
+    try { waitingSW.postMessage({ type: 'SKIP_WAITING' }); } catch (e) { applying = false; return; }
+    setTimeout(() => { if (!updReloaded) { updReloaded = true; try { window.location.reload(); } catch (e) { /* ignorar */ } } }, 5000);   // por si no llega el aviso de activación
+  }
 
   function showUpdate(loaded, total, version) {
     if (updReloaded) return;
-    if (inRoom()) { pendingReload = true; return; }       // no se interrumpe una sala: se aplica al volver al inicio
+    if (deferUpdate()) { pendingReload = true; return; }  // no se interrumpe una partida ni una sala: se aplica al volver al inicio
     updating = true;
     const m = $('#mUpdate'); if (m) m.hidden = false;
     const pct = total > 0 ? Math.max(0, Math.min(100, Math.round(loaded / total * 100))) : 0;
@@ -3914,10 +4089,10 @@
 
   function finishUpdate() {
     if (updReloaded) return;
-    if (inRoom()) {
+    if (deferUpdate()) {
       pendingReload = true;
       const m = $('#mUpdate'); if (m) m.hidden = true;
-      toast('Nueva versión lista: se instalará al salir de la sala.');
+      toast('Nueva versión lista: se instalará al volver al inicio.');
       return;
     }
     updReloaded = true;
@@ -3939,8 +4114,16 @@
       if (updating || pendingReload) finishUpdate();
     });
     navigator.serviceWorker.register('sw.js').then(reg => {
-      if (had && reg.waiting) { showUpdate(0, 1); try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e) { /* ignorar */ } }
-      reg.addEventListener('updatefound', () => { if (had && reg.installing) showUpdate(0, 1); });
+      // Versión ya descargada y en espera al abrir la app, o que termina de instalarse mientras se usa.
+      if (had && reg.waiting) onWaiting(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        if (!had || !w) return;
+        showUpdate(0, 1);
+        const check = () => { if (w.state === 'installed' && navigator.serviceWorker.controller) onWaiting(w); };
+        w.addEventListener('statechange', check);
+        check();
+      });
       const check = () => { try { reg.update(); } catch (e) { /* ignorar */ } };
       check();
       document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
